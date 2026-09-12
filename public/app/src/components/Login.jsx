@@ -3,7 +3,7 @@ import { chamar } from '../socket.js';
 // Fonte única de verdade (conexao/limites.js) — não há mais teto de tamanho
 // nem mínimo de senha espelhado aqui à mão; se a régua mudar no backend,
 // esta tela já reflete sozinha (ver server.fs.allow em vite.config.js).
-import { NOME_MAX, SENHA_MIN, SENHA_MAX } from '../../../../conexao/limites.js';
+import { NOME_MIN, NOME_MAX, SENHA_MIN, SENHA_MAX } from '../../../../conexao/limites.js';
 
 const ETAPA = {
     NOME: 'nome',
@@ -33,7 +33,7 @@ export default function Login({ onAutenticado }) {
 
     async function continuar(evento) {
         evento.preventDefault();
-        if (!nome.trim()) return;
+        if (nome.trim().length < NOME_MIN) return;
         setErro(null);
         setCarregando(true);
         try {
@@ -66,6 +66,14 @@ export default function Login({ onAutenticado }) {
         }
     }
 
+    // Mesma régua de nome do backend (NOME_MIN/NOME_MAX em conexao/limites.js).
+    // `verificarNome` não reclama de nome curto — responde `existe: false` como
+    // pra qualquer nome livre —, então sem esta checagem a régua só apareceria
+    // lá na frente: no `cadastrar` da tela de senha, ou no
+    // `entrarComoConvidado` da oferta de cadastro. Checando aqui, o aviso sai
+    // na etapa em que ainda dá pra corrigir o nome. O teto fica com o
+    // `maxLength` do input, que nem deixa digitar além dele.
+    const nomeCurtoDemais = nome.trim().length > 0 && nome.trim().length < NOME_MIN;
     if (etapa === ETAPA.NOME) {
         return (
             <form className="cartao" onSubmit={continuar}>
@@ -75,10 +83,11 @@ export default function Login({ onAutenticado }) {
                     <input value={nome} onChange={(e) => setNome(e.target.value)} maxLength={NOME_MAX} autoFocus />
                 </label>
                 <div className="botoes">
-                    <button type="submit" disabled={carregando || !nome.trim()}>
+                    <button type="submit" disabled={carregando || nome.trim().length < NOME_MIN}>
                         Continuar
                     </button>
                 </div>
+                {nomeCurtoDemais && <p className="erro">Nome precisa ter pelo menos {NOME_MIN} caracteres.</p>}
                 {erro && <p className="erro">{erro}</p>}
             </form>
         );
