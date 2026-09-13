@@ -1,6 +1,8 @@
 # Dependências (instaláveis via `npm install`, nunca fazem sentido versionadas)
 /node_modules/
 /public/app/node_modules/
+/public/experimento/node_modules/
+/public/experimento/dist/
 
 # Build da interface React — gerado por `npm run build` dentro de public/app
 # (ou por GameStart.js). É artefato: sempre reconstruído, nunca versionado.
