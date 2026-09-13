@@ -1,0 +1,113 @@
+# openapi.yaml
+# Contrato da superfície HTTP do Contra ZAP.
+#
+# ATENÇÃO ao ler este arquivo: ele é curto porque a superfície HTTP do projeto
+# é curta de verdade — duas rotas. Isso não é documentação incompleta, é a
+# arquitetura: o jogo inteiro (login, salas, apostas, cartas, chat) trafega
+# por socket.io, e o front React não faz uma única chamada HTTP.
+#
+# A API de verdade está em asyncapi.yaml, ao lado deste arquivo — 18 eventos
+# de cliente, 21 de servidor e 27 códigos de erro. OpenAPI não descreve
+# request/response por ack de socket, por isso os dois arquivos coexistem.
+openapi: 3.1.0
+
+info:
+  title: Contra ZAP — API HTTP
+  version: 1.0.0
+  summary: As duas rotas HTTP do servidor. O resto da API é socket.io (ver asyncapi.yaml).
+  description: |
+    Jogo de cartas estilo truco, multiplayer, jogado no navegador.
+
+    **Esta especificação cobre apenas o HTTP.** São duas rotas:
+
+    - `GET /health` — healthcheck consumido pelo `HEALTHCHECK` do Docker.
+    - `GET /` — entrega o build da interface React.
+
+    Tudo o que é jogo acontece sobre socket.io e está especificado em
+    `asyncapi.yaml`. O contrato em prosa está em `conexao/PROTOCOLO.md`.
+  license:
+    name: ISC
+
+servers:
+  - url: http://localhost:3000
+    description: Desenvolvimento local (`npm start`)
+
+tags:
+  - name: Operação
+    description: Rotas de infraestrutura, consumidas por Docker e monitoramento.
+  - name: Interface
+    description: Entrega do front-end.
+
+paths:
+  /health:
+    get:
+      tags: [Operação]
+      operationId: health
+      summary: Healthcheck do servidor
+      description: |
+        Diz se o processo está de pé e respondendo, sem depender de abrir uma
+        partida para testar. Não exige autenticação — o monitoramento roda de
+        fora do jogo.
+
+        Consumido pelo `HEALTHCHECK` do `Dockerfile`
+        (`wget --spider http://localhost:3000/health`), que marca o container
+        como `unhealthy` após 3 falhas seguidas.
+      security: []
+      responses:
+        '200':
+          description: O servidor está no ar.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Saude'
+              examples:
+                normal:
+                  summary: Resposta típica
+                  value:
+                    status: ok
+                    uptime: 137.42
+                    timestamp: '2026-09-08T20:53:09.536Z'
+
+  /:
+    get:
+      tags: [Interface]
+      operationId: interface
+      summary: Interface do jogo
+      description: |
+        Entrega `public/dist/index.html`, o build do front React.
+
+        O build precisa existir: rode `npm run build` dentro de `public/app`
+        antes (ver README). Sem ele, esta rota responde **404** — comportamento
+        esperado, não falha do servidor.
+      security: []
+      responses:
+        '200':
+          description: HTML da interface.
+          content:
+            text/html:
+              schema:
+                type: string
+        '404':
+          description: O build do front não existe — rode `npm run build` em `public/app`.
+
+components:
+  schemas:
+    Saude:
+      type: object
+      required: [status, uptime, timestamp]
+      properties:
+        status:
+          type: string
+          const: ok
+          description: Constante. Se o processo não pode responder, não há resposta nenhuma.
+        uptime:
+          type: number
+          format: double
+          minimum: 0
+          description: Segundos desde o start do processo (`process.uptime()`).
+          examples: [137.42]
+        timestamp:
+          type: string
+          format: date-time
+          description: Momento da resposta, ISO 8601 em UTC.
+          examples: ['2026-09-08T20:53:09.536Z']

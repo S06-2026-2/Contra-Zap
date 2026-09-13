@@ -1,0 +1,109 @@
+{
+  "info": {
+    "name": "Contra ZAP — API",
+    "description": "API do Contra ZAP.\n\n**Leia isto antes de usar.** Este projeto quase não tem HTTP: o único endpoint é o `GET /health`, que está aqui com asserções e roda no Newman/CI normalmente.\n\nTodo o resto da API é o protocolo **Socket.IO** (login, salas, partida, chat), documentado em `conexao/PROTOCOLO.md`. O Postman conecta em Socket.IO e emite eventos com o checkbox **Ack** marcado — ótimo pra explorar o protocolo na mão — mas requests Socket.IO não rodam no Newman/CI e não aceitam scripts de teste, então eles não podem ser a suíte automatizada.\n\nA suíte automatizada do protocolo vive em `tests/api/` e roda com `npm test`. Veja `postman/README.md` pra criar a request Socket.IO no Postman e pra tabela de eventos/payloads pronta pra copiar.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "HTTP",
+      "description": "O que o Postman cobre ponta a ponta, com asserções que rodam no Newman.",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Healthcheck consumido pelo `HEALTHCHECK` do Dockerfile e por qualquer monitoramento externo. Não exige autenticação — o monitoramento roda de fora do jogo.\n\nResposta esperada: `200` com `{ status: \"ok\", uptime: number, timestamp: ISO-8601 }`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('devolve JSON', function () {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('status é ok', function () {",
+                  "    pm.expect(pm.response.json().status).to.eql('ok');",
+                  "});",
+                  "",
+                  "pm.test('uptime é um número não negativo', function () {",
+                  "    var uptime = pm.response.json().uptime;",
+                  "    pm.expect(uptime).to.be.a('number');",
+                  "    pm.expect(uptime).to.be.at.least(0);",
+                  "});",
+                  "",
+                  "pm.test('timestamp é uma data ISO válida', function () {",
+                  "    var timestamp = pm.response.json().timestamp;",
+                  "    pm.expect(new Date(timestamp).toISOString()).to.eql(timestamp);",
+                  "});",
+                  "",
+                  "pm.test('responde rápido (healthcheck não pode arrastar)', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(1000);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "GET / (interface)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ""
+              ]
+            },
+            "description": "Serve o build do front (`public/dist/index.html`). Só responde 200 se o build existir — rode `npm run build` dentro de `public/app` antes (ver README). Sem o build, o servidor devolve 404: é o comportamento esperado, não um bug da API."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// 200 com o build presente, 404 sem ele. As duas respostas",
+                  "// são legítimas — o que não pode é o servidor cair (5xx).",
+                  "pm.test('não devolve erro de servidor', function () {",
+                  "    pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    }
+  ]
+}

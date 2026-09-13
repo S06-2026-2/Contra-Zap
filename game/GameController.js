@@ -744,7 +744,11 @@ export class GameController extends EventEmitter {
         if (!jogador) return false;
 
         this._registrarAtividade(jogador);
-        this.emit('jogadorReconectou', { id: jogador.id, nome: jogador.nome });
+        // `jogador` (não `nome`) é o campo de todos os outros eventos de
+        // partida — ver conexao/eventos.js e PROTOCOLO.md, que documentam
+        // { salaId, id, jogador }, e Partida.jsx, que lê `p.jogador` pra tirar
+        // a marca de "desconectado" de quem voltou.
+        this.emit('jogadorReconectou', { id: jogador.id, jogador: jogador.nome });
         return true;
     }
 
