@@ -1,0 +1,1033 @@
+# asyncapi.yaml
+# Contrato do protocolo socket.io do Contra ZAP — a API de verdade do projeto.
+#
+# Por que AsyncAPI e não OpenAPI: aqui não existe request/response HTTP. Todo
+# evento cliente -> servidor responde pelo *ack* do socket.io
+# (`socket.emit(evento, payload, callback)`), e o servidor ainda empurra
+# eventos que ninguém pediu. AsyncAPI 3.0 modela os dois: `action: send` com
+# `reply` para o ack, e `action: receive` para o que é empurrado.
+#
+# Fonte de verdade em prosa: conexao/PROTOCOLO.md
+# Vocabulário (nomes e códigos):  conexao/eventos.js
+asyncapi: 3.1.0
+
+info:
+  title: Contra ZAP — Protocolo socket.io
+  version: 1.0.0
+  description: |
+    Jogo de cartas estilo truco, multiplayer. Este é o contrato completo entre
+    cliente e servidor: 19 eventos de cliente, 23 de servidor, 32 códigos de erro.
+
+    ## Formato geral
+
+    Todo evento cliente -> servidor é request/response via ack:
+
+    ```js
+    socket.emit('entrar', { nome, senha }, (resposta) => { ... });
+    ```
+
+    O payload é **sempre** um objeto (mesmo vazio, `{}`), nunca omitido. A
+    resposta do ack é sempre uma de duas formas:
+
+    - sucesso: `{ ok: true, ...resultado }`
+    - erro:    `{ ok: false, codigo, mensagem }`
+
+    `codigo` é para lógica; `mensagem` é texto legível, só para exibição.
+    **Não existe um evento `erro` separado** — o erro vem no ack do próprio pedido.
+
+    ## Fluxo
+
+    1. Conecta o socket.
+    2. `verificarNome` para saber se a conta existe, depois um de `entrar`,
+       `cadastrar` ou `entrarComoConvidado`. Devolve um JWT.
+    3. `criarSala` / `entrarSala` / `partidaRapida`.
+    4. Sala lota -> `partidaIniciandoEm` -> a partida começa (ou o adm força
+       com `forcarInicio`).
+    5. A partida pausa em cada `turnoAposta` esperando `apostar`, depois em
+       cada `turnoJogador` esperando `jogarCarta`, até `jogoFinalizado`.
+  license:
+    name: ISC
+
+servers:
+  local:
+    host: localhost:3000
+    protocol: ws
+    description: Desenvolvimento local (`npm start`). O socket.io negocia o transporte em `/socket.io/`.
+
+channels:
+  # ---------- identidade ----------
+  verificarNome:
+    address: verificarNome
+    title: Verificar se um nome já tem conta
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoVerificarNome' }
+      resposta: { $ref: '#/components/messages/RespostaVerificarNome' }
+  entrar:
+    address: entrar
+    title: Login com nome e senha
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoEntrar' }
+      resposta: { $ref: '#/components/messages/RespostaSessao' }
+  cadastrar:
+    address: cadastrar
+    title: Criar conta
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoEntrar' }
+      resposta: { $ref: '#/components/messages/RespostaSessao' }
+  entrarComoConvidado:
+    address: entrarComoConvidado
+    title: Entrar sem conta
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoNome' }
+      resposta: { $ref: '#/components/messages/RespostaSessao' }
+  retomarSessao:
+    address: retomarSessao
+    title: Reautenticar por token
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoToken' }
+      resposta: { $ref: '#/components/messages/RespostaSessao' }
+
+  # ---------- salas ----------
+  criarSala:
+    address: criarSala
+    title: Criar sala
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoCriarSala' }
+      resposta: { $ref: '#/components/messages/RespostaSala' }
+  partidaRapida:
+    address: partidaRapida
+    title: Entrar na fila de partida rápida
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoVazio' }
+      resposta: { $ref: '#/components/messages/RespostaSala' }
+  entrarSala:
+    address: entrarSala
+    title: Entrar numa sala
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoSala' }
+      resposta: { $ref: '#/components/messages/RespostaSala' }
+  listarSalas:
+    address: listarSalas
+    title: Listar salas abertas
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoVazio' }
+      resposta: { $ref: '#/components/messages/RespostaListarSalas' }
+  forcarInicio:
+    address: forcarInicio
+    title: Adm começa a partida na hora
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoSala' }
+      resposta: { $ref: '#/components/messages/RespostaOk' }
+  sairSala:
+    address: sairSala
+    title: Sair da sala de espera
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoSala' }
+      resposta: { $ref: '#/components/messages/RespostaOk' }
+  sairDaPartida:
+    address: sairDaPartida
+    title: Abandonar partida em andamento
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoSala' }
+      resposta: { $ref: '#/components/messages/RespostaOk' }
+  jogarDeNovo:
+    address: jogarDeNovo
+    title: Revanche após o fim da partida
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoSala' }
+      resposta: { $ref: '#/components/messages/RespostaSala' }
+
+  # ---------- partida ----------
+  apostar:
+    address: apostar
+    title: Apostar quantas vazas vai fazer
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoApostar' }
+      resposta: { $ref: '#/components/messages/RespostaOk' }
+  jogarCarta:
+    address: jogarCarta
+    title: Jogar uma carta da mão
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoJogarCarta' }
+      resposta: { $ref: '#/components/messages/RespostaOk' }
+  reconectar:
+    address: reconectar
+    title: Voltar para uma partida em andamento
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoSala' }
+      resposta: { $ref: '#/components/messages/RespostaReconectar' }
+  minhaSalaAtiva:
+    address: minhaSalaAtiva
+    title: Descobrir se existe partida esperando por mim
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoVazio' }
+      resposta: { $ref: '#/components/messages/RespostaMinhaSalaAtiva' }
+  chat:
+    address: chat
+    title: Enviar mensagem no chat da sala
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoChat' }
+      resposta: { $ref: '#/components/messages/RespostaOk' }
+
+  desistir:
+    address: desistir
+    title: Desistir de vez de uma partida
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoSala' }
+      resposta: { $ref: '#/components/messages/RespostaOk' }
+
+  # ---------- empurrados pelo servidor ----------
+  jogadorDesistiu:
+    address: jogadorDesistiu
+    title: Alguém desistiu de vez
+    messages: { evento: { $ref: '#/components/messages/EvTurno' } }
+  partidaAbortada:
+    address: partidaAbortada
+    title: Erro interno no motor interrompeu a partida
+    messages: { evento: { $ref: '#/components/messages/EvPartidaAbortada' } }
+  listaJogadores:
+    address: listaJogadores
+    title: Roster da sala de espera mudou
+    messages: { evento: { $ref: '#/components/messages/EvListaJogadores' } }
+  partidaIniciandoEm:
+    address: partidaIniciandoEm
+    title: A sala lotou, contagem regressiva
+    messages: { evento: { $ref: '#/components/messages/EvPartidaIniciandoEm' } }
+  novaRodadaIniciada:
+    address: novaRodadaIniciada
+    title: Começou uma rodada
+    messages: { evento: { $ref: '#/components/messages/EvNovaRodada' } }
+  suaMao:
+    address: suaMao
+    title: Sua mão (privado)
+    messages: { evento: { $ref: '#/components/messages/EvSuaMao' } }
+  maosReveladas:
+    address: maosReveladas
+    title: Mãos dos outros na rodada de 1 carta (privado)
+    messages: { evento: { $ref: '#/components/messages/EvMaosReveladas' } }
+  manilhaVirada:
+    address: manilhaVirada
+    title: A vira foi revelada
+    messages: { evento: { $ref: '#/components/messages/EvManilhaVirada' } }
+  turnoAposta:
+    address: turnoAposta
+    title: É a vez de alguém apostar
+    messages: { evento: { $ref: '#/components/messages/EvTurno' } }
+  apostaFeita:
+    address: apostaFeita
+    title: Uma aposta foi registrada
+    messages: { evento: { $ref: '#/components/messages/EvApostaFeita' } }
+  turnoJogador:
+    address: turnoJogador
+    title: É a vez de alguém jogar carta
+    messages: { evento: { $ref: '#/components/messages/EvTurno' } }
+  cartaJogada:
+    address: cartaJogada
+    title: Uma carta foi para a mesa
+    messages: { evento: { $ref: '#/components/messages/EvCartaJogada' } }
+  vazaFinalizada:
+    address: vazaFinalizada
+    title: A vaza fechou
+    messages: { evento: { $ref: '#/components/messages/EvVazaFinalizada' } }
+  rodadaFinalizada:
+    address: rodadaFinalizada
+    title: A rodada fechou, com o placar
+    messages: { evento: { $ref: '#/components/messages/EvRodadaFinalizada' } }
+  jogadoresEliminados:
+    address: jogadoresEliminados
+    title: Jogadores zeraram o hp
+    messages: { evento: { $ref: '#/components/messages/EvJogadoresEliminados' } }
+  jogoFinalizado:
+    address: jogoFinalizado
+    title: A partida acabou
+    messages: { evento: { $ref: '#/components/messages/EvJogoFinalizado' } }
+  jogadaAutomatica:
+    address: jogadaAutomatica
+    title: O prazo do turno estourou e o servidor jogou sozinho
+    messages: { evento: { $ref: '#/components/messages/EvTurno' } }
+  jogadorReconectou:
+    address: jogadorReconectou
+    title: Alguém voltou para a partida
+    messages: { evento: { $ref: '#/components/messages/EvTurno' } }
+  jogadorExpulsoPorInatividade:
+    address: jogadorExpulsoPorInatividade
+    title: Assento virou bot (inatividade ou saída voluntária)
+    messages: { evento: { $ref: '#/components/messages/EvTurno' } }
+  vagaExpirada:
+    address: vagaExpirada
+    title: A vaga não pode mais ser reclamada
+    messages: { evento: { $ref: '#/components/messages/EvTurno' } }
+  novoAdm:
+    address: novoAdm
+    title: O posto de adm passou para outro jogador
+    messages: { evento: { $ref: '#/components/messages/EvTurno' } }
+  convidadoParaRevanche:
+    address: convidadoParaRevanche
+    title: Convite para a sala nova depois do fim da partida
+    messages: { evento: { $ref: '#/components/messages/EvConviteRevanche' } }
+  chatMensagem:
+    address: chatMensagem
+    title: Mensagem de chat para a sala
+    messages: { evento: { $ref: '#/components/messages/EvChatMensagem' } }
+
+operations:
+  # ---------- identidade ----------
+  enviarVerificarNome:
+    action: send
+    channel: { $ref: '#/channels/verificarNome' }
+    summary: Pré-login — não exige `entrar` antes.
+    description: |
+      Decide o que o cliente pede em seguida no login em etapas: se `existe`,
+      pede senha (`entrar`); senão, oferece `cadastrar` ou
+      `entrarComoConvidado`. Consulta pura, sem efeito colateral.
+      Nome ausente ou de outro tipo devolve `existe: false`, não erro.
+    messages: [{ $ref: '#/channels/verificarNome/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/verificarNome' }
+      messages: [{ $ref: '#/channels/verificarNome/messages/resposta' }]
+  enviarEntrar:
+    action: send
+    channel: { $ref: '#/channels/entrar' }
+    summary: Autentica contra o banco e devolve um JWT.
+    description: 'Erros: `USUARIO_NAO_ENCONTRADO`, `SENHA_INCORRETA`.'
+    messages: [{ $ref: '#/channels/entrar/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/entrar' }
+      messages: [{ $ref: '#/channels/entrar/messages/resposta' }]
+  enviarCadastrar:
+    action: send
+    channel: { $ref: '#/channels/cadastrar' }
+    summary: Cria a conta e já deixa autenticado.
+    description: |
+      Nome e senha precisam ter ao menos 3 caracteres (nome depois do `trim`).
+      Não precisa de um `entrar` depois.
+      Erros: `CADASTRO_INVALIDO`, `NOME_JA_CADASTRADO`.
+    messages: [{ $ref: '#/channels/cadastrar/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/cadastrar' }
+      messages: [{ $ref: '#/channels/cadastrar/messages/resposta' }]
+  enviarEntrarComoConvidado:
+    action: send
+    channel: { $ref: '#/channels/entrarComoConvidado' }
+    summary: Identidade só em memória, nada gravado no banco.
+    description: |
+      O `Player` nasce com id negativo e nunca é persistido. Do resto do
+      protocolo em diante, funciona igual a uma conta registrada.
+      Erros: `CONVIDADO_INVALIDO`, `NOME_JA_CADASTRADO`.
+    messages: [{ $ref: '#/channels/entrarComoConvidado/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/entrarComoConvidado' }
+      messages: [{ $ref: '#/channels/entrarComoConvidado/messages/resposta' }]
+  enviarRetomarSessao:
+    action: send
+    channel: { $ref: '#/channels/retomarSessao' }
+    summary: Reautentica um socket novo sem pedir senha de novo.
+    description: |
+      Para F5 na página e para reconexão de rede (o socket.io-client volta com
+      um `socket.id` que o servidor nunca viu). Devolve **sempre um token
+      novo**, para uma sessão retomada de tempos em tempos nunca esbarrar na
+      expiração de 6h. Erro: `TOKEN_INVALIDO`.
+    messages: [{ $ref: '#/channels/retomarSessao/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/retomarSessao' }
+      messages: [{ $ref: '#/channels/retomarSessao/messages/resposta' }]
+
+  # ---------- salas ----------
+  enviarCriarSala:
+    action: send
+    channel: { $ref: '#/channels/criarSala' }
+    summary: Cria a sala e entra nela como adm.
+    description: |
+      Todos os campos são opcionais (`null` cai no default, não é erro).
+      `botNumber` preenche o resto dos assentos com bots na criação; se isso
+      já lotar a sala, o início é agendado e `segundosParaIniciar` vem
+      preenchido no próprio ack.
+      Erros: `NAO_IDENTIFICADO`, `CONFIGURACAO_INVALIDA`.
+    messages: [{ $ref: '#/channels/criarSala/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/criarSala' }
+      messages: [{ $ref: '#/channels/criarSala/messages/resposta' }]
+  enviarPartidaRapida:
+    action: send
+    channel: { $ref: '#/channels/partidaRapida' }
+    summary: Fila compartilhada de sala com config default.
+    description: |
+      Quem chama primeiro cria a sala; quem chamar depois entra nela sem
+      precisar saber o `salaId`. Quando ela lota, a próxima chamada abre outra.
+      Erros: `NAO_IDENTIFICADO`, `NOME_INVALIDO`.
+    messages: [{ $ref: '#/channels/partidaRapida/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/partidaRapida' }
+      messages: [{ $ref: '#/channels/partidaRapida/messages/resposta' }]
+  enviarEntrarSala:
+    action: send
+    channel: { $ref: '#/channels/entrarSala' }
+    summary: Entra numa sala de espera pelo id.
+    description: |
+      Erros: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`, `SALA_CHEIA`,
+      `SALA_JA_INICIADA`, `JA_ESTA_NA_SALA`, `NOME_INVALIDO`.
+    messages: [{ $ref: '#/channels/entrarSala/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/entrarSala' }
+      messages: [{ $ref: '#/channels/entrarSala/messages/resposta' }]
+  enviarListarSalas:
+    action: send
+    channel: { $ref: '#/channels/listarSalas' }
+    summary: Só salas abertas — nem cheias, nem iniciadas.
+    description: 'Erro: `NAO_IDENTIFICADO`.'
+    messages: [{ $ref: '#/channels/listarSalas/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/listarSalas' }
+      messages: [{ $ref: '#/channels/listarSalas/messages/resposta' }]
+  enviarForcarInicio:
+    action: send
+    channel: { $ref: '#/channels/forcarInicio' }
+    summary: Pula a espera e começa a partida.
+    description: |
+      Só o adm, e só com a sala cheia.
+      Erros: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`, `SALA_JA_INICIADA`,
+      `SALA_NAO_CHEIA`, `NAO_AUTORIZADO`.
+    messages: [{ $ref: '#/channels/forcarInicio/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/forcarInicio' }
+      messages: [{ $ref: '#/channels/forcarInicio/messages/resposta' }]
+  enviarSairSala:
+    action: send
+    channel: { $ref: '#/channels/sairSala' }
+    summary: Sai da sala — só antes da partida começar.
+    description: |
+      Se quem saiu era o adm, o posto passa para o próximo. Sala vazia é
+      descartada. Para sair de partida em andamento, use `sairDaPartida`.
+      Erros: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`, `SALA_JA_INICIADA`,
+      `NAO_ESTA_NA_SALA`.
+    messages: [{ $ref: '#/channels/sairSala/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/sairSala' }
+      messages: [{ $ref: '#/channels/sairSala/messages/resposta' }]
+  enviarSairDaPartida:
+    action: send
+    channel: { $ref: '#/channels/sairDaPartida' }
+    summary: Abandono voluntário — o assento vira bot na hora.
+    description: |
+      A vaga continua reservada por `tempoReservaMs`: dá para voltar por
+      `reconectar` até ela expirar.
+      Erros: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`, `SALA_NAO_INICIADA`,
+      `NAO_ESTA_NA_SALA`.
+    messages: [{ $ref: '#/channels/sairDaPartida/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/sairDaPartida' }
+      messages: [{ $ref: '#/channels/sairDaPartida/messages/resposta' }]
+  enviarJogarDeNovo:
+    action: send
+    channel: { $ref: '#/channels/jogarDeNovo' }
+    summary: Cria uma sala nova com a mesma config da que terminou.
+    description: |
+      Só o adm da sala terminada. Quem ficou recebe `convidadoParaRevanche`
+      com o id da sala nova. O `salaId` do ack já é o da sala **nova**.
+      Erros: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`, `SALA_NAO_FINALIZADA`,
+      `NAO_AUTORIZADO`.
+    messages: [{ $ref: '#/channels/jogarDeNovo/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/jogarDeNovo' }
+      messages: [{ $ref: '#/channels/jogarDeNovo/messages/resposta' }]
+
+  # ---------- partida ----------
+  enviarApostar:
+    action: send
+    channel: { $ref: '#/channels/apostar' }
+    summary: Aposta quantas vazas você acha que vai fazer.
+    description: |
+      Só na sua vez (`turnoAposta`). `valor` inteiro entre 0 e o número de
+      cartas da rodada.
+
+      **A soma das apostas de todos não pode fechar exatamente no número de
+      cartas** — isso garantiria que alguém acerta sem risco. Na prática só o
+      último a apostar esbarra nisso, e recebe `APOSTA_FECHA_RODADA`.
+
+      Se o prazo (`tempoTurnoMs`) estourar, o servidor aposta sozinho.
+      Erros: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`, `SALA_NAO_INICIADA`,
+      `NAO_E_SUA_VEZ`, `APOSTA_INVALIDA`, `APOSTA_FECHA_RODADA`.
+    messages: [{ $ref: '#/channels/apostar/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/apostar' }
+      messages: [{ $ref: '#/channels/apostar/messages/resposta' }]
+  enviarJogarCarta:
+    action: send
+    channel: { $ref: '#/channels/jogarCarta' }
+    summary: Joga a carta na posição `indice` da sua mão.
+    description: |
+      Só na sua vez (`turnoJogador`). O servidor decide de quem é a vez pelo
+      último `turnoJogador` emitido — não confia em nada que o cliente diga.
+      Se o prazo estourar, o servidor joga sozinho e emite `jogadaAutomatica`.
+      Erros: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`, `SALA_NAO_INICIADA`,
+      `NAO_E_SUA_VEZ`, `CARTA_INVALIDA`.
+    messages: [{ $ref: '#/channels/jogarCarta/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/jogarCarta' }
+      messages: [{ $ref: '#/channels/jogarCarta/messages/resposta' }]
+  enviarReconectar:
+    action: send
+    channel: { $ref: '#/channels/reconectar' }
+    summary: Reencaixa numa partida já em andamento.
+    description: |
+      Devolve o estado mínimo para remontar a tela: mão atual, quantas cartas
+      tem a rodada e de quem é a vez (de jogar e de apostar — as duas esperas
+      nunca coexistem). Só para partida iniciada; na sala de espera use
+      `entrarSala`.
+      Erros: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`, `SALA_NAO_INICIADA`,
+      `NAO_ESTA_NA_SALA`, `VAGA_EXPIRADA`.
+    messages: [{ $ref: '#/channels/reconectar/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/reconectar' }
+      messages: [{ $ref: '#/channels/reconectar/messages/resposta' }]
+  enviarMinhaSalaAtiva:
+    action: send
+    channel: { $ref: '#/channels/minhaSalaAtiva' }
+    summary: Existe partida em andamento esperando por mim?
+    description: |
+      Para um socket recém-autenticado (ex.: depois de um F5) descobrir a
+      partida sem saber o `salaId`. Sala de espera não conta; vaga expirada
+      também não. Erro: `NAO_IDENTIFICADO`.
+    messages: [{ $ref: '#/channels/minhaSalaAtiva/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/minhaSalaAtiva' }
+      messages: [{ $ref: '#/channels/minhaSalaAtiva/messages/resposta' }]
+  enviarChat:
+    action: send
+    channel: { $ref: '#/channels/chat' }
+    summary: Mensagem pronta (sempre liberada) ou texto livre.
+    description: |
+      `tipo: 'restrita'` usa um `id` do catálogo e funciona mesmo com
+      `chatAberto: false` — o `texto` do payload é ignorado, quem resolve é o
+      servidor. `tipo: 'aberta'` é texto livre e exige `chatAberto: true`;
+      entre 1 e 200 caracteres depois do `trim`.
+
+      **Cooldown de 3s entre envios aceitos, por jogador** (não por sala). O
+      cooldown é checado *antes* do conteúdo: dentro da janela, até mensagem
+      inválida volta `CHAT_EM_COOLDOWN`.
+      Erros: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`, `NAO_ESTA_NA_SALA`,
+      `CHAT_DESABILITADO`, `CHAT_INVALIDO`, `CHAT_EM_COOLDOWN`.
+    messages: [{ $ref: '#/channels/chat/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/chat' }
+      messages: [{ $ref: '#/channels/chat/messages/resposta' }]
+
+  enviarDesistir:
+    action: send
+    channel: { $ref: '#/channels/desistir' }
+    summary: Desistência DEFINITIVA — o oposto de `sairDaPartida`.
+    description: |
+      Perde na hora (o `hp` do assento vai a 0, o que o elimina na próxima
+      virada de rodada — e decide W.O. se sobrar um vivo só) e **a vaga
+      expira já**, sem esperar `tempoReservaMs`: saem um `jogadorDesistiu` e
+      um `vagaExpirada`, e `reconectar` passa a devolver `VAGA_EXPIRADA`.
+
+      É o que o cliente chama no fluxo "desistir e entrar", quando
+      `JA_EM_PARTIDA` barra a entrada numa segunda sala. Compare com
+      `sairDaPartida`, que só vira bot e mantém a vaga reclamável.
+      Erros: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`, `SALA_NAO_INICIADA`,
+      `NAO_ESTA_NA_SALA`.
+    messages: [{ $ref: '#/channels/desistir/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/desistir' }
+      messages: [{ $ref: '#/channels/desistir/messages/resposta' }]
+
+  # ---------- recebidos ----------
+  receberJogadorDesistiu:
+    action: receive
+    channel: { $ref: '#/channels/jogadorDesistiu' }
+    summary: Desistiu de vez — perde na hora e a vaga expira em seguida.
+  receberPartidaAbortada:
+    action: receive
+    channel: { $ref: '#/channels/partidaAbortada' }
+    summary: |
+      Erro interno inesperado no motor (invariante quebrada, ex.: baralho
+      vazio). A partida para; não é fluxo normal, se aparecer é bug.
+  receberListaJogadores:
+    action: receive
+    channel: { $ref: '#/channels/listaJogadores' }
+    summary: Broadcast de sala, a cada mudança no roster da espera.
+  receberPartidaIniciandoEm:
+    action: receive
+    channel: { $ref: '#/channels/partidaIniciandoEm' }
+    summary: A sala lotou; `segundos` até o início automático. O adm pode pular com `forcarInicio`.
+  receberNovaRodadaIniciada:
+    action: receive
+    channel: { $ref: '#/channels/novaRodadaIniciada' }
+    summary: Número da rodada e quantas cartas cada um recebeu.
+  receberSuaMao:
+    action: receive
+    channel: { $ref: '#/channels/suaMao' }
+    summary: PRIVADO — vai só para a sala pessoal `jogador:<id>`.
+  receberMaosReveladas:
+    action: receive
+    channel: { $ref: '#/channels/maosReveladas' }
+    summary: PRIVADO — rodada de 1 carta ("testa"). Cada um vê a mão dos outros, nunca a sua.
+  receberManilhaVirada:
+    action: receive
+    channel: { $ref: '#/channels/manilhaVirada' }
+    summary: A carta virada e seu valor.
+  receberTurnoAposta:
+    action: receive
+    channel: { $ref: '#/channels/turnoAposta' }
+    summary: Quem tem que mandar `apostar` agora. Um de cada vez, na ordem da rodada.
+  receberApostaFeita:
+    action: receive
+    channel: { $ref: '#/channels/apostaFeita' }
+    summary: Aposta registrada (real ou por timeout).
+  receberTurnoJogador:
+    action: receive
+    channel: { $ref: '#/channels/turnoJogador' }
+    summary: Quem tem que mandar `jogarCarta` agora.
+  receberCartaJogada:
+    action: receive
+    channel: { $ref: '#/channels/cartaJogada' }
+    summary: Carta que foi para a mesa e o status dela.
+  receberVazaFinalizada:
+    action: receive
+    channel: { $ref: '#/channels/vazaFinalizada' }
+    summary: Quem levou a vaza. `vencedor` e `carta` podem vir `null` num empate.
+  receberRodadaFinalizada:
+    action: receive
+    channel: { $ref: '#/channels/rodadaFinalizada' }
+    summary: Placar da rodada — aposta, vazas feitas, diferença e hp de cada um.
+  receberJogadoresEliminados:
+    action: receive
+    channel: { $ref: '#/channels/jogadoresEliminados' }
+    summary: Quem zerou o hp nesta rodada.
+  receberJogoFinalizado:
+    action: receive
+    channel: { $ref: '#/channels/jogoFinalizado' }
+    summary: Fim de partida. A sala continua existindo para `jogarDeNovo`.
+  receberJogadaAutomatica:
+    action: receive
+    channel: { $ref: '#/channels/jogadaAutomatica' }
+    summary: O prazo do turno estourou e o servidor jogou pelo jogador.
+  receberJogadorReconectou:
+    action: receive
+    channel: { $ref: '#/channels/jogadorReconectou' }
+    summary: Voltou via `reconectar`; a marca de desconectado sai.
+  receberJogadorExpulsoPorInatividade:
+    action: receive
+    channel: { $ref: '#/channels/jogadorExpulsoPorInatividade' }
+    summary: |
+      Assento virou bot — por inatividade acumulada ou por `sairDaPartida`.
+      O socket dele sai da room; a vaga continua e pode ser reclamada por
+      `reconectar` até expirar.
+  receberVagaExpirada:
+    action: receive
+    channel: { $ref: '#/channels/vagaExpirada' }
+    summary: Passou `tempoReservaMs` sem ninguém voltar — a vaga é bot para sempre.
+  receberNovoAdm:
+    action: receive
+    channel: { $ref: '#/channels/novoAdm' }
+    summary: O adm anterior teve a vaga expirada; o posto passou adiante.
+  receberConvidadoParaRevanche:
+    action: receive
+    channel: { $ref: '#/channels/convidadoParaRevanche' }
+    summary: O adm chamou `jogarDeNovo`; `novaSalaId` é onde entrar se aceitar.
+  receberChatMensagem:
+    action: receive
+    channel: { $ref: '#/channels/chatMensagem' }
+    summary: Broadcast para a sala inteira, incluindo quem enviou.
+
+components:
+  messages:
+    # pedidos
+    PedidoVazio:
+      name: PedidoVazio
+      title: Payload vazio
+      payload: { type: object, additionalProperties: false, description: 'Objeto vazio `{}` — nunca omitido.' }
+    PedidoNome:
+      name: PedidoNome
+      payload:
+        type: object
+        required: [nome]
+        properties:
+          nome: { type: string, minLength: 3, description: 'Mínimo 3 caracteres depois do `trim`.', examples: [visitante] }
+    PedidoToken:
+      name: PedidoToken
+      payload:
+        type: object
+        required: [token]
+        properties:
+          token: { type: string, description: 'JWT emitido por `entrar`, `cadastrar`, `entrarComoConvidado` ou um `retomarSessao` anterior.' }
+    PedidoVerificarNome:
+      name: PedidoVerificarNome
+      payload:
+        type: object
+        properties:
+          nome: { type: string, examples: [henrique] }
+    PedidoEntrar:
+      name: PedidoEntrar
+      payload:
+        type: object
+        required: [nome, senha]
+        properties:
+          nome: { type: string, examples: [henrique] }
+          senha: { type: string, examples: ['123'] }
+    PedidoSala:
+      name: PedidoSala
+      payload:
+        type: object
+        required: [salaId]
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+    PedidoCriarSala:
+      name: PedidoCriarSala
+      payload:
+        type: object
+        properties:
+          numberPlayers: { type: integer, minimum: 2, maximum: 6, default: 4 }
+          roundStart: { type: integer, minimum: 1, default: 3, description: Cartas por jogador na primeira rodada. }
+          randomShuffle: { type: boolean, default: true }
+          botNumber: { type: integer, minimum: 0, default: 0, description: 'Bots que já entram na criação. Máximo `numberPlayers - 1` — sempre sobra o assento de quem criou.' }
+          chatAberto: { type: boolean, default: false, description: Libera o chat de texto livre. As mensagens prontas não dependem disto. }
+          maxDeck: { type: integer, minimum: 1, maximum: 50, description: 'Teto de baralhos de 40 cartas que a partida pode montar. A primeira rodada (mesa cheia) já precisa caber nele, senão a criação é recusada.' }
+    PedidoApostar:
+      name: PedidoApostar
+      payload:
+        type: object
+        required: [salaId, valor]
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          valor: { type: integer, minimum: 0, description: Vazas que o jogador acha que vai fazer. Máximo é o número de cartas da rodada. }
+    PedidoJogarCarta:
+      name: PedidoJogarCarta
+      payload:
+        type: object
+        required: [salaId, indice]
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          indice: { type: integer, minimum: 0, description: 'Posição da carta na mão, 0-based (a mão vem em `suaMao`).' }
+    PedidoChat:
+      name: PedidoChat
+      payload:
+        type: object
+        required: [salaId, tipo]
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          tipo: { type: string, enum: [aberta, restrita] }
+          texto: { type: string, minLength: 1, maxLength: 200, description: 'Só para `aberta`. Ignorado em `restrita`.' }
+          id: { type: integer, description: 'Só para `restrita` — id do catálogo em `conexao/chat/mensagensChat.js` (1 a 4).' }
+
+    # respostas
+    RespostaOk:
+      name: RespostaOk
+      title: Sucesso sem corpo
+      payload:
+        oneOf:
+          - { type: object, required: [ok], properties: { ok: { type: boolean, const: true } } }
+          - { $ref: '#/components/schemas/Erro' }
+    RespostaVerificarNome:
+      name: RespostaVerificarNome
+      payload:
+        type: object
+        required: [ok, existe]
+        properties:
+          ok: { type: boolean, const: true }
+          existe: { type: boolean, description: 'Esse nome já tem conta no banco?' }
+    RespostaSessao:
+      name: RespostaSessao
+      title: Identidade autenticada
+      payload:
+        oneOf:
+          - type: object
+            required: [ok, nome, token]
+            properties:
+              ok: { type: boolean, const: true }
+              nome: { type: string }
+              token: { type: string, description: 'JWT HS256 com id e nome, validade de 6h.' }
+          - { $ref: '#/components/schemas/Erro' }
+    RespostaSala:
+      name: RespostaSala
+      title: Estado da sala
+      payload:
+        oneOf:
+          - type: object
+            required: [ok, salaId, numberPlayers, jogadores, segundosParaIniciar, chatAberto]
+            properties:
+              ok: { type: boolean, const: true }
+              salaId: { $ref: '#/components/schemas/SalaId' }
+              numberPlayers: { type: integer }
+              jogadores:
+                type: array
+                description: Roster vem no próprio ack porque o broadcast de `listaJogadores` sai antes dele.
+                items:
+                  type: object
+                  properties:
+                    nome: { type: string }
+                    adm: { type: boolean }
+              segundosParaIniciar:
+                type: [integer, 'null']
+                description: Preenchido quando esta ação lotou a sala e agendou o início; `null` caso contrário.
+              chatAberto: { type: boolean }
+          - { $ref: '#/components/schemas/Erro' }
+    RespostaListarSalas:
+      name: RespostaListarSalas
+      payload:
+        oneOf:
+          - type: object
+            required: [ok, salas]
+            properties:
+              ok: { type: boolean, const: true }
+              salas:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    salaId: { $ref: '#/components/schemas/SalaId' }
+                    numberPlayers: { type: integer }
+                    jogadoresAtual: { type: integer }
+                    chatAberto: { type: boolean }
+          - { $ref: '#/components/schemas/Erro' }
+    RespostaMinhaSalaAtiva:
+      name: RespostaMinhaSalaAtiva
+      payload:
+        oneOf:
+          - type: object
+            required: [ok, salaId]
+            properties:
+              ok: { type: boolean, const: true }
+              salaId: { type: [string, 'null'] }
+          - { $ref: '#/components/schemas/Erro' }
+    RespostaReconectar:
+      name: RespostaReconectar
+      title: Estado para remontar a tela
+      payload:
+        oneOf:
+          - type: object
+            required: [ok, salaId, mao, cartasRodada, maosReveladas, suaVez, jogadorDaVez, suaVezDaAposta, jogadorDaVezAposta, chatAberto]
+            properties:
+              ok: { type: boolean, const: true }
+              salaId: { $ref: '#/components/schemas/SalaId' }
+              mao: { type: array, items: { $ref: '#/components/schemas/Carta' } }
+              cartasRodada: { type: integer }
+              maosReveladas:
+                type: array
+                description: Só preenchido na rodada de 1 carta; `[]` nas outras.
+                items:
+                  type: object
+                  properties:
+                    jogador: { type: string }
+                    mao: { type: array, items: { $ref: '#/components/schemas/Carta' } }
+              suaVez: { type: boolean, description: 'É a sua vez de jogar carta?' }
+              jogadorDaVez: { type: [string, 'null'] }
+              suaVezDaAposta: { type: boolean }
+              jogadorDaVezAposta: { type: [string, 'null'] }
+              chatAberto: { type: boolean }
+          - { $ref: '#/components/schemas/Erro' }
+
+    # eventos empurrados
+    EvListaJogadores:
+      name: listaJogadores
+      payload:
+        type: object
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          jogadores:
+            type: array
+            items:
+              type: object
+              properties: { nome: { type: string }, adm: { type: boolean } }
+    EvPartidaIniciandoEm:
+      name: partidaIniciandoEm
+      payload:
+        type: object
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          segundos: { type: number, examples: [15] }
+    EvNovaRodada:
+      name: novaRodadaIniciada
+      payload:
+        type: object
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          numero: { type: integer }
+          cartas: { type: integer, description: Cartas por jogador nesta rodada. }
+    EvSuaMao:
+      name: suaMao
+      payload:
+        type: object
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          mao: { type: array, items: { $ref: '#/components/schemas/Carta' } }
+    EvMaosReveladas:
+      name: maosReveladas
+      payload:
+        type: object
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          maos:
+            type: array
+            items:
+              type: object
+              properties:
+                jogador: { type: string }
+                mao: { type: array, items: { $ref: '#/components/schemas/Carta' } }
+    EvManilhaVirada:
+      name: manilhaVirada
+      payload:
+        type: object
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          vira: { $ref: '#/components/schemas/Carta' }
+          viraValor: { type: integer }
+    EvTurno:
+      name: EventoDeJogador
+      title: Evento que aponta um jogador
+      description: Formato comum a `turnoAposta`, `turnoJogador`, `jogadaAutomatica`, `jogadorReconectou`, `jogadorExpulsoPorInatividade`, `vagaExpirada` e `novoAdm`.
+      payload:
+        type: object
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          id: { type: integer, description: Id do jogador. Negativo para bots e convidados. }
+          jogador: { type: string, description: Nome do jogador. }
+    EvApostaFeita:
+      name: apostaFeita
+      payload:
+        type: object
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          jogador: { type: string }
+          aposta: { type: integer }
+    EvCartaJogada:
+      name: cartaJogada
+      payload:
+        type: object
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          jogador: { type: string }
+          carta: { $ref: '#/components/schemas/Carta' }
+          status: { description: Situação da carta na mesa no momento em que foi jogada. }
+    EvVazaFinalizada:
+      name: vazaFinalizada
+      payload:
+        type: object
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          vencedor: { type: [string, 'null'] }
+          carta: { type: [string, 'null'] }
+    EvRodadaFinalizada:
+      name: rodadaFinalizada
+      payload:
+        type: object
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          numero: { type: integer }
+          resultado:
+            type: array
+            items:
+              type: object
+              properties:
+                nome: { type: string }
+                aposta: { type: integer }
+                steak: { type: integer, description: Vazas efetivamente feitas. }
+                diferenca: { type: integer, description: '`|aposta - steak|` — o que vira perda de hp.' }
+                hp: { type: integer }
+    EvJogadoresEliminados:
+      name: jogadoresEliminados
+      payload:
+        type: object
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          eliminados:
+            type: array
+            items:
+              type: object
+              properties: { nome: { type: string }, hp: { type: integer } }
+    EvJogoFinalizado:
+      name: jogoFinalizado
+      payload:
+        type: object
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          vencedor: { type: string }
+    EvConviteRevanche:
+      name: convidadoParaRevanche
+      payload:
+        type: object
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId', description: A sala que TERMINOU. }
+          novaSalaId: { type: string, description: 'Onde entrar se aceitar, via entrarSala.' }
+          jogador: { type: string, description: Quem chamou a revanche. }
+    EvPartidaAbortada:
+      name: partidaAbortada
+      payload:
+        type: object
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          motivo: { type: string, examples: [erro_interno] }
+          erro: { type: string, description: Mensagem da exceção, para diagnóstico. }
+    EvChatMensagem:
+      name: chatMensagem
+      payload:
+        type: object
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          jogador: { type: string }
+          tipo:
+            type: string
+            enum: [aberta, restrita, sistema]
+            description: '`sistema` é aviso do próprio servidor (entrada/saída na sala de espera) — não veio de nenhum `chat`, e não respeita cooldown nem `chatAberto`.'
+          id: { type: [integer, 'null'], description: Id do catálogo em `restrita`; `null` em `aberta` e `sistema`. }
+          texto: { type: string }
+
+  schemas:
+    SalaId:
+      type: string
+      description: Identificador de sala — 6 caracteres hexadecimais maiúsculos.
+      pattern: '^[0-9A-F]{6}$'
+      examples: [A3F92C]
+    Carta:
+      type: string
+      description: Carta em texto, como `Carta.toString()` produz.
+      pattern: '^\[.+ de (Ouros|Espadas|Copas|Paus)\]$'
+      examples: ['[3 de Espadas]', '[Q de Copas]']
+    Erro:
+      type: object
+      title: Resposta de erro
+      description: Formato único de erro do protocolo. Não existe evento `erro` separado.
+      required: [ok, codigo, mensagem]
+      properties:
+        ok: { type: boolean, const: false }
+        codigo: { $ref: '#/components/schemas/CodigoErro' }
+        mensagem: { type: string, description: 'Texto legível, só para exibição. Nunca use para lógica.' }
+    CodigoErro:
+      type: string
+      description: |
+        Os 27 códigos de `conexao/eventos.js`. Use este campo para lógica no
+        cliente, nunca a `mensagem`.
+      enum:
+        - NAO_IDENTIFICADO
+        - NOME_INVALIDO
+        - CONFIGURACAO_INVALIDA
+        - SALA_NAO_ENCONTRADA
+        - SALA_CHEIA
+        - SALA_NAO_CHEIA
+        - SALA_JA_INICIADA
+        - SALA_NAO_INICIADA
+        - SALA_NAO_FINALIZADA
+        - JA_ESTA_NA_SALA
+        - NAO_ESTA_NA_SALA
+        - VAGA_EXPIRADA
+        - NAO_AUTORIZADO
+        - NAO_E_SUA_VEZ
+        - CARTA_INVALIDA
+        - APOSTA_INVALIDA
+        - APOSTA_FECHA_RODADA
+        - CHAT_DESABILITADO
+        - CHAT_INVALIDO
+        - CHAT_EM_COOLDOWN
+        - USUARIO_NAO_ENCONTRADO
+        - SENHA_INCORRETA
+        - CADASTRO_INVALIDO
+        - NOME_JA_CADASTRADO
+        - CONVIDADO_INVALIDO
+        - TOKEN_INVALIDO
+        - LIMITE_DE_SALAS
+        - LIMITE_DE_SALAS_POR_JOGADOR
+        - JA_EM_PARTIDA
+        - JA_AUTENTICADO
+        - MUITAS_TENTATIVAS
+        - ERRO_INTERNO
