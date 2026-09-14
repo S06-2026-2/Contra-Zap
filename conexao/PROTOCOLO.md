@@ -243,8 +243,8 @@ a exceção "mesma conta é permitida", isso quebraria a restauração de sessã
 toda vez em `npm run dev`.
 
 ### `criarSala`
-Payload: `{ numberPlayers?: number, roundStart?: number, randomShuffle?: boolean, maxDeck?: number, seed?: number, botNumber?: number, chatAberto?: boolean }`
-(todos opcionais — default vem do `SalaManager`: 4 / 3 / true / 50 / — / 0 / false)
+Payload: `{ numberPlayers?: number, roundStart?: number, randomShuffle?: boolean, maxDeck?: number, seed?: number, botNumber?: number, chatAberto?: boolean, privada?: boolean }`
+(todos opcionais — default vem do `SalaManager`: 4 / 3 / true / 50 / — / 0 / false / false)
 `numberPlayers` precisa ser inteiro entre 2 e 6; `roundStart` inteiro entre
 1 e 10 (o teto evita montar milhares de baralhos e estourar a memória);
 `maxDeck` inteiro entre 1 e 50 — máximo de baralhos de 40 cartas que a
@@ -261,6 +261,15 @@ o motor Python (`training/python/motor/`). Não é herdada por "jogar de novo".
 `randomShuffle`, se vierem, precisam ser boolean — fora disso,
 `CONFIGURACAO_INVALIDA`. `chatAberto` libera o chat de texto livre da sala
 (ver evento `chat`); as mensagens prontas não dependem dele.
+`privada` (default false), se vier, precisa ser boolean. Sala privada
+aparece em `listarSalas` normalmente (com `privada: true`) — a diferença é
+só que `entrarSala` exige `senha` batendo (ver abaixo). O criador não
+escolhe a senha: quando `privada` é `true`, o servidor sorteia uma senha de
+4 dígitos (`node:crypto` `randomInt`, zero à esquerda permitido) e devolve
+em `senha` só neste ack de sucesso (ver abaixo) — texto puro, só em memória,
+nunca persistida nem exposta de novo por nenhum outro ack/broadcast
+(`listarSalas` inclusive). "Jogar de novo" (`jogarDeNovo`) preserva `privada`
+mas sorteia uma senha NOVA, não reaproveita a antiga.
 `botNumber` preenche o resto dos assentos com bots (ver `bots/Bot.js`)
 assim que a sala nasce, na ordem de entrada normal — se isso já lotar a
 sala, a partida é agendada na hora, igual qualquer `entrarSala` que lote.
@@ -270,7 +279,12 @@ jogado depois de uma pausa de `atrasoBotMs` (2s por padrão), sem esperar
 `tempoTurnoMs` (ver `PlayerGame.bot`).
 Pré-condição: socket já mandou `entrar` com sucesso.
 Ack sucesso: `{ ok: true, salaId, numberPlayers, jogadores: [{ nome, adm }],
-segundosParaIniciar: number | null, chatAberto: boolean }`. O socket já dá `join` na sala;
+segundosParaIniciar: number | null, chatAberto: boolean, senha: string | null }`.
+`senha` só vem preenchida quando `privada` é `true` (senão `null`) — é a
+ÚNICA vez que ela aparece numa resposta do servidor; o front deve mostrar
+pro criador (ex.: junto do código da sala na tela de espera) pra ele
+repassar pra quem for convidar, porque `listarSalas`/`entrarSala` nunca mais
+a expõem. O socket já dá `join` na sala;
 `jogadores` vem no próprio ack (o dono + os bots que `botNumber` já colocou)
 porque o broadcast de `listaJogadores` sai *dentro* deste handler, antes do
 ack — um cliente que só registra o listener depois de processar o ack
@@ -309,7 +323,7 @@ nenhuma mudança — `partidaRapida` é só um atalho por cima do mesmo
 `SalaManager`, não substitui nada.
 
 ### `entrarSala`
-Payload: `{ salaId: string }`
+Payload: `{ salaId: string, senha?: string }`
 Pré-condição: socket já mandou `entrar` com sucesso.
 Ack sucesso: `{ ok: true, salaId, numberPlayers, jogadores,
 segundosParaIniciar: number | null, chatAberto: boolean }`. O socket já dá
@@ -319,17 +333,22 @@ essa entrada lotar a sala, o início automático é agendado (ver
 `partidaIniciandoEm`) e `segundosParaIniciar` vem preenchido no ack — quem
 acabou de entrar só monta a tela depois do ack e perderia o broadcast de
 `partidaIniciandoEm` que já saiu.
+`senha` só é conferida se a sala é privada (`privada: true` em
+`listarSalas`) — numa sala aberta é ignorada, mesmo se vier preenchida.
 Erros possíveis: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`, `SALA_CHEIA`,
 `SALA_JA_INICIADA`, `JA_ESTA_NA_SALA`, `NOME_INVALIDO` (nome duplicado na
-sala), `JA_EM_PARTIDA` (você já tem assento numa partida em andamento — a
-resposta traz `{ salaId }` dela; reconecte ou `desista` antes).
+sala), `SENHA_INCORRETA` (sala privada, `senha` não bate), `JA_EM_PARTIDA`
+(você já tem assento numa partida em andamento — a resposta traz `{ salaId }`
+dela; reconecte ou `desista` antes).
 
 ### `listarSalas`
 Payload: `{}`
 Pré-condição: socket já mandou `entrar` com sucesso.
-Ack sucesso: `{ ok: true, salas: [{ salaId, numberPlayers, jogadoresAtual, chatAberto }] }`
+Ack sucesso: `{ ok: true, salas: [{ salaId, numberPlayers, jogadoresAtual, chatAberto, privada }] }`
 — só salas **abertas** (não iniciadas e não cheias). Sala cheia ou já
-iniciada simplesmente não aparece na lista.
+iniciada simplesmente não aparece na lista. `privada: true` só avisa que
+`entrarSala` vai exigir `senha` batendo — a senha em si nunca aparece aqui
+nem em nenhuma outra resposta.
 Erros possíveis: `NAO_IDENTIFICADO`.
 
 ### `forcarInicio`
@@ -791,7 +810,7 @@ de conexão, não do jogo), então chega igual na sala de espera e na partida.
 |---|---|
 | `NAO_IDENTIFICADO` | Mandou `criarSala`/`entrarSala`/`listarSalas`/`forcarInicio`/`sairSala`/`sairDaPartida`/`desistir`/`jogarCarta`/`reconectar`/`minhaSalaAtiva`/`chat` sem ter mandado `entrar` antes |
 | `USUARIO_NAO_ENCONTRADO` | `entrar` com nome que não existe no banco |
-| `SENHA_INCORRETA` | `entrar` com nome existente, senha errada |
+| `SENHA_INCORRETA` | `entrar` com nome existente, senha errada; ou `entrarSala` numa sala privada com `senha` que não bate |
 | `CADASTRO_INVALIDO` | `cadastrar` com nome ou senha menor que 3 caracteres |
 | `NOME_JA_CADASTRADO` | `cadastrar` com nome que já existe no banco; ou `entrarComoConvidado` com nome que virou conta registrada entre o `verificarNome` do cliente e a chamada |
 | `CONVIDADO_INVALIDO` | `entrarComoConvidado` com nome menor que 3 caracteres |
@@ -799,7 +818,7 @@ de conexão, não do jogo), então chega igual na sala de espera e na partida.
 | `JA_AUTENTICADO` | `entrar`/`cadastrar`/`entrarComoConvidado`/`retomarSessao` tentando virar OUTRA conta num socket que já é alguém (ver "Reautenticação num socket já autenticado") — a mesma conta de novo é permitida, não cai aqui |
 | `MUITAS_TENTATIVAS` | `verificarNome` acima do teto por IP (20 a cada 5 minutos), `entrar` com 5 falhas (senha errada/usuário inexistente) em 20 minutos, **ou** `cadastrar` com 10 tentativas (sucesso incluso) em 10 minutos, tudo pelo mesmo IP — ver `conexao/rateLimiter.js`. Espere a janela passar |
 | `NOME_INVALIDO` | `entrarSala` com nome já em uso *nessa sala* |
-| `CONFIGURACAO_INVALIDA` | `criarSala` com `numberPlayers`/`roundStart`/`maxDeck`/`botNumber` fora do intervalo aceito (`roundStart` 1 a 10, `maxDeck` 1 a 50), `roundStart` que não cabe em `maxDeck` baralhos com a mesa cheia, `seed` que não é inteiro não-negativo, ou `chatAberto`/`randomShuffle` que não é boolean |
+| `CONFIGURACAO_INVALIDA` | `criarSala` com `numberPlayers`/`roundStart`/`maxDeck`/`botNumber` fora do intervalo aceito (`roundStart` 1 a 10, `maxDeck` 1 a 50), `roundStart` que não cabe em `maxDeck` baralhos com a mesa cheia, `seed` que não é inteiro não-negativo, ou `chatAberto`/`randomShuffle`/`privada` que não é boolean |
 | `LIMITE_DE_SALAS` | `criarSala`/`partidaRapida` com o teto global de salas simultâneas já atingido — barreira de sanidade, tenta de novo mais tarde |
 | `LIMITE_DE_SALAS_POR_JOGADOR` | `criarSala`/`partidaRapida` por quem já é adm de salas ativas (não finalizadas) demais ao mesmo tempo — teto por pessoa (4), complementar ao global. Feche (`sairSala`) ou termine alguma antes |
 | `SALA_NAO_ENCONTRADA` | `entrarSala`/`forcarInicio`/`sairSala`/`jogarCarta`/`reconectar` com `salaId` que não existe |

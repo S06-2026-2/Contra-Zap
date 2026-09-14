@@ -16,10 +16,10 @@ export const EventosCliente = {
     CADASTRAR: 'cadastrar',     // { nome, senha } -> ack: { ok, nome, token } — já autentica, sem precisar de "entrar" depois. Rate-limit por IP (10 a cada 10min por padrão, ver conexao/rateLimiter.js) — estourou, MUITAS_TENTATIVAS sem nem chamar bcrypt. Socket já autenticado -> JA_AUTENTICADO (cadastro sempre cria identidade nova, nunca "é a mesma conta")
     ENTRAR_COMO_CONVIDADO: 'entrarComoConvidado', // { nome } -> ack: { ok, nome, token } — pseudo-guest: Player só em memória (id negativo), nunca grava no banco; nasce autenticado igual entrar/cadastrar. Socket já autenticado -> JA_AUTENTICADO (convidado sempre nasce com id novo)
     RETOMAR_SESSAO: 'retomarSessao', // { token } -> ack: { ok, nome, token } — reautentica o socket a partir de um token já emitido (entrar/cadastrar/entrarComoConvidado/retomarSessao anterior), sem pedir nome/senha de novo; devolve sempre um token NOVO (mesmo id/nome, prazo renovado). Socket já autenticado como OUTRA conta -> JA_AUTENTICADO (mesma conta de novo é permitido — precisa ser idempotente, ver socketServer.js)
-    CRIAR_SALA: 'criarSala',    // { numberPlayers, roundStart, randomShuffle, botNumber, chatAberto } -> ack: { ok, salaId, numberPlayers, jogadores, segundosParaIniciar, chatAberto } — botNumber preenche o resto dos assentos com bots (ver bots/Bot.js); segundosParaIniciar != null se os bots já lotaram a sala; chatAberto (default false) libera o chat de texto livre da sala. Erros de teto: LIMITE_DE_SALAS (global), LIMITE_DE_SALAS_POR_JOGADOR (por pessoa), JA_EM_PARTIDA (já tem assento numa partida em andamento)
-    ENTRAR_SALA: 'entrarSala',  // { salaId } -> ack: { ok, salaId, numberPlayers, jogadores, segundosParaIniciar, chatAberto } — segundosParaIniciar != null se esta entrada lotou a sala
-    PARTIDA_RAPIDA: 'partidaRapida', // {} -> ack: { ok, salaId, numberPlayers, jogadores, segundosParaIniciar, chatAberto } — mesmo formato de criarSala/entrarSala; entra numa fila compartilhada de sala default (config igual criarSala sem parâmetros), criando-a se não houver nenhuma aberta no momento
-    LISTAR_SALAS: 'listarSalas', // {} -> ack: { ok, salas: [{ salaId, numberPlayers, jogadoresAtual, chatAberto }] }
+    CRIAR_SALA: 'criarSala',    // { numberPlayers, roundStart, randomShuffle, botNumber, chatAberto, privada } -> ack: { ok, salaId, numberPlayers, jogadores, segundosParaIniciar, chatAberto, senha } — botNumber preenche o resto dos assentos com bots (ver bots/Bot.js); segundosParaIniciar != null se os bots já lotaram a sala; chatAberto (default false) libera o chat de texto livre da sala. privada (default false): sala continua aparecendo em listarSalas normalmente, mas entrarSala exige senha batendo. O CRIADOR não escolhe a senha — o servidor sorteia 4 dígitos e devolve em `senha` só neste ack (null se a sala não é privada); é o criador quem repassa pra quem quiser convidar, nenhum outro ack/broadcast expõe a senha de novo. Erros de teto: LIMITE_DE_SALAS (global), LIMITE_DE_SALAS_POR_JOGADOR (por pessoa), JA_EM_PARTIDA (já tem assento numa partida em andamento)
+    ENTRAR_SALA: 'entrarSala',  // { salaId, senha? } -> ack: { ok, salaId, numberPlayers, jogadores, segundosParaIniciar, chatAberto } — segundosParaIniciar != null se esta entrada lotou a sala. `senha` só é conferida (e obrigatória de bater) se a sala é privada — ver LISTAR_SALAS; SENHA_INCORRETA se não bater
+    PARTIDA_RAPIDA: 'partidaRapida', // {} -> ack: { ok, salaId, numberPlayers, jogadores, segundosParaIniciar, chatAberto } — mesmo formato de criarSala/entrarSala; entra numa fila compartilhada de sala default (config igual criarSala sem parâmetros, logo nunca privada), criando-a se não houver nenhuma aberta no momento
+    LISTAR_SALAS: 'listarSalas', // {} -> ack: { ok, salas: [{ salaId, numberPlayers, jogadoresAtual, chatAberto, privada }] } — privada só indica que entrarSala vai pedir senha; a senha em si nunca é exposta aqui
     FORCAR_INICIO: 'forcarInicio', // { salaId } -> ack: { ok } — só o adm da sala, só com a sala cheia
     SAIR_SALA: 'sairSala',       // { salaId } -> ack: { ok } — só antes da partida começar
     SAIR_DA_PARTIDA: 'sairDaPartida', // { salaId } -> ack: { ok } — abandono voluntário de partida JÁ em andamento; o assento vira bot na hora (reaproveita o caminho da expulsão por inatividade), MAS a vaga continua reservada pra reconectar
@@ -66,7 +66,7 @@ export const EventosServidor = {
 export const CodigosErro = {
     NAO_IDENTIFICADO: 'NAO_IDENTIFICADO',   // tentou criar/entrar/listar sala sem mandar ENTRAR antes
     NOME_INVALIDO: 'NOME_INVALIDO',         // nome já em uso na mesma sala
-    CONFIGURACAO_INVALIDA: 'CONFIGURACAO_INVALIDA', // numberPlayers/roundStart fora do intervalo aceito
+    CONFIGURACAO_INVALIDA: 'CONFIGURACAO_INVALIDA', // numberPlayers/roundStart fora do intervalo aceito, ou algum boolean (chatAberto/randomShuffle/privada) que não é boolean
     LIMITE_DE_SALAS: 'LIMITE_DE_SALAS',     // criarSala com o teto global de salas vivas já atingido — tenta de novo mais tarde
     LIMITE_DE_SALAS_POR_JOGADOR: 'LIMITE_DE_SALAS_POR_JOGADOR', // criarSala por quem já é adm de salas ativas demais ao mesmo tempo (teto por pessoa) — feche/termine alguma antes
     SALA_NAO_ENCONTRADA: 'SALA_NAO_ENCONTRADA',
@@ -88,7 +88,7 @@ export const CodigosErro = {
     CHAT_INVALIDO: 'CHAT_INVALIDO',           // chat com tipo desconhecido, id fora do catálogo, ou texto vazio/longo demais
     CHAT_EM_COOLDOWN: 'CHAT_EM_COOLDOWN',     // chat antes de chatCooldownMs passar desde o último envio aceito (qualquer sala, qualquer tipo)
     USUARIO_NAO_ENCONTRADO: 'USUARIO_NAO_ENCONTRADO', // login: nome não existe no banco
-    SENHA_INCORRETA: 'SENHA_INCORRETA',               // login: nome existe, senha não bate
+    SENHA_INCORRETA: 'SENHA_INCORRETA',               // login: nome existe, senha não bate; também entrarSala numa sala privada com a senha errada
     CADASTRO_INVALIDO: 'CADASTRO_INVALIDO',           // cadastrar: nome/senha fora do tamanho mínimo aceito
     NOME_JA_CADASTRADO: 'NOME_JA_CADASTRADO',         // cadastrar: nome já existe no banco; ou entrarComoConvidado: nome virou conta registrada entre o verificarNome e esta chamada (corrida com um cadastro concorrente)
     CONVIDADO_INVALIDO: 'CONVIDADO_INVALIDO',         // entrarComoConvidado: nome fora do tamanho mínimo aceito

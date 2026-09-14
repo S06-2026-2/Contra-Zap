@@ -46,11 +46,42 @@ body {
     display: block;
     width: 100%;
     height: 100%;
+    overflow: visible;
 }
 
-.bola-svg circle {
+.bola-circulo {
     stroke: #f4f4f5;
     stroke-width: 2;
+}
+
+.bola-particulas {
+    filter: blur(0.4px);
+}
+
+.bola-particula {
+    fill: #ffffff;
+    opacity: 0;
+    mix-blend-mode: screen;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: bola-cair 1.4s ease-in infinite;
+}
+
+@keyframes bola-cair {
+    0% {
+        opacity: 0;
+        transform: translate(0, 0) scale(1);
+    }
+    20% {
+        opacity: 1;
+    }
+    65% {
+        transform: translate(calc(var(--dx) * 0.3px), 55px) scale(0.55);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(calc(var(--dx) * 1px), 90px) scale(0);
+    }
 }
 
 .bola-selo {

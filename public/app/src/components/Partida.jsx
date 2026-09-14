@@ -95,7 +95,7 @@ function mapaCurvatura(eixo) {
 const MAPA_CURV_X = mapaCurvatura('x');
 const MAPA_CURV_Y = mapaCurvatura('y');
 
-export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, reconexao, chatAberto, meuNome, onSairDaSala, onSairDaPartida, onEntrouNaSala }) {
+export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, reconexao, chatAberto, senha, meuNome, onSairDaSala, onSairDaPartida, onEntrouNaSala }) {
     // Semeado do ack de criarSala/entrarSala (ou de reconectar, no caminho de
     // reconexão — o ack de reconectar não dispara listaJogadores), não do
     // broadcast de listaJogadores — o primeiro broadcast sai antes desta tela
@@ -927,6 +927,14 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
                     {iniciada ? 'Sair da partida' : 'Sair da sala'}
                 </button>
             </div>
+
+            {/* senha só vem preenchida no ack de QUEM criou uma sala privada
+                (ver eventos.js/PROTOCOLO.md) — nunca chega aqui de novo depois
+                de um F5/reconexão, então só aparece nesse primeiro momento pro
+                criador repassar pra quem for convidar. */}
+            {!iniciada && senha && (
+                <p>🔒 Senha da sala: <strong>{senha}</strong></p>
+            )}
 
             {!iniciada && (
                 <section>
