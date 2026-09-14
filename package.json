@@ -6,7 +6,12 @@
   "scripts": {
     "start": "node Server.js",
     "gamestart": "node GameStart.js",
-    "test": "node --test"
+    "test": "node --test \"tests/**/*.test.js\"",
+    "test:api": "node --test \"tests/api/**/*.test.js\"",
+    "test:watch": "node --test --watch \"tests/**/*.test.js\"",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "docs": "node docs/servir.js"
   },
   "private": true,
   "keywords": [],
@@ -14,11 +19,14 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "bcryptjs": "^3.0.3",
+    "bcrypt": "^6.0.0",
     "better-sqlite3": "^13.0.3",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
   }
 }
