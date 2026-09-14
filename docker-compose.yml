@@ -1,6 +1,5 @@
 services:
   game-server:
-    platform: linux/arm64
     build:
       context: .
       dockerfile: Dockerfile
@@ -10,11 +9,19 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-    # TEMPORARIAMENTE DESATIVADO PRA TESTE DE DIAGNÓSTICO — SQLite +
-    # bind mount no Docker Desktop Mac pode causar segfault (problema
-    # conhecido de locking/mmap sobre virtiofs). Se o teste confirmar
-    # isso, trocamos por named volume (solução definitiva).
-    # volumes:
-    #   - ./banco.sqlite:/app/banco.sqlite
-    #   - ./jwt.secret:/app/jwt.secret
+    volumes:
+      # banco.sqlite e jwt.secret são gerados automaticamente na primeira
+      # execução (não são versionados no git). Montados como arquivo pra
+      # PERSISTIREM entre restarts/rebuilds do container — sem isso, todo
+      # `up --build` perde as contas cadastradas e rotaciona o segredo do
+      # JWT (derrubando sessões de todo mundo sem aviso).
+      #
+      # IMPORTANTE: antes do primeiro `docker compose up`, rode na raiz
+      # do projeto:
+      #   touch banco.sqlite jwt.secret
+      # Isso garante que o Docker monte ARQUIVOS e não crie DIRETÓRIOS
+      # vazios com esses nomes (comportamento padrão quando o path de
+      # origem não existe ainda no host).
+      - ./banco.sqlite:/app/banco.sqlite
+      - ./jwt.secret:/app/jwt.secret
     restart: unless-stopped

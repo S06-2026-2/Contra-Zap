@@ -1,8 +1,12 @@
 # Dependências (instaláveis via `npm install`, nunca fazem sentido versionadas)
 /node_modules/
 /public/app/node_modules/
+/public/experimento/node_modules/
+/public/experimento/dist/
 
-# Build da interface React (gerado por `npm run build` dentro de public/ap
+# Build da interface React — gerado por `npm run build` dentro de public/app
+# (ou por GameStart.js). É artefato: sempre reconstruído, nunca versionado.
+/public/dist/
 
 # Logs e variáveis de ambiente
 npm-debug.log*
@@ -31,12 +35,31 @@ Thumbs.db
 /dataSources/
 /dataSources.local.xml
 
-# Testes escritos localmente, nunca commitados no repositório do grupo —
-# mantidos só locais de propósito (não é responsabilidade individual de
-# quem está nesta branch decidir a estratégia de testes automatizados do
-# grupo). Ver conversa/decisão do time antes de tirar isso daqui.
+# Treino do bot (self-play/PPO, ver training/env_bridge.js) — venv Python e
+# artefatos gerados (checkpoints, logs), nada disso deve ir pro repo do grupo.
+/training/.venv/
+/training/checkpoints/
+/training/logs/
+/training/runs/
+__pycache__/
+*.pyc
+
 /conexao/login.test.js
 /conexao/SalaManager.test.js
 /conexao/socketServer.test.js
 /conexao/jwt.test.js
 /conexao/cadastro.test.js
+/conexao/cleanup.test.js
+/game/maxDeck.test.js
+/game/loopPartida.test.js
+/game/seed.test.js
+/game/playerGame.test.js
+/game/fimDeJogo.test.js
+/training/python/test_motor_maxdeck.py
+/training/python/test_motor_loop.py
+/training/python/test_seed.py
+/training/python/test_fim_de_jogo.py
+
+# Saída do Playwright (E2E) — relatório HTML, traces e screenshots de falha
+/playwright-report/
+/test-results/

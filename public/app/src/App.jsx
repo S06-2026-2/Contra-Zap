@@ -122,10 +122,13 @@ export default function App() {
 
     // Compartilhado entre Lobby (criar/entrar numa sala normal) e Partida
     // (aceitar um convite de revanche — ver convidadoParaRevanche): as duas
-    // situações terminam do mesmo jeito, numa sala de espera nova.
-    function entrarNaSala(salaId, jogadoresIniciais, segundosParaIniciar, chatAberto) {
+    // situações terminam do mesmo jeito, numa sala de espera nova. `senha`
+    // só vem preenchida quando ESTA chamada criou uma sala privada (ver
+    // Lobby.jsx) — entrarSala/jogarDeNovo nunca trazem, então fica undefined
+    // e a tela de espera simplesmente não mostra o bloco de senha.
+    function entrarNaSala(salaId, jogadoresIniciais, segundosParaIniciar, chatAberto, senha) {
         setSalaParaReconectar(null);
-        setSala({ salaId, jogadoresIniciais, segundosParaIniciar, chatAberto });
+        setSala({ salaId, jogadoresIniciais, segundosParaIniciar, chatAberto, senha });
     }
 
     if (restaurandoSessao) {
@@ -166,6 +169,7 @@ export default function App() {
                 segundosIniciais={sala.segundosParaIniciar}
                 reconexao={sala.reconexao}
                 chatAberto={sala.chatAberto ?? sala.reconexao?.chatAberto ?? false}
+                senha={sala.senha}
                 meuNome={player.nome}
                 onSairDaSala={() => setSala(null)}
                 onSairDaPartida={(salaId) => {

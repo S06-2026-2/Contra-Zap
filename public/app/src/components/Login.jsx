@@ -1,5 +1,9 @@
 import { useState } from 'react';
 import { chamar } from '../socket.js';
+// Fonte única de verdade (conexao/limites.js) — não há mais teto de tamanho
+// nem mínimo de senha espelhado aqui à mão; se a régua mudar no backend,
+// esta tela já reflete sozinha (ver server.fs.allow em vite.config.js).
+import { NOME_MIN, NOME_MAX, SENHA_MIN, SENHA_MAX } from '../../../../conexao/limites.js';
 
 const ETAPA = {
     NOME: 'nome',
@@ -29,7 +33,7 @@ export default function Login({ onAutenticado }) {
 
     async function continuar(evento) {
         evento.preventDefault();
-        if (!nome.trim()) return;
+        if (nome.trim().length < NOME_MIN) return;
         setErro(null);
         setCarregando(true);
         try {
@@ -50,25 +54,40 @@ export default function Login({ onAutenticado }) {
             const resposta = await chamar(tipoDeAcao, payload ?? { nome, senha });
             onAutenticado({ nome: resposta.nome, token: resposta.token });
         } catch (erroDaChamada) {
-            setErro(erroDaChamada.message);
+            // `ultimaTentativa` só vem em `entrar` (ver rate-limit de login
+            // falhado, conexao/PROTOCOLO.md) — a falha que acabou de gastar
+            // a última tentativa da janela antes do bloqueio por IP.
+            const aviso = erroDaChamada.resposta?.ultimaTentativa
+                ? ' ⚠️ Essa era sua última tentativa — novas tentativas ficarão bloqueadas por um tempo.'
+                : '';
+            setErro(erroDaChamada.message + aviso);
         } finally {
             setCarregando(false);
         }
     }
 
+    // Mesma régua de nome do backend (NOME_MIN/NOME_MAX em conexao/limites.js).
+    // `verificarNome` não reclama de nome curto — responde `existe: false` como
+    // pra qualquer nome livre —, então sem esta checagem a régua só apareceria
+    // lá na frente: no `cadastrar` da tela de senha, ou no
+    // `entrarComoConvidado` da oferta de cadastro. Checando aqui, o aviso sai
+    // na etapa em que ainda dá pra corrigir o nome. O teto fica com o
+    // `maxLength` do input, que nem deixa digitar além dele.
+    const nomeCurtoDemais = nome.trim().length > 0 && nome.trim().length < NOME_MIN;
     if (etapa === ETAPA.NOME) {
         return (
             <form className="cartao" onSubmit={continuar}>
                 <h1>Contra ZAP</h1>
                 <label>
                     Nome
-                    <input value={nome} onChange={(e) => setNome(e.target.value)} autoFocus />
+                    <input value={nome} onChange={(e) => setNome(e.target.value)} maxLength={NOME_MAX} autoFocus />
                 </label>
                 <div className="botoes">
-                    <button type="submit" disabled={carregando || !nome.trim()}>
+                    <button type="submit" disabled={carregando || nome.trim().length < NOME_MIN}>
                         Continuar
                     </button>
                 </div>
+                {nomeCurtoDemais && <p className="erro">Nome precisa ter pelo menos {NOME_MIN} caracteres.</p>}
                 {erro && <p className="erro">{erro}</p>}
             </form>
         );
@@ -81,7 +100,7 @@ export default function Login({ onAutenticado }) {
                 <p>Usuário registrado. Confirme sua identidade, {nome}.</p>
                 <label>
                     Senha
-                    <input value={senha} onChange={(e) => setSenha(e.target.value)} type="password" autoFocus />
+                    <input value={senha} onChange={(e) => setSenha(e.target.value)} type="password" maxLength={SENHA_MAX} autoFocus />
                 </label>
                 <div className="botoes">
                     <button type="submit" disabled={carregando}>Entrar</button>
@@ -119,18 +138,21 @@ export default function Login({ onAutenticado }) {
     }
 
     // ETAPA.NOVA_SENHA
+    const senhaCurtaDemais = senha.length > 0 && senha.length < SENHA_MIN;
     return (
         <form className="cartao" onSubmit={(e) => autenticar(e, 'cadastrar')}>
             <h1>Contra ZAP</h1>
             <p>Escolha uma senha pra registrar "{nome}".</p>
             <label>
                 Senha
-                <input value={senha} onChange={(e) => setSenha(e.target.value)} type="password" autoFocus />
+                <input value={senha} onChange={(e) => setSenha(e.target.value)} type="password" maxLength={SENHA_MAX} autoFocus />
             </label>
+            <small>Mínimo de {SENHA_MIN} caracteres.</small>
             <div className="botoes">
-                <button type="submit" disabled={carregando}>Cadastrar</button>
+                <button type="submit" disabled={carregando || senha.length < SENHA_MIN}>Cadastrar</button>
                 <button type="button" onClick={voltar} disabled={carregando} className="secundario">Voltar</button>
             </div>
+            {senhaCurtaDemais && <p className="erro">Faltam {SENHA_MIN - senha.length} caractere(s).</p>}
             {erro && <p className="erro">{erro}</p>}
         </form>
     );

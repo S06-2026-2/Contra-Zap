@@ -31,6 +31,103 @@ jobs:
       - name: Roda os testes
         run: npm test
 
+  docs:
+    name: Documentação de API
+    runs-on: ubuntu-latest
+    # Depois dos testes: não faz sentido validar contrato de uma versão que
+    # já falhou nos testes de comportamento.
+    needs: test
+    steps:
+      - name: Baixa o código do repositório
+        uses: actions/checkout@v4
+
+      - name: Configura Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      # As duas specs são o contrato publicado da API. Um typo aqui não
+      # quebra o jogo, mas quebra quem está integrando por elas.
+      - name: Valida o OpenAPI (rotas HTTP)
+        run: npx --yes @redocly/cli@1 lint docs/openapi.yaml
+
+      - name: Valida o AsyncAPI (protocolo socket.io)
+        run: npx --yes @asyncapi/cli@2 validate docs/asyncapi.yaml
+
+      # --ignore-scripts: better-sqlite3 e bcrypt trazem binário pronto em
+      # prebuilds/, mas o npm chama node-gyp sozinho por causa do
+      # binding.gyp. Pular isso economiza a compilação inteira.
+      - name: Instala dependências
+        run: npm ci --ignore-scripts
+
+      # A coleção do Postman é o único artefato aqui que pode apodrecer sem
+      # ninguém ver: ela roda contra um servidor de verdade, então só quebra
+      # quando alguém tenta usar. Rodando no CI, quebra na hora.
+      - name: Sobe o servidor e espera ficar saudável
+        run: |
+          node Server.js &
+          echo $! > /tmp/servidor.pid
+          for tentativa in $(seq 1 30); do
+            if curl -sf http://localhost:3000/health > /dev/null; then
+              echo "Servidor no ar após $tentativa tentativa(s)."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "O servidor não respondeu em /health depois de 30s."
+          exit 1
+
+      - name: Roda a coleção do Postman (Newman)
+        run: npx --yes newman@6 run postman/Contra-Zap.postman_collection.json --env-var baseUrl=http://localhost:3000
+
+      - name: Derruba o servidor
+        if: always()
+        run: kill "$(cat /tmp/servidor.pid)" || true
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    # Depois dos testes de API, e separado deles: sobe navegador de verdade e
+    # leva ~40s — não pode alongar o loop de quem só mexeu em regra de jogo.
+    needs: test
+    steps:
+      - name: Baixa o código do repositório
+        uses: actions/checkout@v4
+
+      - name: Configura Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Instala dependências
+        run: npm ci --ignore-scripts
+
+      # O front é buildado pelo próprio playwright.config.js (webServer),
+      # mas as dependências dele precisam existir antes — public/dist não é
+      # versionado.
+      - name: Instala dependências do front
+        run: npm --prefix public/app ci --ignore-scripts
+
+      # Só o Chromium: é o único projeto em playwright.config.js.
+      # --with-deps instala as libs de sistema que o navegador precisa.
+      - name: Instala o Chromium do Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Roda o E2E
+        run: npm run test:e2e
+
+      # Trace + screenshot de cada falha, pra abrir com `npx playwright
+      # show-report` sem precisar reproduzir localmente.
+      - name: Guarda o relatório quando falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
   docker-build:
     name: Build da imagem Docker
     runs-on: ubuntu-latest

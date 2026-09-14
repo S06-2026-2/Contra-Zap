@@ -1,13 +1,13 @@
 // GameController.js
 // Dona da sala de espera (lista de jogadores antes da partida começar) e
-// orquestra a partida inteira (Game -> RodadaGame -> Mesa) quando ela
+// orquestra a partida inteira (Game -> Rodada -> Mesa) quando ela
 // começa, expondo o andamento como eventos em vez de console.log espalhado.
 //
 // Isso serve dois consumidores ao mesmo tempo, sem duplicar a lógica de regras:
 //  - Main.js: assina os eventos e imprime no console (harness de teste local)
 //  - Server.js (futuro): assina os eventos e faz io.emit(...) para os clientes via socket.io
 import { EventEmitter } from 'node:events';
-import { Game } from './Game.js';
+import { Game, MAX_DECK_SEM_LIMITE } from './Game.js';
 import { PlayerGame } from './PlayerGame.js';
 import { escolherCarta, escolherAposta } from '../bots/BotBrain.js';
 
@@ -19,11 +19,18 @@ import { escolherCarta, escolherAposta } from '../bots/BotBrain.js';
 const ATRASO_BOT_MS_SALA_ABANDONADA = 50;
 
 export class GameController extends EventEmitter {
-    constructor({ numberPlayers, roundStart, randomShuffle, tempoTurnoMs, limiteInatividadeMs, atrasoBotMs, tempoReservaMs } = {}) {
+    constructor({ numberPlayers, roundStart, randomShuffle, maxDeck, seed, tempoTurnoMs, limiteInatividadeMs, atrasoBotMs, tempoReservaMs } = {}) {
         super();
         this.numberPlayers = numberPlayers || 4;
         this.roundStart = roundStart || 3;
         this.randomShuffle = randomShuffle;
+        // Máximo de baralhos por rodada (ver Game.proximaRodada). Sem valor na
+        // config = "Sem Limite" (MAX_DECK_SEM_LIMITE). A validação de que
+        // roundStart cabe nesse teto é da camada de sala (SalaManager).
+        this.maxDeck = maxDeck ?? MAX_DECK_SEM_LIMITE;
+        // Seed opcional pro embaralhamento (ver game/rng.js). undefined =
+        // Math.random de sempre; um inteiro torna a partida reproduzível.
+        this.seed = seed;
         // Quanto tempo esperar a jogada real antes de cair pro automático
         // (ver _aguardarJogadaOuTimeout). Campo público de propósito — dá
         // pra ajustar por sala (ex.: testes usam um valor bem menor).
@@ -48,6 +55,26 @@ export class GameController extends EventEmitter {
         this.game = null;
         this.rodada = null;
         this.numeroRodada = 0;
+        // Cartas (valorInt*4+naipeInt) ja jogadas na rodada atual — memoria
+        // que bots/BotBrain.js usa na observacao da rede. Zerada a cada
+        // rodada nova em _jogarUmaRodada; so BotBrain le.
+        this._cartasJogadasRodada = new Set();
+        // playerId de quem já apostou na rodada atual — o valor de aposta 0
+        // não distingue "apostou 0" de "ainda não apostou", então quem
+        // reconecta (estadoDeReconexao) precisa disto pra saber quais apostas
+        // já valem. Zerada junto com _cartasJogadasRodada em _jogarUmaRodada;
+        // preenchida em _registrarAposta.
+        this._apostasFeitasRodada = new Set();
+        // Resultado da última rodadaFinalizada (mesmo payload do evento) —
+        // resetarApostasSteaks zera aposta/steak na virada de rodada, então
+        // quem reconecta na rodada seguinte não teria mais como remontar o
+        // "Placar (última rodada)" sem isto. [] até a primeira rodada fechar.
+        this._ultimoPlacar = [];
+        // Nome do vencedor depois de jogoFinalizado (ver _resolverFimDeJogo) —
+        // guardado pra quem reconecta DEPOIS do fim da partida (blip de rede
+        // no último lance) receber o vencedor no ack em vez de uma mesa
+        // aparentemente viva. null enquanto a partida não acabou.
+        this._vencedor = null;
         this._timerInicio = null;
         // segundos passados pro último agendarInicio — só pra quem chega
         // depois do broadcast de partidaIniciandoEm (ex.: o cliente que
@@ -56,11 +83,16 @@ export class GameController extends EventEmitter {
         this._segundosParaIniciar = null;
         this._jogadaEsperada = null;
         this._apostaEsperada = null;
-        // true só depois que jogoFinalizado dispara (ver _avancarOuFinalizar)
+        // true só depois que jogoFinalizado dispara (ver _resolverFimDeJogo)
         // — diferente de `game !== null` (que já é true desde o início da
         // partida), é o que permite distinguir "partida em andamento" de
         // "partida acabou" de fora (ver SalaManager.jogarDeNovo).
         this._finalizada = false;
+        // true depois de destruir() — a sala saiu do sistema e este controller
+        // não deve mais rodar nada. O loop da partida checa isso nos pontos de
+        // re-entrada pra desenrolar em vez de seguir emitindo pra uma sala que
+        // não existe mais.
+        this._encerrado = false;
         // playerId -> timer do contador de reserva (ver _iniciarContadorReserva).
         this._timersReserva = new Map();
     }
@@ -112,6 +144,7 @@ export class GameController extends EventEmitter {
         if (indice === -1) return false;
 
         const eraAdm = this.jogadores[indice].adm;
+        const nome = this.jogadores[indice].nome;
         this.jogadores.splice(indice, 1);
         if (eraAdm && this.jogadores.length > 0) {
             this.jogadores[0].adm = true;
@@ -123,7 +156,7 @@ export class GameController extends EventEmitter {
             this._segundosParaIniciar = null;
         }
 
-        this.emit('jogadorSaiu', { id: playerId });
+        this.emit('jogadorSaiu', { id: playerId, nome });
         return true;
     }
 
@@ -152,6 +185,8 @@ export class GameController extends EventEmitter {
             numberPlayers: this.numberPlayers,
             roundStart: this.roundStart,
             randomShuffle: this.randomShuffle,
+            maxDeck: this.maxDeck,
+            seed: this.seed,
             jogadores: [...this.jogadores],
         });
         this.game.setstartsequence();
@@ -171,14 +206,66 @@ export class GameController extends EventEmitter {
         // A partir daqui a partida roda em segundo plano, pausando pra
         // esperar cada jogada real (ver _aguardarJogada/jogarCarta) — pode
         // levar segundos, minutos, o tempo que for. iniciarPartida() não
-        // espera nada disso, só dispara e devolve na hora. O .catch aqui é
-        // a mesma filosofia do responder() em socketServer.js: um erro
-        // inesperado no meio da partida não pode virar um unhandled
-        // rejection e derrubar o processo.
-        this._jogarRodadaAtual().catch(erro => {
-            console.error('Erro inesperado durante a partida:', erro);
-        });
+        // espera nada disso, só dispara e devolve na hora. O .catch aqui
+        // garante que um erro inesperado no meio da partida vira
+        // _abortarPartida (avisa a sala) em vez de um unhandled rejection
+        // que derruba o processo.
+        this._rodarPartida().catch(erro => this._abortarPartida(erro));
         return this;
+    }
+
+    // Chamado quando o loop da partida lança um erro inesperado (ex.: baralho
+    // vazio / Rodada impossível — invariantes que "não deviam acontecer", ver
+    // Baralho.js e Rodada). Não tenta recuperar de propósito: marca a partida
+    // como encerrada, corta os timers soltos e emite 'partidaAbortada' pra
+    // sala inteira, pra ninguém ficar olhando uma mesa congelada sem saber
+    // por quê. O estado fica de pé (não desmonta a sala) pra dar pra
+    // investigar.
+    _abortarPartida(erro) {
+        console.error('Partida abortada por erro interno:', erro);
+
+        this._limparTimers();
+
+        // Mesmo efeito de jogoFinalizado pra quem olha de fora (SalaManager,
+        // "jogar de novo"): a partida não está mais "em andamento".
+        this._finalizada = true;
+        this.emit('partidaAbortada', { motivo: 'erro_interno', erro: erro?.message ?? String(erro) });
+    }
+
+    // Cancela todo timer que este controller possa ter em aberto: o de início
+    // de partida e todos os contadores de reserva de vaga. Idempotente.
+    _limparTimers() {
+        if (this._timerInicio) {
+            clearTimeout(this._timerInicio);
+            this._timerInicio = null;
+            this._segundosParaIniciar = null;
+        }
+        for (const timer of this._timersReserva.values()) {
+            clearTimeout(timer);
+        }
+        this._timersReserva.clear();
+    }
+
+    // Teardown: chamado por SalaManager.removerSala quando a sala sai do
+    // sistema. Sem isto, um controller de sala já removida seguiria com o loop
+    // da partida rodando, os listeners de socket presos (memória) e os timers
+    // de reserva disparando `_expirarVaga` num objeto solto. Depois daqui o
+    // controller não emite mais nada e o loop, se estiver no ar, desenrola no
+    // próximo ponto de re-entrada (ver o guard de _encerrado em
+    // _rodarPartida/_jogarUmaRodada).
+    destruir() {
+        this._encerrado = true;
+        this._limparTimers();
+
+        // Desbloqueia o loop se ele estiver parado num await esperando jogada
+        // ou aposta real — resolve com null; o guard de _encerrado logo depois
+        // do await faz o loop retornar sem tocar nesse valor.
+        this._jogadaEsperada?.resolver(null);
+        this._apostaEsperada?.resolver(null);
+        this._jogadaEsperada = null;
+        this._apostaEsperada = null;
+
+        this.removeAllListeners();
     }
 
     // Devolve uma Promise que só resolve quando jogarCarta(jogador.id, ...)
@@ -239,6 +326,16 @@ export class GameController extends EventEmitter {
     // precisa saber) o que é um SalaManager.
     _expirarVaga(jogador) {
         this._timersReserva.delete(jogador.id);
+        this._marcarVagaExpirada(jogador);
+    }
+
+    // Núcleo compartilhado por _expirarVaga (o contador de reserva estourou)
+    // e desistir (o jogador pediu pra sair de vez): marca a vaga como
+    // não-reclamável, avisa a sala, passa o adm adiante se era dele, e
+    // descarta a sala se não sobrou mais ninguém de verdade. NÃO mexe no
+    // timer de reserva — quem chama cuida disso (delete direto no
+    // _expirarVaga, _cancelarContadorReserva no desistir).
+    _marcarVagaExpirada(jogador) {
         jogador.vagaExpirada = true;
         this.emit('vagaExpirada', { id: jogador.id, jogador: jogador.nome });
 
@@ -344,7 +441,7 @@ export class GameController extends EventEmitter {
             this.emit('turnoJogador', { id: jogador.id, jogador: jogador.nome });
             if (jogador.desconectado) this.emit('jogadaAutomatica', { id: jogador.id, jogador: jogador.nome });
             await this._atrasoBot();
-            return escolherCarta(jogador);
+            return escolherCarta(jogador, this);
         }
 
         const jogadaFeita = this._aguardarJogada(jogador);
@@ -356,7 +453,7 @@ export class GameController extends EventEmitter {
             const resolver = this._jogadaEsperada.resolver;
             this._jogadaEsperada = null;
             this.emit('jogadaAutomatica', { id: jogador.id, jogador: jogador.nome });
-            resolver(escolherCarta(jogador));
+            resolver(escolherCarta(jogador, this));
         }, this.tempoTurnoMs);
         timer.unref?.();
 
@@ -368,7 +465,7 @@ export class GameController extends EventEmitter {
     // Chamado de fora (via protocolo) quando um jogador manda a carta que
     // quer jogar. `indice` é a posição na mão dele (0-based). Devolve
     // { ok: true } se aceita — e só então o índice é consumido e a espera
-    // em _jogarRodadaAtual é liberada — ou { ok: false, motivo } se não for
+    // em _jogarUmaRodada é liberada — ou { ok: false, motivo } se não for
     // a vez desse jogador ou o índice não existir na mão dele; nesses casos
     // nada muda e a espera continua de pé.
     jogarCarta(playerId, indice) {
@@ -393,6 +490,7 @@ export class GameController extends EventEmitter {
     // que escreve em jogador.aposta, pra sempre emitir apostaFeita junto.
     _registrarAposta(jogador, valor) {
         jogador.aposta = valor;
+        this._apostasFeitasRodada.add(jogador.id);
         this.emit('apostaFeita', { jogador: jogador.nome, aposta: valor });
     }
 
@@ -414,7 +512,7 @@ export class GameController extends EventEmitter {
     }
 
     // true só pro último jogador a apostar na rodada (ordem de
-    // rodada.gameOrder, a mesma em que _jogarRodadaAtual pede as apostas) —
+    // rodada.gameOrder, a mesma em que _jogarUmaRodada pede as apostas) —
     // é o único cuja aposta fecha (ou não) a soma de todo mundo, porque
     // todos os outros já apostaram quando chega a vez dele.
     _ehUltimoAApostar(jogador) {
@@ -430,7 +528,7 @@ export class GameController extends EventEmitter {
     // existe um valor proibido por vez — ver apostar()).
     _decidirApostaAutomatica(jogador) {
         const permiteAposta1 = !(this._ehUltimoAApostar(jogador) && this._somaApostasDosOutros(jogador) + 1 === this.rodada.round);
-        return escolherAposta(jogador, { permiteAposta1 });
+        return escolherAposta(jogador, { permiteAposta1, controller: this });
     }
 
     // Igual _aguardarJogadaOuTimeout: emite turnoAposta e dá tempoTurnoMs
@@ -497,14 +595,15 @@ export class GameController extends EventEmitter {
         return { ok: true };
     }
 
-    // Estado mínimo pra alguém que estava fora reencaixar numa partida já em
-    // andamento: a própria mão atual e de quem é a vez agora — tanto pra
-    // jogar carta quanto pra apostar, porque as duas esperas (_jogadaEsperada
-    // e _apostaEsperada) nunca coexistem (a rodada só chega na vaza depois
-    // que todo mundo já apostou), então no máximo uma das duas está de pé
-    // quando isto é chamado. null se esse playerId não faz parte de uma
-    // partida em andamento aqui (sala ainda não começou, ou ele nunca esteve
-    // nela).
+    // Estado pra alguém que estava fora reencaixar numa partida já em
+    // andamento e remontar a tela inteira sem depender dos broadcasts que já
+    // passaram enquanto ele estava desconectado: a própria mão, de quem é a
+    // vez (jogar carta OU apostar — as duas esperas nunca coexistem, a rodada
+    // só chega na vaza depois que todo mundo apostou), a mesa da vaza em
+    // curso, a vira/manilha, quem já apostou quanto, hp/placar da última
+    // rodada, quem morreu, quem está no automático e — se a partida já
+    // acabou — o vencedor. null se esse playerId não faz parte de uma partida
+    // em andamento aqui (sala ainda não começou, ou ele nunca esteve nela).
     estadoDeReconexao(playerId) {
         if (!this.game) return null;
         const jogador = this.jogadores.find(j => j.id === playerId);
@@ -520,14 +619,48 @@ export class GameController extends EventEmitter {
                 .filter(j => j.id !== playerId && j.mao.length > 0)
                 .map(j => ({ jogador: j.nome, mao: j.mao.map(c => c.toString()) }))
             : [];
+        // Cartas já baixadas na vaza atual, na ordem em que caíram (mesmo
+        // formato do evento cartaJogada). Vazio no começo de cada vaza.
+        const mesa = (this.rodada.mesaAtiva?.cartasNaMesa ?? [])
+            .map(({ carta, jogador: quem }) => ({ jogador: quem.nome, carta: carta.toString() }));
+        // Só as apostas que já valem (ver _apostasFeitasRodada) — mesmo
+        // formato acumulado do evento apostaFeita.
+        const apostas = this.rodada.gameOrder
+            .filter(j => this._apostasFeitasRodada.has(j.id))
+            .map(j => ({ jogador: j.nome, aposta: j.aposta }));
         return {
+            // Roster com adm — o ack de reconectar não passa por notificarSala,
+            // então sem isto a tela remontada fica sem lista de jogadores até
+            // o próximo evento que a mexa (novoAdm, alguém entrando/saindo).
+            jogadores: this.jogadores.map(j => ({ nome: j.nome, adm: j.adm })),
             mao: jogador.mao.map(c => c.toString()),
             cartasRodada: this.rodada.round,
+            numeroRodada: this.numeroRodada,
             maosReveladas,
+            mesa,
+            // vira só existe depois de virarManilha (null no vão entre
+            // novaRodadaIniciada e a manilha, que na prática é síncrono).
+            vira: this.rodada.vira ? this.rodada.vira.toString() : null,
+            viraValor: this.rodada.vira ? this.rodada.viraValor : null,
+            apostas,
+            // Assentos com hp zerado (this.jogadores nunca encolhe depois que
+            // a partida começa, ao contrário de game.gameOrder).
+            eliminados: this.jogadores.filter(j => j.hp <= 0).map(j => j.nome),
+            // Assento humano jogando no automático agora (não um Bot de
+            // verdade) — mesmo critério do evento jogadorExpulsoPorInatividade.
+            // Sem o próprio: ele está reconectando exatamente agora.
+            desconectados: this.jogadores
+                .filter(j => j.id !== playerId && j.bot && !j.eraBot)
+                .map(j => j.nome),
+            ultimoPlacar: this._ultimoPlacar,
             suaVez: idDaVez === playerId,
             jogadorDaVez: idDaVez ? this.jogadores.find(j => j.id === idDaVez)?.nome ?? null : null,
             suaVezDaAposta: idDaVezAposta === playerId,
             jogadorDaVezAposta: idDaVezAposta ? this.jogadores.find(j => j.id === idDaVezAposta)?.nome ?? null : null,
+            // Reconexão depois de jogoFinalizado (blip de rede no fim): a
+            // partida não tem mais turno nenhum de pé, o vencedor é o estado.
+            finalizada: this._finalizada,
+            vencedor: this._vencedor,
         };
     }
 
@@ -555,6 +688,53 @@ export class GameController extends EventEmitter {
         return true;
     }
 
+    // Desistência DEFINITIVA de uma partida em andamento (botão "desistir e
+    // entrar" da Lobby, quando JA_EM_PARTIDA barra a entrada numa segunda
+    // sala). Ao contrário de abandonarPartida (vira bot, vaga reservada, dá
+    // pra reconectar), aqui:
+    //  - o jogador perde na hora: hp a zero garante a eliminação na próxima
+    //    virada de rodada (_avancarParaProximaRodada -> eliminarZerados),
+    //    sem caso especial — e _resolverFimDeJogo já decide W.O. sozinho se
+    //    isso deixar um único vivo;
+    //  - a vaga expira já (_marcarVagaExpirada): reconectar passa a devolver
+    //    VAGA_EXPIRADA e minhaSalaAtiva/o guard de entrada param de contar
+    //    essa sala — o jogador fica livre pra entrar em outra.
+    // O bot termina a rodada atual no lugar dele. Devolve false se esse
+    // playerId não faz parte de uma partida em andamento aqui.
+    desistir(playerId) {
+        if (!this.game || this._finalizada) return false;
+        const jogador = this.jogadores.find(j => j.id === playerId);
+        if (!jogador || jogador.vagaExpirada) return false;
+
+        jogador.hp = 0;
+        jogador.desconectado = true;
+        jogador.bot = true;
+        jogador.expulsoPorInatividade = true;
+        this.emit('jogadorDesistiu', { id: jogador.id, jogador: jogador.nome });
+
+        // Destrava o loop se ele estava parado esperando justamente a ação
+        // dele agora — mesmo padrão do timeout de turno, senão a partida
+        // congelava numa espera que nunca vai ser respondida.
+        if (this._jogadaEsperada?.jogadorId === playerId) {
+            const resolver = this._jogadaEsperada.resolver;
+            this._jogadaEsperada = null;
+            this.emit('jogadaAutomatica', { id: jogador.id, jogador: jogador.nome });
+            resolver(escolherCarta(jogador, this));
+        }
+        if (this._apostaEsperada?.jogadorId === playerId) {
+            const resolver = this._apostaEsperada.resolver;
+            this._apostaEsperada = null;
+            this._registrarAposta(jogador, this._decidirApostaAutomatica(jogador));
+            resolver();
+        }
+
+        // _cancelarContadorReserva cobre o caso de ele já ter uma reserva
+        // rolando (um sairDaPartida anterior nesta mesma partida).
+        this._cancelarContadorReserva(jogador.id);
+        this._marcarVagaExpirada(jogador);
+        return true;
+    }
+
     // Chamado quando o jogador reconecta de verdade (ver conexao/SalaManager.js)
     // — só desliga a flag de "jogando no automático". O resto do estado
     // (mão, hp, vez) já sobrevive à desconexão por natureza, não precisa
@@ -564,14 +744,37 @@ export class GameController extends EventEmitter {
         if (!jogador) return false;
 
         this._registrarAtividade(jogador);
-        this.emit('jogadorReconectou', { id: jogador.id, nome: jogador.nome });
+        // `jogador` (não `nome`) é o campo de todos os outros eventos de
+        // partida — ver conexao/eventos.js e PROTOCOLO.md, que documentam
+        // { salaId, id, jogador }, e Partida.jsx, que lê `p.jogador` pra tirar
+        // a marca de "desconectado" de quem voltou.
+        this.emit('jogadorReconectou', { id: jogador.id, jogador: jogador.nome });
         return true;
     }
 
-    async _jogarRodadaAtual() {
+    // Loop da partida: uma rodada por volta, até alguém vencer (ou a sala ser
+    // removida, ver destruir/_encerrado). While raso — um frame só pra
+    // partida inteira, não um por rodada.
+    async _rodarPartida() {
+        while (!this._encerrado) {
+            await this._jogarUmaRodada();
+            if (this._encerrado) return;      // sala removida no meio da rodada
+            if (this._resolverFimDeJogo()) return; // emitiu jogoFinalizado
+            this._avancarParaProximaRodada();
+        }
+    }
+
+    // Joga a rodada atual de ponta a ponta: distribui, vira manilha, colhe as
+    // apostas em ordem, roda todas as vazas e fecha a rodada (perda de hp +
+    // rodadaFinalizada). Não decide fim de jogo nem monta a próxima — isso é
+    // do _rodarPartida.
+    async _jogarUmaRodada() {
+        if (this._encerrado) return; // sala removida no meio da partida (ver destruir)
         const rodada = this.rodada;
 
         rodada.darCartas();
+        this._cartasJogadasRodada = new Set();
+        this._apostasFeitasRodada = new Set();
         const maos = rodada.gameOrder.map(j => ({
             id: j.id,
             nome: j.nome,
@@ -597,6 +800,7 @@ export class GameController extends EventEmitter {
         // paralelizar isso: cada apostaFeita só sai depois da anterior.
         for (const jogador of rodada.gameOrder) {
             await this._aguardarApostaOuTimeout(jogador);
+            if (this._encerrado) return;
         }
 
         for (let v = 0; v < rodada.round; v++) {
@@ -605,8 +809,10 @@ export class GameController extends EventEmitter {
             const ordem = rodada.ordemDaVaza();
             for (const jogador of ordem) {
                 const indice = await this._aguardarJogadaOuTimeout(jogador);
+                if (this._encerrado) return;
 
                 const carta = jogador.mao.splice(indice, 1)[0];
+                this._cartasJogadasRodada.add(carta.valorInt * 4 + carta.naipeInt);
                 const status = rodada.registrarJogada(jogador, carta);
                 this.emit('cartaJogada', { jogador: jogador.nome, carta: carta.toString(), status });
             }
@@ -621,39 +827,53 @@ export class GameController extends EventEmitter {
         const apostas = new Map(rodada.gameOrder.map(j => [j, j.aposta]));
         const steaks = new Map(rodada.gameOrder.map(j => [j, j.steak]));
         rodada.finalizarRodada();
+        this._ultimoPlacar = rodada.gameOrder.map(j => ({
+            nome: j.nome,
+            aposta: apostas.get(j),
+            steak: steaks.get(j),
+            diferenca: Math.abs(apostas.get(j) - steaks.get(j)),
+            hp: j.hp
+        }));
         this.emit('rodadaFinalizada', {
             numero: this.numeroRodada,
-            resultado: rodada.gameOrder.map(j => ({
-                nome: j.nome,
-                aposta: apostas.get(j),
-                steak: steaks.get(j),
-                diferenca: Math.abs(apostas.get(j) - steaks.get(j)),
-                hp: j.hp
-            }))
+            resultado: this._ultimoPlacar
         });
-
-        await this._avancarOuFinalizar();
     }
 
-    async _avancarOuFinalizar() {
+    // Fim de jogo? Devolve true (e emite jogoFinalizado) quando só sobra um
+    // vivo (hp > 0). Se TODOS morrerem na mesma rodada (vivos === 0), vence
+    // quem ficou com o hp mais perto de 0 — perdeu menos vida, errou menos.
+    // Empate nesse hp (ex.: dois em -1): vence quem chegou nele primeiro, que
+    // é quem finalizarRodada processou antes — a ordem de rodada.gameOrder.
+    // Critério provisório (ver DEV.md, seção PIN): o definitivo o time ainda
+    // vai decidir. Devolve false quando a partida continua.
+    _resolverFimDeJogo() {
         const vivos = this.game.gameOrder.filter(j => j.hp > 0);
         if (vivos.length === 1) {
             this._finalizada = true;
-            this.emit('jogoFinalizado', { vencedor: vivos[0].nome });
-            return;
+            this._vencedor = vivos[0].nome;
+            this.emit('jogoFinalizado', { vencedor: this._vencedor });
+            return true;
         }
         if (vivos.length === 0) {
-            // Todos os jogadores que disputavam a mesa zeraram o hp na mesma rodada.
-            // Desempate: vence quem teve a menor diferença entre aposta e steak na última rodada.
-            const vencedor = this.rodada.gameOrder.reduce((melhor, jogador) => {
-                const diferenca = Math.abs(jogador.aposta - jogador.steak);
-                return diferenca < melhor.diferenca ? { jogador, diferenca } : melhor;
-            }, { jogador: this.rodada.gameOrder[0], diferenca: Math.abs(this.rodada.gameOrder[0].aposta - this.rodada.gameOrder[0].steak) });
+            // rodada.gameOrder já está na ordem em que finalizarRodada aplicou
+            // a perda de hp; o `>` estrito mantém o primeiro em caso de empate.
+            let vencedor = this.rodada.gameOrder[0];
+            for (const jogador of this.rodada.gameOrder) {
+                if (jogador.hp > vencedor.hp) vencedor = jogador;
+            }
             this._finalizada = true;
-            this.emit('jogoFinalizado', { vencedor: vencedor.jogador.nome });
-            return;
+            this._vencedor = vencedor.nome;
+            this.emit('jogoFinalizado', { vencedor: this._vencedor });
+            return true;
         }
+        return false;
+    }
 
+    // Prepara a próxima rodada: tira os eliminados, zera aposta/steak, gira a
+    // ordem, incrementa o contador e monta a Rodada nova (respeitando maxDeck,
+    // ver Game.proximaRodada).
+    _avancarParaProximaRodada() {
         const eliminados = this.game.eliminarZerados();
         if (eliminados.length > 0) {
             this.emit('jogadoresEliminados', { eliminados: eliminados.map(j => ({ nome: j.nome, hp: j.hp })) });
@@ -664,7 +884,5 @@ export class GameController extends EventEmitter {
         this.numeroRodada++;
         this.rodada = this.game.proximaRodada();
         this.emit('novaRodadaIniciada', { numero: this.numeroRodada, cartas: this.rodada.round });
-
-        await this._jogarRodadaAtual();
     }
 }
