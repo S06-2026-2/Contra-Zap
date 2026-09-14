@@ -169,19 +169,25 @@ Legenda: 🔴 bug/segurança · 🟡 robustez/produção · 🟢 limpeza/doc.
 ### 6. Documentação vs código
 20. 🟡 README seção Docker: o passo `touch banco.sqlite jwt.secret` ficou sem efeito (volumes do compose comentados). Depende de decidir sobre os volumes (item 49). `README.md`
 
-### 7. Operação / produção / DevOps
-42. 🔴 `Server.js` ignora `process.env.PORT` (`server.listen(3000)` fixo) — Docker/compose setam `PORT` esperando que valha. `Server.js`
-43. 🟡 `express.static('public/dist')` e `sendFile(__dirname + '/public/dist/...')` usam caminho relativo/concatenação. Usar `path.join`. `Server.js`
-44. 🔴 Sem shutdown gracioso (SIGTERM/SIGINT): drenar conexões, `wal_checkpoint`, `db.close()`. `Server.js`, `db.js`
-45. 🔴 Sem `uncaughtException`/`unhandledRejection` — um throw num `setTimeout` do `GameController` derruba o servidor inteiro. `Server.js`
-46. 🟡 Log tudo em `console.*`, sem nível/timestamp/JSON/request-id.
-47. 🟢 `/health` sempre 200 mesmo com o banco quebrado. `Server.js`
-48. 🟡 Arquitetura single-process em memória + socket.io sem adapter → não escala horizontalmente.
-49. 🔴 `docker-compose.yml`: volumes comentados → `banco.sqlite`/`jwt.secret` só no container; todo `up --build` perde contas e rotaciona o JWT. O `touch` do README ficou sem sentido. `docker-compose.yml`
-50. 🟡 `docker-compose.yml` fixa `platform: linux/arm64` → quebra em host/CI amd64. `docker-compose.yml`
-51. 🔴 `Dockerfile` não builda o front — **agora que `public/dist` saiu do git, virou pré-requisito pra imagem subir com frontend.** `Dockerfile`
-52. 🟢 `Dockerfile` linha `RUN find node_modules/better-sqlite3 -name "*.node"` — debug sobrando. `Dockerfile`
-53. 🟢 `Dockerfile` sem multi-stage: imagem final carrega `python3 make g++`. `Dockerfile`
-54. 🟡 `.dockerignore` não exclui `training/` (`.venv`), `public/app/node_modules`, `banco.sqlite-*`. `.dockerignore`
-55. 🔴 CI roda zero teste de backend: `conexao/*.test.js` são gitignorados; num checkout limpo `npm test` não acha nada e sai 0. `ci.yml`, `package.json`
-56. 🟢 `GameStart.js` roda `npm install` toda vez sem checar `node_modules`; não repassa SIGINT pro filho. `GameStart.js`
+## Backlog de operação / produção (DevOps) — em aberto
+ 
+Itens levantados na fase de containerização que ainda não foram resolvidos.
+Numeração mantida pra rastreabilidade com discussões/commits anteriores.
+🔴 crítico, 🟡 médio, 🟢 baixo.
+ 
+- [ ] 🟡 **46** — Logs ainda em `console.*` puro, sem nível/timestamp/JSON/
+  request-id.
+- [ ] 🟢 **47** — `/health` sempre responde 200, mesmo que o banco esteja
+  quebrado (checa só se o processo está de pé, não a saúde real das
+  dependências).
+- [ ] 🟡 **48** — Arquitetura single-process em memória + Socket.IO sem
+  adapter (Redis, por exemplo) → não escala horizontalmente. Fora de escopo
+  por ora; documentado como limitação conhecida.
+- [ ] 🟢 **56** — `GameStart.js` roda `npm install` toda vez sem checar
+  `node_modules`, e não repassa `SIGINT` pro processo filho (causa direta
+  da porta 3000 ficando presa depois de um Ctrl+C mal-sucedido).
+**Priorizados para as próximas sprints**: 46 (observabilidade básica) e 47
+(healthcheck checar o banco de verdade) são os mais baratos de resolver a
+seguir. 48 é decisão de arquitetura maior, fica documentado como débito
+técnico consciente.
+ 
