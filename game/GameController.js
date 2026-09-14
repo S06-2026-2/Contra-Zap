@@ -707,6 +707,7 @@ export class GameController extends EventEmitter {
         if (!jogador || jogador.vagaExpirada) return false;
 
         jogador.hp = 0;
+        jogador.desistiu = true;
         jogador.desconectado = true;
         jogador.bot = true;
         jogador.expulsoPorInatividade = true;
@@ -856,10 +857,12 @@ export class GameController extends EventEmitter {
             return true;
         }
         if (vivos.length === 0) {
+            const candidatos = this.rodada.gameOrder.filter(jogador => !jogador.desistiu);
+            const baseDesempate = candidatos.length > 0 ? candidatos : this.rodada.gameOrder;
             // rodada.gameOrder já está na ordem em que finalizarRodada aplicou
             // a perda de hp; o `>` estrito mantém o primeiro em caso de empate.
-            let vencedor = this.rodada.gameOrder[0];
-            for (const jogador of this.rodada.gameOrder) {
+            let vencedor = baseDesempate[0];
+            for (const jogador of baseDesempate) {
                 if (jogador.hp > vencedor.hp) vencedor = jogador;
             }
             this._finalizada = true;
