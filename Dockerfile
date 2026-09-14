@@ -1,9 +1,21 @@
 # ---------- Stage 1: build do frontend (React + Vite) ----------
 FROM node:22-alpine AS frontend-builder
 WORKDIR /app/public/app
+# Copia só o manifest primeiro, pra aproveitar cache de layer quando só o
+# código-fonte mudar (sem mexer em dependências).
 COPY public/app/package.json public/app/package-lock.json ./
 RUN npm ci
-COPY public/app/. .
+
+# O frontend importa arquivos de FORA de public/app (ex.: conexao/limites.js,
+# conexao/chat/mensagensChat.js — validação compartilhada entre front e
+# back). Por isso, a partir daqui, copiamos o projeto inteiro (respeitando
+# o .dockerignore) em vez de só a pasta public/app — sem isso, esses
+# imports relativos (../../../../conexao/...) não resolvem dentro do
+# container, mesmo funcionando local (onde as pastas já existem lado a
+# lado no seu disco).
+WORKDIR /app
+COPY . .
+WORKDIR /app/public/app
 RUN npm run build
 # Saída vai pra /app/public/dist (configurado em public/app/vite.config.js)
 
