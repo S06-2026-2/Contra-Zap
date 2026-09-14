@@ -28,6 +28,7 @@ export class PlayerGame extends Player {
         this.ultimaAcaoEm = Date.now();
         this.expulsoPorInatividade = false;
         this.vagaExpirada = false;
+        this.desistiu = false;
     }
 
     comprarCarta(carta) {
@@ -77,4 +78,7 @@ export class PlayerGame extends Player {
     // volta pra true -> false aqui).
     get vagaExpirada() {return this._vagaExpirada;}
     set vagaExpirada(valor) {this._vagaExpirada = valor;}
+
+    get desistiu() {return this._desistiu;}
+    set desistiu(valor) {this._desistiu = valor;}
 }
