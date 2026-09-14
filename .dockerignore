@@ -1,8 +1,15 @@
 node_modules
-npm-debug.log
+public/app/node_modules
+public/dist
 banco.sqlite
+banco.sqlite-*
 jwt.secret
+training/
+__pycache__/
+*.pyc
 .git
 .gitignore
+.github
 README.md
 *.md
+npm-debug.log

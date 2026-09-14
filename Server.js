@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { realpathSync } from 'node:fs';
 import { registrarSocketServer } from './conexao/socketServer.js';
+import { db } from './conexao/db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -64,6 +65,65 @@ export function criarServidor({ salaManager, limitesDeTaxa } = {}) {
     return { app, server, io, salaManager: manager };
 }
 
+function configurarEncerramentoGracioso(server, io) {
+    let encerrando = false;
+
+    function encerrarGraciosamente(sinal) {
+        if (encerrando) return;
+        encerrando = true;
+        console.log(`\n${sinal} recebido — encerrando graciosamente...`);
+
+        // Para de aceitar conexão HTTP nova (deixa as que já estão em andamento
+        // terminarem sozinhas).
+        server.close(() => console.log('Servidor HTTP fechado.'));
+
+        // Fecha o Socket.IO — isso derruba as conexões websocket ativas. Pro
+        // escopo atual (estado de partida só em memória, sem persistência entre
+        // restarts) não tem como fazer diferente sem mudar a arquitetura; ver
+        // item de "arquitetura single-process" no backlog.
+        io.close(() => console.log('Socket.IO fechado.'));
+
+        // Fecha o banco — em modo WAL, isso aciona o checkpoint automático que
+        // mescla o banco.sqlite-wal de volta pro banco.sqlite principal.
+        try {
+            db.close();
+            console.log('Banco de dados fechado (WAL mesclado no arquivo principal).');
+        } catch (err) {
+            console.error('Erro ao fechar o banco:', err);
+        }
+
+        // Dá um tempo curto pros closes acima terminarem antes de forçar saída
+        // (evita o processo nunca sair se alguma conexão ficar pendurada).
+        setTimeout(() => {
+            console.log('Saindo.');
+            process.exit(0);
+        }, 2000).unref();
+    }
+
+    process.on('SIGTERM', () => encerrarGraciosamente('SIGTERM'));
+    process.on('SIGINT', () => encerrarGraciosamente('SIGINT'));
+}
+
+function configurarTratamentoErrosNaoCapturados() {
+    // Sem isso, um throw dentro de um setTimeout/callback assíncrono (ex.: um
+    // bug no GameController) derruba o processo Node inteiro — tira do ar até
+    // quem estava numa partida sem problema nenhum. Logamos o erro em vez de
+    // deixar o processo morrer silenciosamente sem explicação nenhuma.
+    //
+    // Ressalva: continuar rodando depois de um uncaughtException não é 100%
+    // seguro (o estado interno pode ter ficado inconsistente) — mas pro escopo
+    // atual do projeto, favorecer "continuar no ar" em vez de "cair sozinho" é
+    // a troca que faz mais sentido. Se isso virar problema recorrente, vale
+    // reavaliar pra encerrar graciosamente em vez de só logar.
+    process.on('uncaughtException', (err) => {
+        console.error('Exceção não capturada:', err);
+    });
+
+    process.on('unhandledRejection', (motivo) => {
+        console.error('Promise rejeitada sem tratamento:', motivo);
+    });
+}
+
 // Só sobe de verdade quando este arquivo é o ponto de entrada (`npm start`,
 // `node Server.js`, o CMD do Dockerfile). Importar Server.js de um teste
 // (ou de qualquer outro módulo) não abre porta nenhuma — é o que permite
@@ -75,7 +135,9 @@ export function criarServidor({ salaManager, limitesDeTaxa } = {}) {
 // falhar e o servidor simplesmente não subiria, sem erro nenhum.
 if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
     const PORTA = Number(process.env.PORT) || 3000;
-    const { server } = criarServidor({ limitesDeTaxa: lerLimitesDoAmbiente() });
+    const { server, io } = criarServidor({ limitesDeTaxa: lerLimitesDoAmbiente() });
+    configurarEncerramentoGracioso(server, io);
+    configurarTratamentoErrosNaoCapturados();
     server.listen(PORTA, () => {
         console.log(`Servidor rodando em http://localhost:${PORTA}`);
     });
