@@ -305,6 +305,29 @@ button.secundario {
     color: var(--acento);
 }
 
+/* Popup básico pra pedir a senha de uma sala 🔒 (ver Lobby.jsx). Clique fora
+   fecha; dentro do .modal-caixa é abafado (stopPropagation) pra não fechar
+   ao clicar no form. */
+.modal-fundo {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.modal-caixa {
+    width: min(320px, 100%);
+    border: 1px solid var(--borda);
+    border-radius: 8px;
+    padding: 20px;
+    background: var(--bg);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
 .banner-conexao {
     margin-bottom: 16px;
     padding: 10px 16px;

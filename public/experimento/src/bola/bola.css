@@ -1,0 +1,107 @@
+/* CSS isolado desta rota — não compartilha nada com estilo.css (as ideias de
+   tela de nome), de propósito, pra uma rota nunca vazar estilo na outra. */
+
+:root {
+    color-scheme: dark;
+    font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+}
+
+body {
+    background: #0b0c10;
+}
+
+.bola-cena {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.bola-wrap {
+    position: relative;
+    width: 250vmax;
+    height: 250vmax;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transform: scale(1);
+    transition: transform 4.5s ease-in-out;
+}
+
+.bola-wrap.bola-pequena {
+    transform: scale(0.08);
+}
+
+.bola-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.bola-circulo {
+    stroke: #f4f4f5;
+    stroke-width: 2;
+}
+
+.bola-particulas {
+    filter: blur(0.4px);
+}
+
+.bola-particula {
+    fill: #ffffff;
+    opacity: 0;
+    mix-blend-mode: screen;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: bola-cair 1.4s ease-in infinite;
+}
+
+@keyframes bola-cair {
+    0% {
+        opacity: 0;
+        transform: translate(0, 0) scale(1);
+    }
+    20% {
+        opacity: 1;
+    }
+    65% {
+        transform: translate(calc(var(--dx) * 0.3px), 55px) scale(0.55);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(calc(var(--dx) * 1px), 90px) scale(0);
+    }
+}
+
+.bola-selo {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40%;
+    height: 40%;
+    object-fit: contain;
+    pointer-events: none;
+}
+
+.bola-dica {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    margin: 0;
+    color: #9ca3af;
+    font-size: 13px;
+    pointer-events: none;
+}

@@ -285,6 +285,12 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
                     jogadores: resumoJogadores(sala),
                     segundosParaIniciar: sala.controller.inicioAgendado ? sala.controller.segundosParaIniciar : null,
                     chatAberto: sala.chatAberto,
+                    // Só aqui, e só pra quem criou: a senha da sala privada
+                    // (sorteada pelo servidor, ver SalaManager) nunca aparece
+                    // em mais nenhum ack/broadcast (nem listarSalas, nem
+                    // entrarSala) — é o criador quem repassa pra quem quiser
+                    // convidar. null numa sala não-privada.
+                    senha: sala.privada ? sala.senha : null,
                 };
             });
         });
@@ -316,10 +322,10 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
             });
         });
 
-        socket.on(EventosCliente.ENTRAR_SALA, ({ salaId } = {}, ack) => {
+        socket.on(EventosCliente.ENTRAR_SALA, ({ salaId, senha } = {}, ack) => {
             responder(ack, () => {
                 const player = exigirJogador();
-                const sala = salaManager.entrarSala(salaId, player);
+                const sala = salaManager.entrarSala(salaId, player, senha);
                 socket.join(sala.salaId);
                 salaPorSocket.set(socket.id, sala.salaId);
                 notificarSala(io, sala);
