@@ -339,6 +339,17 @@ button.secundario {
     text-align: center;
 }
 
+.badge-frente {
+    margin-bottom: 16px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: var(--acento);
+    color: #1a1a1a;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+}
+
 .log {
     background: #0f1015;
     border: 1px solid var(--borda);

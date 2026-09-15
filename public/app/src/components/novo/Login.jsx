@@ -1,0 +1,159 @@
+import { useState } from 'react';
+import { chamar } from '../../socket.js';
+// Fonte única de verdade (conexao/limites.js) — não há mais teto de tamanho
+// nem mínimo de senha espelhado aqui à mão; se a régua mudar no backend,
+// esta tela já reflete sozinha (ver server.fs.allow em vite.config.js).
+import { NOME_MIN, NOME_MAX, SENHA_MIN, SENHA_MAX } from '../../../../../conexao/limites.js';
+
+const ETAPA = {
+    NOME: 'nome',
+    CONFIRMAR_SENHA: 'confirmar-senha',
+    OFERECER_CADASTRO: 'oferecer-cadastro',
+    NOVA_SENHA: 'nova-senha',
+};
+
+// Fluxo em etapas, ao estilo Pokémon Showdown: primeiro só o nome decide o
+// que vem a seguir. Nome já registrado pede senha pra confirmar identidade
+// (entrar); nome novo pergunta se quer registrar (cadastrar) ou seguir sem
+// conta como convidado (entrarComoConvidado — pseudo-guest só em memória,
+// nunca grava no banco). Não existe botão de "guest" solto em lugar nenhum:
+// é sempre consequência de responder "não" à oferta de cadastro.
+export default function Login({ onAutenticado }) {
+    const [etapa, setEtapa] = useState(ETAPA.NOME);
+    const [nome, setNome] = useState('');
+    const [senha, setSenha] = useState('');
+    const [carregando, setCarregando] = useState(false);
+    const [erro, setErro] = useState(null);
+
+    function voltar() {
+        setEtapa(ETAPA.NOME);
+        setSenha('');
+        setErro(null);
+    }
+
+    async function continuar(evento) {
+        evento.preventDefault();
+        if (nome.trim().length < NOME_MIN) return;
+        setErro(null);
+        setCarregando(true);
+        try {
+            const resposta = await chamar('verificarNome', { nome });
+            setEtapa(resposta.existe ? ETAPA.CONFIRMAR_SENHA : ETAPA.OFERECER_CADASTRO);
+        } catch (erroDaChamada) {
+            setErro(erroDaChamada.message);
+        } finally {
+            setCarregando(false);
+        }
+    }
+
+    async function autenticar(evento, tipoDeAcao, payload) {
+        evento?.preventDefault();
+        setErro(null);
+        setCarregando(true);
+        try {
+            const resposta = await chamar(tipoDeAcao, payload ?? { nome, senha });
+            onAutenticado({ nome: resposta.nome, token: resposta.token });
+        } catch (erroDaChamada) {
+            // `ultimaTentativa` só vem em `entrar` (ver rate-limit de login
+            // falhado, conexao/PROTOCOLO.md) — a falha que acabou de gastar
+            // a última tentativa da janela antes do bloqueio por IP.
+            const aviso = erroDaChamada.resposta?.ultimaTentativa
+                ? ' ⚠️ Essa era sua última tentativa — novas tentativas ficarão bloqueadas por um tempo.'
+                : '';
+            setErro(erroDaChamada.message + aviso);
+        } finally {
+            setCarregando(false);
+        }
+    }
+
+    // Mesma régua de nome do backend (NOME_MIN/NOME_MAX em conexao/limites.js).
+    // `verificarNome` não reclama de nome curto — responde `existe: false` como
+    // pra qualquer nome livre —, então sem esta checagem a régua só apareceria
+    // lá na frente: no `cadastrar` da tela de senha, ou no
+    // `entrarComoConvidado` da oferta de cadastro. Checando aqui, o aviso sai
+    // na etapa em que ainda dá pra corrigir o nome. O teto fica com o
+    // `maxLength` do input, que nem deixa digitar além dele.
+    const nomeCurtoDemais = nome.trim().length > 0 && nome.trim().length < NOME_MIN;
+    if (etapa === ETAPA.NOME) {
+        return (
+            <form className="cartao" onSubmit={continuar}>
+                <h1>Contra ZAP</h1>
+                <label>
+                    Nome
+                    <input value={nome} onChange={(e) => setNome(e.target.value)} maxLength={NOME_MAX} autoFocus />
+                </label>
+                <div className="botoes">
+                    <button type="submit" disabled={carregando || nome.trim().length < NOME_MIN}>
+                        Continuar
+                    </button>
+                </div>
+                {nomeCurtoDemais && <p className="erro">Nome precisa ter pelo menos {NOME_MIN} caracteres.</p>}
+                {erro && <p className="erro">{erro}</p>}
+            </form>
+        );
+    }
+
+    if (etapa === ETAPA.CONFIRMAR_SENHA) {
+        return (
+            <form className="cartao" onSubmit={(e) => autenticar(e, 'entrar')}>
+                <h1>Contra ZAP</h1>
+                <p>Usuário registrado. Confirme sua identidade, {nome}.</p>
+                <label>
+                    Senha
+                    <input value={senha} onChange={(e) => setSenha(e.target.value)} type="password" maxLength={SENHA_MAX} autoFocus />
+                </label>
+                <div className="botoes">
+                    <button type="submit" disabled={carregando}>Entrar</button>
+                    <button type="button" onClick={voltar} disabled={carregando} className="secundario">Voltar</button>
+                </div>
+                {erro && <p className="erro">{erro}</p>}
+            </form>
+        );
+    }
+
+    if (etapa === ETAPA.OFERECER_CADASTRO) {
+        return (
+            <div className="cartao">
+                <h1>Contra ZAP</h1>
+                <p>"{nome}" ainda não tem conta. Quer registrar esse nome?</p>
+                <div className="botoes">
+                    <button type="button" onClick={() => setEtapa(ETAPA.NOVA_SENHA)} disabled={carregando}>
+                        Sim, registrar
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => autenticar(null, 'entrarComoConvidado', { nome })}
+                        disabled={carregando}
+                        className="secundario"
+                    >
+                        Não, só jogar
+                    </button>
+                </div>
+                <div className="botoes">
+                    <button type="button" onClick={voltar} disabled={carregando} className="secundario">Voltar</button>
+                </div>
+                {erro && <p className="erro">{erro}</p>}
+            </div>
+        );
+    }
+
+    // ETAPA.NOVA_SENHA
+    const senhaCurtaDemais = senha.length > 0 && senha.length < SENHA_MIN;
+    return (
+        <form className="cartao" onSubmit={(e) => autenticar(e, 'cadastrar')}>
+            <h1>Contra ZAP</h1>
+            <p>Escolha uma senha pra registrar "{nome}".</p>
+            <label>
+                Senha
+                <input value={senha} onChange={(e) => setSenha(e.target.value)} type="password" maxLength={SENHA_MAX} autoFocus />
+            </label>
+            <small>Mínimo de {SENHA_MIN} caracteres.</small>
+            <div className="botoes">
+                <button type="submit" disabled={carregando || senha.length < SENHA_MIN}>Cadastrar</button>
+                <button type="button" onClick={voltar} disabled={carregando} className="secundario">Voltar</button>
+            </div>
+            {senhaCurtaDemais && <p className="erro">Faltam {SENHA_MIN - senha.length} caractere(s).</p>}
+            {erro && <p className="erro">{erro}</p>}
+        </form>
+    );
+}

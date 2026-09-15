@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { chamar } from '../socket.js';
+import { chamar } from '../../socket.js';
 
 const INTERVALO_ATUALIZACAO_MS = 10_000;
 
