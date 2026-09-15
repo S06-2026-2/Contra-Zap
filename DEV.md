@@ -177,9 +177,6 @@ Numeração mantida pra rastreabilidade com discussões/commits anteriores.
  
 - [ ] 🟡 **46** — Logs ainda em `console.*` puro, sem nível/timestamp/JSON/
   request-id.
-- [ ] 🟢 **47** — `/health` sempre responde 200, mesmo que o banco esteja
-  quebrado (checa só se o processo está de pé, não a saúde real das
-  dependências).
 - [ ] 🟡 **48** — Arquitetura single-process em memória + Socket.IO sem
   adapter (Redis, por exemplo) → não escala horizontalmente. Fora de escopo
   por ora; documentado como limitação conhecida.
