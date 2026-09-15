@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contra ZAP — API</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui.css">
+<style>
+:root{
+  --feltro:#F6F7F3; --carta:#FFF; --tinta:#161D18; --apagado:#5E6B62;
+  --linha:#DCE3DC; --naipe:#A11E2B; --naipe-fraco:#F3E2E3; --codigo:#FBFBF8;
+  --ok:#1F6B45; --ok-fraco:#E4F0E9;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --feltro:#101410; --carta:#171D18; --tinta:#E7EBE4; --apagado:#95A196;
+    --linha:#28312A; --naipe:#E4636B; --naipe-fraco:#33191C; --codigo:#131813;
+    --ok:#6FBF95; --ok-fraco:#16281F;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--feltro);color:var(--tinta);
+  font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px;line-height:1.6}
+code,pre,.mono,input,select,textarea{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+a{color:var(--naipe)}
+.envelope{max-width:1180px;margin:0 auto;padding:0 24px}
+
+header{background:var(--carta);border-bottom:1px solid var(--linha);padding:36px 0 30px}
+.naipes{letter-spacing:.5em;color:var(--apagado);font-size:14px}
+.naipes b{color:var(--naipe);font-weight:400}
+h1{font-size:34px;margin:14px 0 10px;letter-spacing:-.01em}
+.chamada{margin:0;color:var(--apagado);max-width:66ch}
+.chamada b{color:var(--tinta)}
+
+.faixa{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.baixar{display:inline-flex;align-items:center;gap:7px;background:var(--carta);color:var(--tinta);
+  border:1px solid var(--linha);border-radius:5px;padding:8px 14px;font-size:13.5px;text-decoration:none}
+.baixar:hover{border-color:var(--naipe);color:var(--naipe)}
+.baixar span{font-size:11px;color:var(--apagado);text-transform:uppercase;letter-spacing:.07em}
+
+.nota{border-left:3px solid var(--naipe);background:var(--naipe-fraco);padding:14px 18px;
+  border-radius:0 4px 4px 0;margin:28px 0;max-width:80ch}
+.nota p{margin:0;font-size:14px}
+.nota p+p{margin-top:8px}
+
+h2{font-size:23px;margin:44px 0 6px;scroll-margin-top:16px}
+.sub{margin:0 0 20px;color:var(--apagado);max-width:76ch;font-size:14.5px}
+section{padding-bottom:8px}
+
+.painel{background:var(--carta);border:1px solid var(--linha);border-radius:6px;overflow:hidden}
+.painel-cab{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;
+  padding:13px 16px;border-bottom:1px solid var(--linha)}
+.painel-corpo{padding:16px}
+
+.pilula{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-family:"IBM Plex Mono",monospace;
+  border:1px solid var(--linha);border-radius:99px;padding:4px 12px;color:var(--apagado)}
+.ponto{width:8px;height:8px;border-radius:50%;background:var(--apagado);flex:none}
+.pilula.on{color:var(--ok);border-color:var(--ok);background:var(--ok-fraco)}
+.pilula.on .ponto{background:var(--ok)}
+.pilula.erro{color:var(--naipe);border-color:var(--naipe);background:var(--naipe-fraco)}
+.pilula.erro .ponto{background:var(--naipe)}
+
+button{font-family:inherit;font-size:13.5px;font-weight:500;cursor:pointer;border-radius:5px;
+  border:1px solid var(--linha);background:transparent;color:var(--tinta);padding:8px 15px}
+button:hover:not(:disabled){border-color:var(--naipe);color:var(--naipe)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.forte{background:var(--naipe);border-color:var(--naipe);color:#fff}
+button.forte:hover:not(:disabled){opacity:.88;color:#fff}
+
+.grade{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:860px){.grade{grid-template-columns:1fr}}
+label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--apagado);margin-bottom:6px}
+select,textarea,input{width:100%;background:var(--codigo);color:var(--tinta);border:1px solid var(--linha);
+  border-radius:5px;padding:9px 11px;font-size:13px}
+textarea{resize:vertical;min-height:112px;line-height:1.55}
+select:focus,textarea:focus,input:focus,button:focus-visible{outline:2px solid var(--naipe);outline-offset:1px}
+.linha-campos{display:flex;gap:10px;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap}
+.linha-campos>div{flex:1 1 220px}
+.dica{font-size:12.5px;color:var(--apagado);margin:8px 0 0}
+.dica code{background:var(--codigo);padding:1px 5px;border-radius:3px;font-size:12px}
+
+pre.saida{background:var(--codigo);border:1px solid var(--linha);border-radius:5px;padding:12px 14px;
+  margin:0;font-size:12.5px;line-height:1.6;overflow:auto;max-height:300px;white-space:pre-wrap;word-break:break-word}
+pre.saida.vazio{color:var(--apagado)}
+.reg{border-bottom:1px solid var(--linha);padding:7px 0;font-size:12.5px}
+.reg:last-child{border-bottom:0}
+.reg-nome{font-family:"IBM Plex Mono",monospace;color:var(--naipe);font-weight:600}
+.reg-hora{color:var(--apagado);font-size:11px;margin-left:8px}
+.reg pre{margin:4px 0 0;font-size:12px;color:var(--apagado);white-space:pre-wrap;word-break:break-word}
+#registro{max-height:340px;overflow:auto}
+
+.aviso-cdn{display:none;border:1px solid var(--naipe);background:var(--naipe-fraco);border-radius:6px;padding:14px 18px}
+.aviso-cdn.visivel{display:block}
+#swagger{background:var(--carta);border:1px solid var(--linha);border-radius:6px;overflow:hidden}
+.swagger-ui .topbar{display:none}
+footer{border-top:1px solid var(--linha);margin-top:56px;padding:22px 0;color:var(--apagado);font-size:13px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="envelope">
+    <div class="naipes"><b>&#9830;</b>&#9824;<b>&#9829;</b>&#9827;</div>
+    <h1>Contra ZAP &mdash; API</h1>
+    <p class="chamada">Duas rotas HTTP e <b>42 eventos socket.io</b>. As rotas estão no Swagger abaixo; os eventos, que são o jogo inteiro, têm um playground que conecta de verdade no servidor.</p>
+    <div class="faixa">
+      <a class="baixar" href="/postman/Contra-Zap.postman_collection.json" download><span>Postman</span> collection</a>
+      <a class="baixar" href="/postman/Contra-Zap.postman_environment.json" download><span>Postman</span> environment</a>
+      <a class="baixar" href="/docs/openapi.yaml" download><span>OpenAPI 3.1</span> openapi.yaml</a>
+      <a class="baixar" href="/docs/asyncapi.yaml" download><span>AsyncAPI 3.1</span> asyncapi.yaml</a>
+    </div>
+  </div>
+</header>
+
+<div class="envelope">
+
+  <div class="nota">
+    <p><b>Por que o Swagger é tão curto.</b> O projeto tem exatamente duas rotas HTTP: <code>/health</code> e <code>/</code>. Não é documentação faltando — o front React não faz uma única chamada HTTP. Login, salas, apostas, cartas e chat trafegam por socket.io.</p>
+    <p><b>Por isso existem duas specs.</b> <code>openapi.yaml</code> cobre o HTTP; <code>asyncapi.yaml</code> cobre o protocolo de eventos (AsyncAPI é o padrão para APIs orientadas a evento — OpenAPI não descreve request/response por ack).</p>
+  </div>
+
+  <div class="aviso-cdn" id="avisoCdn">
+    <p style="margin:0"><b>O Swagger UI não carregou.</b> Ele vem de CDN e precisa de internet. O playground abaixo e os downloads acima continuam funcionando normalmente &mdash; e o <code>openapi.yaml</code> pode ser aberto em qualquer editor de OpenAPI.</p>
+  </div>
+
+  <section>
+    <h2>Playground do protocolo socket.io</h2>
+    <p class="sub">Conecta de verdade no servidor do jogo e dispara eventos com <b>ack</b>. O <code>salaId</code> é preenchido sozinho a partir da última resposta que trouxe um &mdash; então dá pra ir de <code>entrar</code> até <code>jogarCarta</code> sem copiar nada na mão.</p>
+
+    <div class="painel">
+      <div class="painel-cab">
+        <span class="pilula" id="estado"><span class="ponto"></span><span id="estadoTexto">desconectado</span></span>
+        <div style="display:flex;gap:8px">
+          <button class="forte" id="btConectar">Conectar</button>
+          <button id="btDesconectar" disabled>Desconectar</button>
+        </div>
+      </div>
+      <div class="painel-corpo">
+        <div class="linha-campos">
+          <div>
+            <label for="evento">Evento cliente &rarr; servidor</label>
+            <select id="evento"></select>
+          </div>
+          <div style="flex:0 0 auto">
+            <button class="forte" id="btEmitir" disabled>Emitir</button>
+          </div>
+        </div>
+
+        <div class="grade">
+          <div>
+            <label for="payload">Payload (JSON)</label>
+            <textarea id="payload" spellcheck="false"></textarea>
+            <p class="dica" id="dicaEvento"></p>
+          </div>
+          <div>
+            <label>Resposta do ack</label>
+            <pre class="saida vazio" id="resposta">Emita um evento para ver a resposta.</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="painel" style="margin-top:16px">
+      <div class="painel-cab">
+        <strong style="font-size:14px">Eventos empurrados pelo servidor</strong>
+        <button id="btLimpar">Limpar</button>
+      </div>
+      <div class="painel-corpo">
+        <div id="registro"><p class="dica" style="margin:0">Nada ainda. Conecte e entre numa sala &mdash; <code>listaJogadores</code>, <code>turnoAposta</code>, <code>suaMao</code> e os outros 20 aparecem aqui.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Rotas HTTP</h2>
+    <p class="sub">As duas rotas do <code>Server.js</code>. O <b>Try it out</b> funciona: as chamadas saem para esta origem, que repassa para o servidor do jogo.</p>
+    <div id="swagger"></div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="envelope">
+    Contrato em prosa: <code>conexao/PROTOCOLO.md</code> &middot; Suíte automatizada: <code>tests/api/</code> (<code>npm test</code>)
+  </div>
+</footer>
+
+<script src="/socket.io/socket.io.js" onerror="window.__socketIoFalhou=true"></script>
+<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui-bundle.js" onerror="window.__swaggerFalhou=true"></script>
+<script>
+/* ---------------- catálogo dos eventos de cliente ---------------- */
+/* Templates de payload. A especificação formal é o asyncapi.yaml; isto aqui
+   é só o atalho para não digitar JSON do zero a cada teste. */
+var EVENTOS = [
+  { nome:'verificarNome',       payload:{ nome:'henrique' },                                    dica:'Pré-login: não exige `entrar` antes. Responde `existe: true/false`.' },
+  { nome:'entrar',              payload:{ nome:'henrique', senha:'123' },                       dica:'Usuários de banco.json: henrique, piconi, moras, guilherme — senha 123.' },
+  { nome:'cadastrar',           payload:{ nome:'novoJogador', senha:'senha123' },               dica:'Nome e senha com 3+ caracteres. Já deixa autenticado.' },
+  { nome:'entrarComoConvidado', payload:{ nome:'visitante' },                                   dica:'Sem senha, nada gravado no banco. Serve para tudo depois.' },
+  { nome:'retomarSessao',       payload:{ token:'cole-aqui-o-token-de-um-entrar' },             dica:'Devolve sempre um token NOVO. Serve para F5 e para queda de rede.' },
+  { nome:'criarSala',           payload:{ numberPlayers:2, botNumber:1, chatAberto:true },      dica:'Com numberPlayers 2 e botNumber 1 você joga sozinho contra um bot.' },
+  { nome:'partidaRapida',       payload:{},                                                     dica:'Fila compartilhada: entra na sala aberta ou cria uma.' },
+  { nome:'entrarSala',          payload:{ salaId:'' },                                          dica:'Precisa de outra aba/cliente para simular o segundo jogador.' },
+  { nome:'listarSalas',         payload:{},                                                     dica:'Só salas abertas — cheia ou iniciada não aparece.' },
+  { nome:'forcarInicio',        payload:{ salaId:'' },                                          dica:'Só o adm, e só com a sala cheia. Pula a espera de 15s.' },
+  { nome:'sairSala',            payload:{ salaId:'' },                                          dica:'Só antes da partida começar.' },
+  { nome:'sairDaPartida',       payload:{ salaId:'' },                                          dica:'Partida em andamento: o assento vira bot na hora, mas a vaga fica reservada.' },
+  { nome:'desistir',            payload:{ salaId:'' },                                          dica:'Desistência DEFINITIVA: perde na hora e a vaga expira já — o oposto de sairDaPartida.' },
+  { nome:'jogarDeNovo',         payload:{ salaId:'' },                                          dica:'Só o adm, e só depois de jogoFinalizado.' },
+  { nome:'apostar',             payload:{ salaId:'', valor:1 },                                 dica:'Só na sua vez (turnoAposta). A soma das apostas não pode fechar no número de cartas.' },
+  { nome:'jogarCarta',          payload:{ salaId:'', indice:0 },                                dica:'Só na sua vez (turnoJogador). indice é 0-based, veja sua mão em suaMao.' },
+  { nome:'reconectar',          payload:{ salaId:'' },                                          dica:'Só para partida já iniciada. Devolve a mão e de quem é a vez.' },
+  { nome:'minhaSalaAtiva',      payload:{},                                                     dica:'Descobre a partida em andamento sem saber o salaId.' },
+  { nome:'chat',                payload:{ salaId:'', tipo:'restrita', id:1 },                   dica:"tipo 'restrita' usa id 1 a 4 e sempre funciona; 'aberta' exige chatAberto e usa texto." }
+];
+
+var socket = null;
+var ultimoSalaId = '';
+
+var elEvento = document.getElementById('evento');
+var elPayload = document.getElementById('payload');
+var elDica = document.getElementById('dicaEvento');
+var elResposta = document.getElementById('resposta');
+var elRegistro = document.getElementById('registro');
+var elEstado = document.getElementById('estado');
+var elEstadoTexto = document.getElementById('estadoTexto');
+var btConectar = document.getElementById('btConectar');
+var btDesconectar = document.getElementById('btDesconectar');
+var btEmitir = document.getElementById('btEmitir');
+
+EVENTOS.forEach(function (ev, i) {
+  var opcao = document.createElement('option');
+  opcao.value = String(i);
+  opcao.textContent = ev.nome;
+  elEvento.appendChild(opcao);
+});
+
+function preencherTemplate() {
+  var ev = EVENTOS[Number(elEvento.value)];
+  var corpo = JSON.parse(JSON.stringify(ev.payload));
+  if ('salaId' in corpo && ultimoSalaId) corpo.salaId = ultimoSalaId;
+  elPayload.value = JSON.stringify(corpo, null, 2);
+  elDica.textContent = ev.dica;
+}
+elEvento.addEventListener('change', preencherTemplate);
+preencherTemplate();
+
+function estado(texto, classe) {
+  elEstadoTexto.textContent = texto;
+  elEstado.className = 'pilula' + (classe ? ' ' + classe : '');
+}
+
+function registrar(nome, dados) {
+  if (elRegistro.querySelector('.dica')) elRegistro.innerHTML = '';
+  var div = document.createElement('div');
+  div.className = 'reg';
+  var cab = document.createElement('div');
+  var forte = document.createElement('span');
+  forte.className = 'reg-nome';
+  forte.textContent = nome;
+  var hora = document.createElement('span');
+  hora.className = 'reg-hora';
+  hora.textContent = new Date().toLocaleTimeString('pt-BR');
+  cab.appendChild(forte); cab.appendChild(hora);
+  var pre = document.createElement('pre');
+  pre.textContent = JSON.stringify(dados, null, 2);
+  div.appendChild(cab); div.appendChild(pre);
+  elRegistro.insertBefore(div, elRegistro.firstChild);
+}
+
+btConectar.addEventListener('click', function () {
+  if (window.__socketIoFalhou || typeof io === 'undefined') {
+    estado('cliente socket.io não carregou — o jogo está no ar?', 'erro');
+    return;
+  }
+  estado('conectando...');
+  socket = io({ reconnection:false });
+
+  socket.on('connect', function () {
+    estado('conectado · ' + socket.id, 'on');
+    btConectar.disabled = true; btDesconectar.disabled = false; btEmitir.disabled = false;
+  });
+  socket.on('connect_error', function (e) {
+    estado('falhou: ' + e.message + ' — suba o jogo com npm start', 'erro');
+  });
+  socket.on('disconnect', function (motivo) {
+    estado('desconectado (' + motivo + ')');
+    btConectar.disabled = false; btDesconectar.disabled = true; btEmitir.disabled = true;
+  });
+  socket.onAny(function (nome, dados) { registrar(nome, dados); });
+});
+
+btDesconectar.addEventListener('click', function () { if (socket) socket.disconnect(); });
+document.getElementById('btLimpar').addEventListener('click', function () {
+  elRegistro.innerHTML = '<p class="dica" style="margin:0">Limpo.</p>';
+});
+
+btEmitir.addEventListener('click', function () {
+  var ev = EVENTOS[Number(elEvento.value)];
+  var corpo;
+  try {
+    corpo = JSON.parse(elPayload.value || '{}');
+  } catch (e) {
+    elResposta.classList.remove('vazio');
+    elResposta.textContent = 'JSON inválido no payload:\n' + e.message;
+    return;
+  }
+
+  elResposta.classList.remove('vazio');
+  elResposta.textContent = 'aguardando o ack de "' + ev.nome + '"...';
+
+  var respondeu = false;
+  socket.emit(ev.nome, corpo, function (resposta) {
+    respondeu = true;
+    elResposta.textContent = JSON.stringify(resposta, null, 2);
+    // Guarda o salaId para os próximos templates — é o que permite ir de
+    // criarSala até jogarCarta sem copiar id na mão.
+    if (resposta && resposta.ok && typeof resposta.salaId === 'string') {
+      ultimoSalaId = resposta.salaId;
+    }
+  });
+
+  setTimeout(function () {
+    if (!respondeu) elResposta.textContent = 'Nenhum ack em 5s. O evento existe? Veja conexao/eventos.js.';
+  }, 5000);
+});
+
+/* ---------------- Swagger UI ---------------- */
+window.addEventListener('load', function () {
+  if (window.__swaggerFalhou || typeof SwaggerUIBundle === 'undefined') {
+    document.getElementById('avisoCdn').classList.add('visivel');
+    document.getElementById('swagger').style.display = 'none';
+    return;
+  }
+  SwaggerUIBundle({
+    url: '/docs/openapi.yaml',
+    dom_id: '#swagger',
+    deepLinking: true,
+    tryItOutEnabled: true,
+    defaultModelsExpandDepth: -1,
+    presets: [SwaggerUIBundle.presets.apis],
+    // A spec declara localhost:3000 (o jogo). Esta página é servida em outra
+    // porta, e o socket.io do jogo não habilita CORS — então mandamos a
+    // chamada para a própria origem, que repassa (ver docs/servir.js).
+    requestInterceptor: function (req) {
+      req.url = req.url.replace(/^https?:\/\/[^/]+/, window.location.origin);
+      return req;
+    }
+  });
+});
+</script>
+</body>
+</html>

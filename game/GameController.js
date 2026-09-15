@@ -22,7 +22,7 @@ export class GameController extends EventEmitter {
     constructor({ numberPlayers, roundStart, randomShuffle, maxDeck, seed, tempoTurnoMs, limiteInatividadeMs, atrasoBotMs, tempoReservaMs } = {}) {
         super();
         this.numberPlayers = numberPlayers || 4;
-        this.roundStart = roundStart || 3;
+        this.roundStart = roundStart || 1;
         this.randomShuffle = randomShuffle;
         // Máximo de baralhos por rodada (ver Game.proximaRodada). Sem valor na
         // config = "Sem Limite" (MAX_DECK_SEM_LIMITE). A validação de que
@@ -707,6 +707,7 @@ export class GameController extends EventEmitter {
         if (!jogador || jogador.vagaExpirada) return false;
 
         jogador.hp = 0;
+        jogador.desistiu = true;
         jogador.desconectado = true;
         jogador.bot = true;
         jogador.expulsoPorInatividade = true;
@@ -744,7 +745,11 @@ export class GameController extends EventEmitter {
         if (!jogador) return false;
 
         this._registrarAtividade(jogador);
-        this.emit('jogadorReconectou', { id: jogador.id, nome: jogador.nome });
+        // `jogador` (não `nome`) é o campo de todos os outros eventos de
+        // partida — ver conexao/eventos.js e PROTOCOLO.md, que documentam
+        // { salaId, id, jogador }, e Partida.jsx, que lê `p.jogador` pra tirar
+        // a marca de "desconectado" de quem voltou.
+        this.emit('jogadorReconectou', { id: jogador.id, jogador: jogador.nome });
         return true;
     }
 
@@ -852,10 +857,12 @@ export class GameController extends EventEmitter {
             return true;
         }
         if (vivos.length === 0) {
+            const candidatos = this.rodada.gameOrder.filter(jogador => !jogador.desistiu);
+            const baseDesempate = candidatos.length > 0 ? candidatos : this.rodada.gameOrder;
             // rodada.gameOrder já está na ordem em que finalizarRodada aplicou
             // a perda de hp; o `>` estrito mantém o primeiro em caso de empate.
-            let vencedor = this.rodada.gameOrder[0];
-            for (const jogador of this.rodada.gameOrder) {
+            let vencedor = baseDesempate[0];
+            for (const jogador of baseDesempate) {
                 if (jogador.hp > vencedor.hp) vencedor = jogador;
             }
             this._finalizada = true;

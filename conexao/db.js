@@ -18,7 +18,12 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CAMINHO_DB = path.join(__dirname, '..', 'banco.sqlite');
+// DB_PATH sobrescreve o arquivo do banco. Existe pros testes automatizados
+// (ver tests/helpers/ambiente.js): cada processo de teste aponta pro seu
+// próprio arquivo temporário em vez de sujar o banco.sqlite de quem está
+// desenvolvendo. Sem a variável no ambiente, o comportamento é exatamente o
+// de antes — `banco.sqlite` na raiz do projeto, gerado na primeira execução.
+const CAMINHO_DB = process.env.DB_PATH || path.join(__dirname, '..', 'banco.sqlite');
 const CAMINHO_SEED = path.join(__dirname, '..', 'banco.json');
 const SALT_ROUNDS = 10;
 

@@ -4,7 +4,7 @@
 // socket.io — recebe e devolve objetos de domínio (Player, Sala), nada de
 // socket/transporte aqui. Quem liga isso a sockets é uma camada futura, fora
 // deste arquivo. Isso é o que permite testar tudo isto sem precisar de rede.
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { GameController } from '../game/GameController.js';
 import { Bot } from '../bots/Bot.js';
 import { CodigosErro } from './eventos.js';
@@ -59,7 +59,14 @@ function baralhosNecessarios(numberPlayers, round) {
     return Math.ceil((numberPlayers * round + 1) / 40);
 }
 
-function validarConfig({ numberPlayers, roundStart, botNumber, chatAberto, randomShuffle, maxDeck, seed }) {
+// Senha de sala privada: 4 dígitos, sempre gerada pelo servidor (o criador
+// não digita nada — ver criarSala). Zero à esquerda permitido (é só um
+// código de 4 caracteres pra ditar/digitar entre amigos, não um número).
+function gerarSenhaSala() {
+    return String(randomInt(0, 10000)).padStart(4, '0');
+}
+
+function validarConfig({ numberPlayers, roundStart, botNumber, chatAberto, randomShuffle, maxDeck, seed, privada }) {
     if (!Number.isInteger(numberPlayers) || numberPlayers < NUMERO_JOGADORES_MIN || numberPlayers > NUMERO_JOGADORES_MAX) {
         throw new ErroSala(
             CodigosErro.CONFIGURACAO_INVALIDA,
@@ -108,6 +115,9 @@ function validarConfig({ numberPlayers, roundStart, botNumber, chatAberto, rando
     if (seed !== undefined && (!Number.isInteger(seed) || seed < 0)) {
         throw new ErroSala(CodigosErro.CONFIGURACAO_INVALIDA, 'seed, se informada, deve ser um número inteiro não-negativo.');
     }
+    if (typeof privada !== 'boolean') {
+        throw new ErroSala(CodigosErro.CONFIGURACAO_INVALIDA, 'privada deve ser true ou false.');
+    }
 }
 
 // Uma sala = um GameController (que já guarda seus próprios jogadores/config
@@ -122,6 +132,14 @@ class Sala {
         // chat de texto livre (tipo 'aberta'); as mensagens prontas ('restrita')
         // não dependem dele. Fixo na criação, não muda depois.
         this.chatAberto = config.chatAberto ?? false;
+        // Privada = aparece em "Salas abertas" igual a qualquer outra, mas
+        // entrarSala exige senha batendo (ver SalaManager.entrarSala). Senha
+        // sempre gerada AQUI (4 dígitos, servidor sorteia — o criador não
+        // digita nada), em texto puro, só em memória — nunca exposta por
+        // listarAbertas, só uma vez no próprio ack de criarSala (ver
+        // socketServer.js) pro criador poder repassar pros amigos.
+        this.privada = config.privada ?? false;
+        this.senha = this.privada ? gerarSenhaSala() : null;
         // Config completa usada pra criar esta sala (incluindo botNumber, que
         // o GameController nem vê — só usado no momento de encher a sala com
         // bots). Guardada só pra "jogar de novo" (ver SalaManager.jogarDeNovo)
@@ -134,6 +152,10 @@ class Sala {
             maxDeck: config.maxDeck,
             botNumber: config.botNumber ?? 0,
             chatAberto: this.chatAberto,
+            // Não guarda a senha: "jogar de novo" (ver SalaManager.jogarDeNovo)
+            // recria com privada igual, mas sorteia uma senha NOVA — não faz
+            // sentido reusar a antiga numa sala que é literalmente outra.
+            privada: this.privada,
         };
     }
 
@@ -206,7 +228,7 @@ export class SalaManager {
             );
         }
         const numberPlayers = config.numberPlayers ?? 4;
-        const roundStart = config.roundStart ?? 3;
+        const roundStart = config.roundStart ?? 1;
         const botNumber = config.botNumber ?? 0;
         const chatAberto = config.chatAberto ?? false;
         const randomShuffle = config.randomShuffle ?? true;
@@ -215,7 +237,8 @@ export class SalaManager {
         // propósito: "jogar de novo" deve ser uma partida nova, não a repetição
         // carta-por-carta da anterior.
         const seed = config.seed;
-        validarConfig({ numberPlayers, roundStart, botNumber, chatAberto, randomShuffle, maxDeck, seed });
+        const privada = config.privada ?? false;
+        validarConfig({ numberPlayers, roundStart, botNumber, chatAberto, randomShuffle, maxDeck, seed, privada });
 
         this._exigirSemPartidaEmAndamento(player);
         this._exigirAbaixoDoTetoDeSalas(player);
@@ -229,6 +252,7 @@ export class SalaManager {
             seed,
             botNumber,
             chatAberto,
+            privada,
             tempoTurnoMs: this.tempoTurnoMs,
             limiteInatividadeMs: this.limiteInatividadeMs,
             atrasoBotMs: this.atrasoBotMs,
@@ -308,7 +332,8 @@ export class SalaManager {
 
     // Coloca um jogador numa sala existente, validando as regras de entrada.
     // Lança ErroSala (com um código de conexao/eventos.js) se alguma falhar.
-    entrarSala(salaId, player) {
+    // `senha` só é conferida quando a sala é privada — ignorada em sala aberta.
+    entrarSala(salaId, player, senha) {
         const sala = this.salas.get(salaId);
         if (!sala) {
             throw new ErroSala(CodigosErro.SALA_NAO_ENCONTRADA, `Sala "${salaId}" não existe.`);
@@ -325,6 +350,9 @@ export class SalaManager {
         }
         if (sala.jogadores.some(jogador => jogador.nome === player.nome)) {
             throw new ErroSala(CodigosErro.NOME_INVALIDO, `O nome "${player.nome}" já está em uso nesta sala.`);
+        }
+        if (sala.privada && senha !== sala.senha) {
+            throw new ErroSala(CodigosErro.SENHA_INCORRETA, 'Senha incorreta para esta sala.');
         }
 
         this._entrar(sala, player);
@@ -575,6 +603,7 @@ export class SalaManager {
                 numberPlayers: sala.numberPlayers,
                 jogadoresAtual: sala.jogadores.length,
                 chatAberto: sala.chatAberto,
+                privada: sala.privada,
             }));
     }
 

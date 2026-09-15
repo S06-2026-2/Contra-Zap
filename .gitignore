@@ -59,3 +59,7 @@ __pycache__/
 /training/python/test_motor_loop.py
 /training/python/test_seed.py
 /training/python/test_fim_de_jogo.py
+
+# Saída do Playwright (E2E) — relatório HTML, traces e screenshots de falha
+/playwright-report/
+/test-results/

@@ -9,11 +9,15 @@ const INTERVALO_ATUALIZACAO_MS = 10_000;
 export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onReconectou }) {
     const [salas, setSalas] = useState(null); // null = ainda não buscou
     const [numberPlayers, setNumberPlayers] = useState(4);
-    const [roundStart, setRoundStart] = useState(3);
+    const [roundStart, setRoundStart] = useState(1);
     const [botNumber, setBotNumber] = useState(0);
     const [chatAberto, setChatAberto] = useState(false);
+    const [privada, setPrivada] = useState(false);
     const [reconectando, setReconectando] = useState(false);
     const [erro, setErro] = useState(null);
+    // Sala 🔒 clicada em "Salas abertas": popup pedindo a senha antes de
+    // chamar entrarSala de verdade. null = popup fechado.
+    const [salaPedindoSenha, setSalaPedindoSenha] = useState(null); // { salaId, senha, erro }
     // Preenchido quando uma tentativa de criar/entrar numa sala volta
     // JA_EM_PARTIDA: { salaAtivaId, retomar } — `retomar` re-executa a ação
     // original (criar sala / entrar / partida rápida) depois que o jogador
@@ -67,20 +71,54 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
                 roundStart: Number(roundStart),
                 botNumber: Number(botNumber),
                 chatAberto,
+                privada,
             });
             // O ack já traz o roster inicial (não só o broadcast de
             // listaJogadores) — a tela da sala só monta depois disso, então
             // dependeria de um broadcast que já passou. Mesma coisa pro
-            // segundosParaIniciar quando os bots já lotaram a sala.
-            onEntrouNaSala(resposta.salaId, resposta.jogadores, resposta.segundosParaIniciar, resposta.chatAberto);
+            // segundosParaIniciar quando os bots já lotaram a sala. `senha`
+            // só vem preenchida quando a sala é privada (o servidor sorteia,
+            // ver PROTOCOLO.md) — repassada pra Partida.jsx mostrar na tela
+            // de espera, porque nenhum outro ack/broadcast vai trazê-la de novo.
+            onEntrouNaSala(resposta.salaId, resposta.jogadores, resposta.segundosParaIniciar, resposta.chatAberto, resposta.senha);
         });
     }
 
+    async function entrarSalaComSenha(salaId, senhaDigitada) {
+        const resposta = await chamar('entrarSala', { salaId, senha: senhaDigitada });
+        onEntrouNaSala(salaId, resposta.jogadores, resposta.segundosParaIniciar, resposta.chatAberto);
+    }
+
     function entrarSala(salaId) {
-        return tentarEntrada(async () => {
-            const resposta = await chamar('entrarSala', { salaId });
-            onEntrouNaSala(salaId, resposta.jogadores, resposta.segundosParaIniciar, resposta.chatAberto);
-        });
+        return tentarEntrada(() => entrarSalaComSenha(salaId));
+    }
+
+    // Clique em "Entrar" de uma sala 🔒: abre o popup em vez de entrar direto.
+    function pedirSenhaParaEntrar(salaId) {
+        setSalaPedindoSenha({ salaId, senha: '', erro: null });
+    }
+
+    // Não passa por tentarEntrada: o erro (senha errada, sala sumiu etc.)
+    // deve aparecer DENTRO do popup, não sumir ele nem virar o erro geral da
+    // tela. JA_EM_PARTIDA é a exceção — mesmo tratamento de colisão de
+    // sempre, com "retomar" reentrando com a mesma senha já digitada.
+    async function confirmarSenhaEEntrar(evento) {
+        evento.preventDefault();
+        const { salaId, senha: senhaDigitada } = salaPedindoSenha;
+        try {
+            await entrarSalaComSenha(salaId, senhaDigitada);
+            setSalaPedindoSenha(null);
+        } catch (erroDaChamada) {
+            if (erroDaChamada.codigo === 'JA_EM_PARTIDA') {
+                setSalaPedindoSenha(null);
+                setColisaoPartida({
+                    salaAtivaId: erroDaChamada.resposta?.salaId,
+                    retomar: () => entrarSalaComSenha(salaId, senhaDigitada),
+                });
+            } else {
+                setSalaPedindoSenha((atual) => atual && { ...atual, erro: erroDaChamada.message });
+            }
+        }
     }
 
     // Reconectar na partida antiga que barrou a entrada (ver colisaoPartida)
@@ -205,6 +243,14 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
                         />
                         Chat aberto
                     </label>
+                    <label style={{ flexDirection: 'row', alignItems: 'center', gap: '6px' }}>
+                        <input
+                            type="checkbox"
+                            checked={privada}
+                            onChange={(e) => setPrivada(e.target.checked)}
+                        />
+                        Sala privada 🔒
+                    </label>
                     <button onClick={criarSala}>Criar</button>
                 </form>
             </section>
@@ -221,14 +267,50 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
                 <ul className="lista-salas">
                     {salas?.map((sala) => (
                         <li key={sala.salaId}>
-                            <span>{sala.salaId} — {sala.jogadoresAtual}/{sala.numberPlayers}</span>
-                            <button onClick={() => entrarSala(sala.salaId)} type="button">Entrar</button>
+                            <span>
+                                {sala.privada && '🔒 '}
+                                {sala.salaId} — {sala.jogadoresAtual}/{sala.numberPlayers}
+                            </span>
+                            <button
+                                onClick={() => (sala.privada ? pedirSenhaParaEntrar(sala.salaId) : entrarSala(sala.salaId))}
+                                type="button"
+                            >
+                                Entrar
+                            </button>
                         </li>
                     ))}
                 </ul>
             </section>
 
             {erro && <p className="erro">{erro}</p>}
+
+            {salaPedindoSenha && (
+                <div className="modal-fundo" onClick={() => setSalaPedindoSenha(null)}>
+                    <form
+                        className="cartao modal-caixa"
+                        onClick={(e) => e.stopPropagation()}
+                        onSubmit={confirmarSenhaEEntrar}
+                    >
+                        <h2>🔒 Sala {salaPedindoSenha.salaId}</h2>
+                        <label>
+                            Senha
+                            <input
+                                type="password"
+                                autoFocus
+                                value={salaPedindoSenha.senha}
+                                onChange={(e) => setSalaPedindoSenha((atual) => ({ ...atual, senha: e.target.value }))}
+                            />
+                        </label>
+                        {salaPedindoSenha.erro && <p className="erro">{salaPedindoSenha.erro}</p>}
+                        <div className="linha">
+                            <button type="submit">Entrar</button>
+                            <button type="button" className="secundario" onClick={() => setSalaPedindoSenha(null)}>
+                                Cancelar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
         </div>
     );
 }
