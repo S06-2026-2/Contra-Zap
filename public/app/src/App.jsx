@@ -2,8 +2,22 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import Login from './components/Login.jsx';
 import Lobby from './components/Lobby.jsx';
 import Partida from './components/Partida.jsx';
+import LoginNovo from './components/novo/Login.jsx';
+import LobbyNovo from './components/novo/Lobby.jsx';
+import PartidaNovo from './components/novo/Partida.jsx';
+import SeletorFrente, { lerFrenteSalva, salvarFrente } from './components/SeletorFrente.jsx';
 import { assinarConexao, chamar, obterConexao, socket } from './socket.js';
 import { avisarSessaoRetomada, lerSessaoSalva, limparSessaoSalva, salvarSessao } from './sessao.js';
+
+// "novo" é hoje um clone de tela por tela do "debugging" (mesmo socket.js/
+// sessao.js dos dois — só a casca visual é duplicada) — ver SeletorFrente.jsx
+// pra como a escolha é lembrada por navegador. Enquanto o front novo não
+// tiver telas próprias de verdade, isto aqui é só uma roupa em cima do
+// debugging pra nenhum endpoint ficar esquecido.
+const FRENTES = {
+    novo: { Login: LoginNovo, Lobby: LobbyNovo, Partida: PartidaNovo },
+    debugging: { Login, Lobby, Partida },
+};
 
 // Máquina de estado bem simples. Sessão (nome + token) fica em memória
 // aqui (`player`) mas é espelhada em sessionStorage (ver sessao.js) — o
@@ -11,6 +25,10 @@ import { avisarSessaoRetomada, lerSessaoSalva, limparSessaoSalva, salvarSessao }
 // compartilhado entre abas (localStorage) nem entre sessões do navegador
 // (cookie persistente).
 export default function App() {
+    // null = ainda não escolheu (mostra SeletorFrente antes de tudo o mais,
+    // inclusive antes do Login). Lembrada por navegador via localStorage —
+    // ver SeletorFrente.jsx.
+    const [frente, setFrente] = useState(lerFrenteSalva);
     const [player, setPlayer] = useState(null); // { nome, token }
     const [sala, setSala] = useState(null); // { salaId, jogadoresIniciais } ou { salaId, reconexao }
     // salaId de uma partida em andamento em que ainda temos assento mas cujo
@@ -131,6 +149,19 @@ export default function App() {
         setSala({ salaId, jogadoresIniciais, segundosParaIniciar, chatAberto, senha });
     }
 
+    // Trocar de front na Lobby (ver botão "🔄" nela) não mexe em player/sala
+    // — só qual casca visual monta a partir daqui, a sessão e a vaga
+    // continuam as mesmas.
+    function trocarFrente() {
+        const novaFrente = frente === 'novo' ? 'debugging' : 'novo';
+        salvarFrente(novaFrente);
+        setFrente(novaFrente);
+    }
+
+    if (!frente) {
+        return <SeletorFrente onEscolher={setFrente} />;
+    }
+
     if (restaurandoSessao) {
         return (
             <div className="cartao">
@@ -139,12 +170,14 @@ export default function App() {
         );
     }
 
+    const { Login: TelaLogin, Lobby: TelaLobby, Partida: TelaPartida } = FRENTES[frente];
+
     let tela;
     if (!player) {
-        tela = <Login onAutenticado={autenticar} />;
+        tela = <TelaLogin onAutenticado={autenticar} />;
     } else if (!sala) {
         tela = (
-            <Lobby
+            <TelaLobby
                 meuNome={player.nome}
                 salaParaReconectar={salaParaReconectar}
                 onEntrouNaSala={entrarNaSala}
@@ -152,11 +185,13 @@ export default function App() {
                     setSalaParaReconectar(null);
                     setSala({ salaId, reconexao });
                 }}
+                frente={frente}
+                onTrocarFrente={trocarFrente}
             />
         );
     } else {
         tela = (
-            <Partida
+            <TelaPartida
                 // key força o React a montar uma instância NOVA sempre que
                 // salaId muda — sem isso, trocar de sala rodando "jogar de
                 // novo" (Partida -> Partida, sem passar pela Lobby no meio)
@@ -183,6 +218,9 @@ export default function App() {
 
     return (
         <>
+            <div className="badge-frente">
+                {frente === 'novo' ? '✨ Novo' : '🐞 Debugging'}
+            </div>
             {/* Independe da tela atual — some sozinho quando 'connect' disparar de novo (ver socket.js) */}
             {!conectado && (
                 <div className="banner-conexao">
