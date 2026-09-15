@@ -22,7 +22,7 @@ export class GameController extends EventEmitter {
     constructor({ numberPlayers, roundStart, randomShuffle, maxDeck, seed, tempoTurnoMs, limiteInatividadeMs, atrasoBotMs, tempoReservaMs } = {}) {
         super();
         this.numberPlayers = numberPlayers || 4;
-        this.roundStart = roundStart || 3;
+        this.roundStart = roundStart || 1;
         this.randomShuffle = randomShuffle;
         // Máximo de baralhos por rodada (ver Game.proximaRodada). Sem valor na
         // config = "Sem Limite" (MAX_DECK_SEM_LIMITE). A validação de que

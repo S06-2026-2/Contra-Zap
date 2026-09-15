@@ -244,7 +244,7 @@ toda vez em `npm run dev`.
 
 ### `criarSala`
 Payload: `{ numberPlayers?: number, roundStart?: number, randomShuffle?: boolean, maxDeck?: number, seed?: number, botNumber?: number, chatAberto?: boolean, privada?: boolean }`
-(todos opcionais — default vem do `SalaManager`: 4 / 3 / true / 50 / — / 0 / false / false)
+(todos opcionais — default vem do `SalaManager`: 4 / 1 / true / 50 / — / 0 / false / false)
 `numberPlayers` precisa ser inteiro entre 2 e 6; `roundStart` inteiro entre
 1 e 10 (o teto evita montar milhares de baralhos e estourar a memória);
 `maxDeck` inteiro entre 1 e 50 — máximo de baralhos de 40 cartas que a
@@ -311,7 +311,7 @@ devolver quando cai no caminho de entrar numa sala já existente
 jogadores com o mesmo nome batendo na fila ao mesmo tempo).
 
 Fila compartilhada de sala com config default (mesmo resultado de
-`criarSala` sem parâmetros nenhum — 4 jogadores, 3 cartas na primeira
+`criarSala` sem parâmetros nenhum — 4 jogadores, 1 carta na primeira
 rodada, sem bots, chat fechado): quem chama primeiro cria essa sala; todo
 mundo que chamar depois, enquanto ela continuar aberta (não cheia, não
 iniciada), entra nela em vez de criar uma nova — não precisa saber o
