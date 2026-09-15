@@ -49,8 +49,23 @@ export function criarServidor({ salaManager, limitesDeTaxa } = {}) {
 
     // Endpoint de healthcheck: usado pelo Docker (HEALTHCHECK) e por qualquer
     // orquestrador/monitoramento pra saber se o processo está de pé e
-    // respondendo, sem depender de abrir a partida inteira pra testar.
+    // respondendo. Checagem real, não só "o processo está vivo": um SELECT 1
+    // é barato o suficiente pra rodar a cada 30s (intervalo do HEALTHCHECK
+    // do Docker) mas já revela se o SQLite travou, corrompeu, ou o arquivo
+    // ficou inacessível — coisas que "o processo está de pé" sozinho não
+    // captura.
     app.get('/health', (req, res) => {
+        try {
+            db.prepare('SELECT 1').get();
+        } catch (err) {
+            return res.status(503).json({
+                status: 'erro',
+                motivo: 'banco de dados inacessível',
+                uptime: process.uptime(),
+                timestamp: new Date().toISOString(),
+            });
+        }
+
         res.status(200).json({
             status: 'ok',
             uptime: process.uptime(),
@@ -65,6 +80,19 @@ export function criarServidor({ salaManager, limitesDeTaxa } = {}) {
     return { app, server, io, salaManager: manager };
 }
 
+// --- Encerramento gracioso -------------------------------------------------
+//
+// Sem isso, um `docker compose down` (ou qualquer redeploy) manda SIGTERM e
+// o processo morria na hora, sem terminar o que estava fazendo. O caso mais
+// concreto: o banco está em modo WAL (ver conexao/db.js), que só mescla as
+// escritas recentes de volta pro banco.sqlite principal quando a conexão é
+// fechada direito — matar o processo sem chamar db.close() deixava dados
+// novos presos no banco.sqlite-wal, que não é persistido fora do container.
+//
+// Não fica dentro de criarServidor de propósito: os testes chamam
+// criarServidor() várias vezes por suíte, e registrar process.on('SIGTERM')
+// a cada chamada acumularia handlers (warning de MaxListeners) e atrapalharia
+// o encerramento dos próprios testes.
 function configurarEncerramentoGracioso(server, io) {
     let encerrando = false;
 
@@ -73,18 +101,9 @@ function configurarEncerramentoGracioso(server, io) {
         encerrando = true;
         console.log(`\n${sinal} recebido — encerrando graciosamente...`);
 
-        // Para de aceitar conexão HTTP nova (deixa as que já estão em andamento
-        // terminarem sozinhas).
         server.close(() => console.log('Servidor HTTP fechado.'));
-
-        // Fecha o Socket.IO — isso derruba as conexões websocket ativas. Pro
-        // escopo atual (estado de partida só em memória, sem persistência entre
-        // restarts) não tem como fazer diferente sem mudar a arquitetura; ver
-        // item de "arquitetura single-process" no backlog.
         io.close(() => console.log('Socket.IO fechado.'));
 
-        // Fecha o banco — em modo WAL, isso aciona o checkpoint automático que
-        // mescla o banco.sqlite-wal de volta pro banco.sqlite principal.
         try {
             db.close();
             console.log('Banco de dados fechado (WAL mesclado no arquivo principal).');
@@ -92,8 +111,6 @@ function configurarEncerramentoGracioso(server, io) {
             console.error('Erro ao fechar o banco:', err);
         }
 
-        // Dá um tempo curto pros closes acima terminarem antes de forçar saída
-        // (evita o processo nunca sair se alguma conexão ficar pendurada).
         setTimeout(() => {
             console.log('Saindo.');
             process.exit(0);
@@ -104,17 +121,13 @@ function configurarEncerramentoGracioso(server, io) {
     process.on('SIGINT', () => encerrarGraciosamente('SIGINT'));
 }
 
+// --- Erros não tratados -----------------------------------------------------
+//
+// Sem isso, um throw dentro de um setTimeout/callback assíncrono (ex.: um
+// bug no GameController) derruba o processo Node inteiro — tira do ar até
+// quem estava numa partida sem problema nenhum. Logamos o erro em vez de
+// deixar o processo morrer silenciosamente sem explicação nenhuma.
 function configurarTratamentoErrosNaoCapturados() {
-    // Sem isso, um throw dentro de um setTimeout/callback assíncrono (ex.: um
-    // bug no GameController) derruba o processo Node inteiro — tira do ar até
-    // quem estava numa partida sem problema nenhum. Logamos o erro em vez de
-    // deixar o processo morrer silenciosamente sem explicação nenhuma.
-    //
-    // Ressalva: continuar rodando depois de um uncaughtException não é 100%
-    // seguro (o estado interno pode ter ficado inconsistente) — mas pro escopo
-    // atual do projeto, favorecer "continuar no ar" em vez de "cair sozinho" é
-    // a troca que faz mais sentido. Se isso virar problema recorrente, vale
-    // reavaliar pra encerrar graciosamente em vez de só logar.
     process.on('uncaughtException', (err) => {
         console.error('Exceção não capturada:', err);
     });
