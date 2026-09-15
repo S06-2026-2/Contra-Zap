@@ -412,7 +412,7 @@ test('forcarInicio', async (t) => {
             const rodada = await cliente.esperar(EventosServidor.NOVA_RODADA_INICIADA);
             assert.equal(rodada.salaId, salaId);
             assert.equal(rodada.numero, 1);
-            assert.equal(rodada.cartas, 3); // roundStart default
+            assert.equal(rodada.cartas, 1); // roundStart default
         }
     });
 

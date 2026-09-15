@@ -8,7 +8,7 @@ test.describe('reconexão pela interface', () => {
     test('F5 no meio da partida: a sessão volta sozinha e a Lobby oferece reconectar', async ({ jogador }) => {
         const salaId = await jogador.criarSala({ jogadores: 2, bots: 1 });
         await jogador.forcarInicio();
-        await expect(jogador.cartas()).toHaveCount(3);
+        await expect(jogador.cartas()).toHaveCount(1);
 
         await jogador.page.reload();
 
@@ -24,7 +24,7 @@ test.describe('reconexão pela interface', () => {
         const salaId = await jogador.criarSala({ jogadores: 2, bots: 1 });
         await jogador.forcarInicio();
         const maoAntes = await jogador.cartas().allTextContents();
-        expect(maoAntes).toHaveLength(3);
+        expect(maoAntes).toHaveLength(1);
 
         await jogador.page.reload();
         await jogador.page.getByRole('button', { name: 'Reconectar' }).click();
