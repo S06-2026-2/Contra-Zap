@@ -44,8 +44,8 @@ test.describe('sala de espera (2 jogadores reais)', () => {
         for (const jogador of [anfitriao, convidado]) {
             await expect(jogador.page.getByRole('heading', { name: /^Vez de:/ })).toBeVisible();
             await expect(jogador.page.getByRole('heading', { name: /^Sua mão/ })).toBeVisible();
-            // 3 cartas na primeira rodada (roundStart default).
-            await expect(jogador.cartas()).toHaveCount(3);
+            // 1 carta na primeira rodada (roundStart default).
+            await expect(jogador.cartas()).toHaveCount(1);
         }
     });
 
