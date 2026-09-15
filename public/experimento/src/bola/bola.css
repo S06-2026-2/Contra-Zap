@@ -75,11 +75,13 @@ body {
     20% {
         opacity: 1;
     }
+    75% {
+        opacity: 0;
+    }
     65% {
         transform: translate(calc(var(--dx) * 0.3px), 55px) scale(0.55);
     }
     100% {
-        opacity: 0;
         transform: translate(calc(var(--dx) * 1px), 90px) scale(0);
     }
 }
@@ -89,10 +91,63 @@ body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 40%;
-    height: 40%;
+    width: 20%;
+    height: 20%;
     object-fit: contain;
     pointer-events: none;
+}
+
+.fantasma-nome {
+    position: absolute;
+    top: 48.25%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #d1d5db;
+    font-size: 3.5vmax;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.fantasma-rosto {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.fantasma-olho {
+    position: absolute;
+    top: 22%;
+    width: 9%;
+    height: 15%;
+    background: #3b0764;
+    border-radius: 50%;
+}
+
+/* rotate(10deg)/rotate(-10deg) foi o ângulo aprovado — se exagerar de novo, volta pra esse valor */
+.fantasma-olho-esq {
+    left: 38%;
+    transform: translate(-50%, -50%) rotate(42deg);
+}
+
+.fantasma-olho-dir {
+    left: 62%;
+    transform: translate(-50%, -50%) rotate(-42deg);
+}
+
+.fantasma-boca {
+    position: absolute;
+    top: 34%;
+    left: 50%;
+    width: 12%;
+    height: 8%;
+    background: #3b0764;
+    transform: translate(-50%, -50%);
+    border-radius: 60% 40% 30% 70% / 70% 60% 40% 30%;
 }
 
 .bola-dica {
