@@ -1,14 +1,27 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import selo from './seal-removebg-preview.png';
 
-// Bola de SVG maior que a tela (140vmax garante isso em qualquer proporção)
-// que encolhe ao clicar. É um toggle, não só ida: clica de novo e ela volta
-// a crescer — dá pra testar a transição várias vezes sem recarregar a
-// página. A escala fica no <div> em volta, não no <svg> direto — elemento
-// HTML tem transform-origin central por padrão, SVG não (evita a bola
-// encolher pro canto em vez do centro).
+const QTD_PARTICULAS = 50;
+
 export default function Bola() {
     const [pequena, setPequena] = useState(false);
+
+    const particulas = useMemo(
+        () =>
+            Array.from({ length: QTD_PARTICULAS }, () => {
+                const anguloSpawn = Math.random() * Math.PI * 2;
+                const raioSpawn = Math.sqrt(Math.random()) * 24;
+                const cx = 50 + Math.cos(anguloSpawn) * raioSpawn;
+                const cy = 50 + Math.sin(anguloSpawn) * raioSpawn;
+                return {
+                    cx,
+                    cy,
+                    dx: -(cx - 50) * 0.6 + (Math.random() * 10 - 5),
+                    atraso: Math.random() * 1.4,
+                };
+            }),
+        []
+    );
 
     return (
         <div className="bola-cena">
@@ -24,9 +37,34 @@ export default function Bola() {
                             <stop offset="100%" stopColor="#6d28d9" />
                         </radialGradient>
                     </defs>
-                    <circle cx="50" cy="50" r="48" fill="url(#bola-gradiente)" />
+                    <g className="bola-particulas">
+                        {particulas.map((p, i) => (
+                            <circle
+                                key={i}
+                                className="bola-particula"
+                                cx={p.cx}
+                                cy={p.cy}
+                                r="10"
+                                style={{ '--dx': p.dx, animationDelay: `-${p.atraso}s` }}
+                            />
+                        ))}
+                    </g>
+                    <path
+                        className="bola-circulo"
+                        d="M50,97 C50,97 13,58 13,33 A37,37 0 1,1 87,33 C87,58 50,97 50,97 Z"
+                        fill="url(#bola-gradiente)"
+                    />
                 </svg>
                 <img className="bola-selo" src={selo} alt="" />
+                <div className="fantasma-nome">
+                    <span>henrique</span>
+                    <span>void</span>
+                </div>
+                <div className="fantasma-rosto">
+                    <div className="fantasma-olho fantasma-olho-esq" />
+                    <div className="fantasma-olho fantasma-olho-dir" />
+                    <div className="fantasma-boca" />
+                </div>
             </div>
             <p className="bola-dica">{pequena ? 'clique pra crescer de novo' : 'clique na bola'}</p>
         </div>
