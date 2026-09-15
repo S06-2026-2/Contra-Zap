@@ -9,7 +9,7 @@ const INTERVALO_ATUALIZACAO_MS = 10_000;
 export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onReconectou }) {
     const [salas, setSalas] = useState(null); // null = ainda não buscou
     const [numberPlayers, setNumberPlayers] = useState(4);
-    const [roundStart, setRoundStart] = useState(3);
+    const [roundStart, setRoundStart] = useState(1);
     const [botNumber, setBotNumber] = useState(0);
     const [chatAberto, setChatAberto] = useState(false);
     const [privada, setPrivada] = useState(false);

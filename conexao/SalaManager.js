@@ -228,7 +228,7 @@ export class SalaManager {
             );
         }
         const numberPlayers = config.numberPlayers ?? 4;
-        const roundStart = config.roundStart ?? 3;
+        const roundStart = config.roundStart ?? 1;
         const botNumber = config.botNumber ?? 0;
         const chatAberto = config.chatAberto ?? false;
         const randomShuffle = config.randomShuffle ?? true;
