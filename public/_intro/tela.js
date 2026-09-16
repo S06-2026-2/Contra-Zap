@@ -1,3 +1,8 @@
+// Desativado por enquanto — este arquivo só controla a tela de trás (canvas
+// de partículas), o texto "FODINHA" e a barra de carregamento, que não são
+// mais carregados por index.html (ver os <script> comentados lá). O
+// experimento de ficha/retângulo não depende de nada daqui.
+/*
 window.requestAnimationFrame = (function(){
     return  window.requestAnimationFrame       ||
         window.webkitRequestAnimationFrame ||
@@ -25,7 +30,6 @@ var particles = [], zoff = 0;
 var progressoTotal = 0, ultimoX = null, ultimoY = null;
 var targetZInc = 0.00001, targetStep = 4, targetBase = 750, mouseTimeout;
 
-// NOVA VARIÁVEL: Controla quando o texto deve tremer
 var isShaking = false;
 
 function init() {
@@ -86,19 +90,17 @@ function onMouseMove(e) {
     ultimoX = x;
     ultimoY = y;
 
-    // Enquanto mexe o mouse, acelera e treme
     targetZInc = 0.01;
     targetStep = 8;
     targetBase = 2500;
-    isShaking = true; // LIGA A TREMEDEIRA
+    isShaking = true;
 
     clearTimeout(mouseTimeout);
     mouseTimeout = setTimeout(function() {
-        // Quando o mouse para, acalma tudo
         targetZInc = 0.00005;
         targetStep = 4;
         targetBase = 750;
-        isShaking = false; // DESLIGA A TREMEDEIRA
+        isShaking = false;
     }, 150);
 }
 
@@ -120,7 +122,6 @@ function initParticle(p) {
         p.isEraser = true;
     } else {
         p.isEraser = false;
-        // Voltei a cor exata do seu código original
         if (Math.random() < 0.5) {
             p.color.h = (345 + Math.random() * 30) % 300;
         } else {
@@ -144,21 +145,15 @@ function update() {
         barraTopo.style.width = (progressoTotal / Configs.larguraSVG * 100) + "%";
     }
 
-    // ==========================================
-    // LÓGICA DE TREMEDEIRA CORRIGIDA
-    // ==========================================
     if (isShaking && progressoTotal > 0 && progressoTotal < Configs.larguraSVG) {
-        var intensidade = 6; // Intensidade (se quiser mais louco, aumente esse número)
+        var intensidade = 6;
         var shakeX = (Math.random() - 0.5) * intensidade;
         var shakeY = (Math.random() - 0.5) * intensidade;
 
-        // Forma à prova de bugs de navegador (usa dois translates em vez de calc)
         svgContainer.style.transform = `translate(-50%, -50%) translate(${shakeX}px, ${shakeY}px)`;
     } else {
-        // Trava cravado no meio quando para de mexer ou chega no 100%
         svgContainer.style.transform = 'translate(-50%, -50%)';
     }
-    // ==========================================
 
     trackerEl.innerHTML =
         '<strong>DEBUG TRACKER</strong><br><br>' +
@@ -214,3 +209,4 @@ function Particle(x, y, color) {
 }
 
 init();
+*/

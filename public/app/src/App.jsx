@@ -6,6 +6,7 @@ import LoginNovo from './components/novo/Login.jsx';
 import LobbyNovo from './components/novo/Lobby.jsx';
 import PartidaNovo from './components/novo/Partida.jsx';
 import SeletorFrente, { lerFrenteSalva, salvarFrente } from './components/SeletorFrente.jsx';
+import MesaExperimento from './components/novo/MesaExperimento.jsx';
 import { assinarConexao, chamar, obterConexao, socket } from './socket.js';
 import { avisarSessaoRetomada, lerSessaoSalva, limparSessaoSalva, salvarSessao } from './sessao.js';
 
@@ -29,6 +30,11 @@ export default function App() {
     // inclusive antes do Login). Lembrada por navegador via localStorage —
     // ver SeletorFrente.jsx.
     const [frente, setFrente] = useState(lerFrenteSalva);
+    // Atalho pro sandbox de layout da mesa (ver
+    // components/novo/MesaExperimento.jsx) sem entrar no fluxo normal de
+    // Login/Lobby/Partida — não é uma "frente" (não vai pro FRENTES nem é
+    // persistido), só uma tela cheia por cima de tudo enquanto ativa.
+    const [mostrarExperimento, setMostrarExperimento] = useState(false);
     const [player, setPlayer] = useState(null); // { nome, token }
     const [sala, setSala] = useState(null); // { salaId, jogadoresIniciais } ou { salaId, reconexao }
     // salaId de uma partida em andamento em que ainda temos assento mas cujo
@@ -158,8 +164,12 @@ export default function App() {
         setFrente(novaFrente);
     }
 
+    if (mostrarExperimento) {
+        return <MesaExperimento onFechar={() => setMostrarExperimento(false)} />;
+    }
+
     if (!frente) {
-        return <SeletorFrente onEscolher={setFrente} />;
+        return <SeletorFrente onEscolher={setFrente} onAbrirExperimento={() => setMostrarExperimento(true)} />;
     }
 
     if (restaurandoSessao) {

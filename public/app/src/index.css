@@ -439,3 +439,178 @@ button.secundario {
     }
     .chat-feed { height: 140px; }
 }
+
+/* Experimento MesaExperimento (componentes/novo) — sandbox de layout pra
+   Partida, nomes prefixados com "mesa-exp-" de propósito, pra não colidir
+   com .carta/.mesa do jogo real. */
+.mesa-exp-tela {
+    position: fixed;
+    inset: 0;
+    background: var(--bg); /* mesmo fundo da Partida de verdade */
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mesa-exp-fechar {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 40;
+}
+
+.mesa-exp-controle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(0, 0, 0, .35);
+    padding: 8px 14px;
+    border-radius: 8px;
+    color: #f1e6d2;
+    font-family: system-ui, sans-serif;
+    font-size: 14px;
+}
+
+.mesa-exp-controle .botoes {
+    display: flex;
+    gap: 6px;
+}
+
+/* Mesa em formato "estádio" (como as mesas de poker de verdade): lados
+   compridos RETOS, só as pontas arredondadas — não uma elipse cheia. O
+   truque é o border-radius valer EXATAMENTE metade da altura (em px, via
+   calc, não em %): um raio desse tamanho arredonda as pontas num
+   semicírculo perfeito e não sobra raio nenhum pra curvar os lados longos.
+   Feltro verde com degradê leve pro centro parecer mais "gasto" que as
+   bordas, e uma borda grossa de madeira (o "rail") por fora. Os assentos
+   ficam posicionados em % relativos a ESTE container, mas com raio > 50%
+   (ver calcularAssentos em MesaExperimento.jsx) — ficam por FORA da mesa,
+   não em cima dela. */
+.mesa-exp-mesa {
+    --altura-mesa: min(34vw, 400px);
+    position: relative;
+    width: min(86vw, 1080px);
+    height: var(--altura-mesa);
+    border-radius: calc(var(--altura-mesa) / 2);
+    background:
+        radial-gradient(ellipse at center, #1d6b47 0%, #14502f 70%, #0f3d24 100%);
+    border: 18px solid #6b4326;
+    box-shadow:
+        0 0 0 4px #4a2e18,
+        0 25px 60px rgba(0, 0, 0, .55),
+        inset 0 0 60px rgba(0, 0, 0, .4);
+}
+
+/* Não é mais um "cartão" de jogador — é o CAMPO/hitbox onde os elementos de
+   verdade (avatar, cartas, fichas...) vão entrar depois. Sem preenchimento
+   nem sombra de propósito: só a borda marca a área, o resto do espaço fica
+   transparente pra não tampar a mesa por baixo. */
+.mesa-exp-assento {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    width: 280px;
+    height: 190px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    text-align: center;
+    background: transparent;
+    border: 2px dashed #3a3a3a;
+    border-radius: 14px;
+    color: #cfcfcf;
+    font-family: system-ui, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    z-index: 15;
+}
+
+/* Seu assento fica maior e destacado — é o único fixo (sempre embaixo, ver
+   calcularAssentos), representando quem está de fato olhando a tela. */
+.mesa-exp-assento-voce {
+    width: 340px;
+    height: 230px;
+    transform: translate(-50%, -50%);
+    border-color: #ffd75e;
+    color: #ffd75e;
+    font-size: 16px;
+    z-index: 16;
+}
+
+.mesa-exp-assento-legenda {
+    opacity: .85;
+}
+
+/* Corpo do fantasminha (ver components/novo/Fantasminha.jsx) — só o
+   flutuar fica aqui em CSS puro; cor e o timing (duração/atraso) vêm do
+   componente, sorteados por instância via style inline. */
+.fantasminha-flutuante {
+    position: relative; /* .fantasminha-rosto usa inset:0 relativo a isto */
+    width: 180px;
+    height: 180px;
+    animation-name: fantasminha-flutuar;
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+}
+
+.fantasminha-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .35));
+}
+
+@keyframes fantasminha-flutuar {
+    0%, 100% { transform: translateY(-8px); }
+    50% { transform: translateY(8px); }
+}
+
+/* Rosto: mesmas % e mesmo ângulo de public/experimento/src/bola/bola.css
+   (branch experimentando-front) — divs de HTML por cima do SVG, não
+   elementos do próprio SVG. Cor fixa (roxo escuro), independente do
+   gradiente sorteado do corpo, igual o resto do rosto já era lá. */
+.fantasminha-rosto {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.fantasminha-olho {
+    position: absolute;
+    top: 22%;
+    width: 9%;
+    height: 15%;
+    background: #3b0764;
+    border-radius: 50%;
+}
+
+/* rotate(42deg)/rotate(-42deg) veio direto da referência (ver comentário
+   dela: 10deg/-10deg era o ângulo "aprovado" antes, se este aqui exagerar
+   de novo é pra esse valor que se volta). */
+.fantasminha-olho-esq {
+    left: 38%;
+    transform: translate(-50%, -50%) rotate(42deg);
+}
+
+.fantasminha-olho-dir {
+    left: 62%;
+    transform: translate(-50%, -50%) rotate(-42deg);
+}
+
+.fantasminha-boca {
+    position: absolute;
+    top: 34%;
+    left: 50%;
+    width: 12%;
+    height: 8%;
+    background: #3b0764;
+    transform: translate(-50%, -50%);
+    border-radius: 60% 40% 30% 70% / 70% 60% 40% 30%;
+}

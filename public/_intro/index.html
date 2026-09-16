@@ -55,6 +55,8 @@
 </head>
 <body>
 
+<!-- Barra de carregamento do topo — desativada, só o experimento de
+     ficha/retângulo fica ativo nesta página por enquanto.
 <div id="barra-topo-container">
     <div id="barra-topo-preenchimento"></div>
 </div>
@@ -65,23 +67,26 @@
         top: 0;
         left: 0;
         width: 100vw;
-        height: 32px; /* Altura da barra */
-        background-color: rgba(255, 255, 255, 0); /* Fundo quase invisível */
+        height: 32px;
+        background-color: rgba(255, 255, 255, 0);
         z-index: 100;
     }
 
     #barra-topo-preenchimento {
         width: 0%;
         height: 100%;
-        background-color: #1F1F1F; /* Mesma cor cinza clara que você usou no texto */
+        background-color: #1F1F1F;
     }
 </style>
+-->
 
+<!-- Tela de trás (canvas de partículas) — desativada.
 <canvas id='c'></canvas>
+-->
 
+<!-- SVG com o texto "FODINHA" e a barra de progresso do mouse — desativado.
 <svg id="svg-container" viewBox="0 0 1200 300">
     <defs>
-        <!-- Máscara original dos naipes -->
         <mask id="mask-naipes">
             <rect width="1200" height="300" fill="white" />
             <g fill="black">
@@ -92,13 +97,11 @@
             </g>
         </mask>
 
-        <!-- NOVO: Caminho de recorte para o progresso do mouse -->
         <clipPath id="clip-progresso-mouse">
             <rect id="barra-mouse" x="0" y="0" width="0" height="300" />
         </clipPath>
     </defs>
 
-    <!-- CAMADA DE FUNDO: Cor cinza escuro original -->
     <g id="texto-progresso-fundo" fill="#1a1a1a" mask="url(#mask-naipes)">
         <rect cx="320" cy="150" rx="35" ry="100" />
         <ellipse cx="340" cy="150" rx="35" ry="65" />
@@ -115,7 +118,6 @@
         </text>
     </g>
 
-    <!-- CAMADA DA FRENTE: Cor cinza mais clara com a máscara de recorte aplicada -->
     <g id="texto-progresso-frente" fill="#1F1F1F" mask="url(#mask-naipes)" clip-path="url(#clip-progresso-mouse)">
         <rect cx="320" cy="150" rx="35" ry="100" />
         <ellipse cx="340" cy="150" rx="35" ry="65" />
@@ -132,8 +134,11 @@
         </text>
     </g>
 </svg>
+-->
 
+<!-- Tracker de debug do canvas de partículas — desativado junto com ele.
 <div id="tracker"></div>
+-->
 
 <div class="mesa-retangulo" style="left: 40%">
     <div class="player-label">Player 1</div>
@@ -295,56 +300,45 @@
     }
 </style>
 
+<!-- Partículas de fundo (tela.js) e a barra de progresso do mouse — desativadas.
 <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
 <script src="tela.js"></script>
 
-<!-- NOVO: Script para mapear o mouse para o SVG -->
-<!-- NOVO: Script para incrementar o progresso com o movimento do mouse -->
 <script>
     const barra = document.getElementById('barra-mouse');
     const larguraSVG = 1200;
 
-    // Variáveis para guardar nosso progresso e a última posição do mouse
     let progressoTotal = 0;
     let ultimoX = null;
     let ultimoY = null;
 
-    // Fator de velocidade do preenchimento.
-    // Aumente para encher mais rápido, diminua para encher mais devagar.
     const sensibilidade = 0.3;
 
     document.addEventListener('mousemove', (event) => {
-        // Se for o primeiro movimento, apenas gravamos a posição inicial e saímos
         if (ultimoX === null || ultimoY === null) {
             ultimoX = event.clientX;
             ultimoY = event.clientY;
             return;
         }
 
-        // Calcula quantos pixels o mouse moveu desde a última vez
         const deltaX = event.clientX - ultimoX;
         const deltaY = event.clientY - ultimoY;
 
-        // Teorema de Pitágoras para saber a distância real percorrida
         const distanciaPercorrida = Math.sqrt((deltaX * deltaX) + (deltaY * deltaY));
 
-        // Atualiza a última posição para o próximo cálculo
         ultimoX = event.clientX;
         ultimoY = event.clientY;
 
-        // Soma a distância ao nosso contador de progresso
         progressoTotal += (distanciaPercorrida * sensibilidade);
 
-        // Garante que a barra não passe do limite de 1200 do SVG
         if (progressoTotal > larguraSVG) {
             progressoTotal = larguraSVG;
-            // Aqui você poderia adicionar alguma função para quando chegar em 100%
         }
 
-        // Aplica a nova largura no retângulo do clipPath
         barra.setAttribute('width', progressoTotal);
     });
 </script>
+-->
 
 <script>
     const perspectiva = document.getElementById('ficha-perspectiva');
