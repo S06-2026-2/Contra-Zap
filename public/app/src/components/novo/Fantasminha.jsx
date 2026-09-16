@@ -1,4 +1,5 @@
-import { useId, useMemo } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { sortearChapeu } from '../../chapeus.js';
 
 // Corpo do "fantasminha da bola" — não a versão que já estava na branch
 // atual, mas a de public/experimento (branch experimentando-front, commit
@@ -35,8 +36,41 @@ function corpoComPonta(x) {
     return `M${x},97 C${x},97 13,58 13,33 A37,37 0 1,1 87,33 C87,58 ${x},97 ${x},97 Z`;
 }
 
-export default function Fantasminha() {
+// Animação de dano ("impact frame"): um corte atravessando o rosto. Não é
+// um traço de espessura uniforme — é uma "lente" (fina nas duas pontas,
+// grossa no meio), desenhada em coordenadas LOCAIS horizontais (mais fácil
+// de calcular reto) e só depois girada/posicionada em cima do rosto via
+// <g transform>. A lente é feita de DUAS curvas quadráticas entre os
+// mesmos dois pontos-ponta: uma com o controle deslocado pra cima
+// (CORTE_METADE_ESPESSURA), outra pra baixo — no meio (t=0.5) uma bezier
+// quadrática se afasta da corda em metade do deslocamento do controle, daí
+// as duas juntas darem espessura = CORTE_METADE_ESPESSURA bem no centro, e
+// exatamente 0 nas pontas (onde as duas curvas começam/terminam no MESMO
+// ponto). O "desenhar de ponta a ponta" agora é um clipPath com um <rect>
+// cuja largura anima de 0 até cobrir tudo (SMIL, mesma ideia do balanço da
+// cauda) — funciona em cima de uma forma preenchida, diferente do
+// stroke-dashoffset de antes (que só funciona em traço, não em fill).
+const CORTE_METADE_COMPRIMENTO = 40;
+const CORTE_METADE_ESPESSURA = 10;
+// Some o MESMO deslocamento aos dois controles (em vez de -espessura/
+// +espessura simétricos) — a ESPESSURA no meio continua a mesma (é a
+// DIFERENÇA entre os dois controles, que não muda), mas a lente inteira
+// arqueia pra um lado, já que os dois extremos continuam presos nos mesmos
+// dois pontos-ponta (P0/P1) e só o meio se afasta da linha reta entre eles.
+const CORTE_CURVATURA = 16;
+const CORTE_LENTE = `M-${CORTE_METADE_COMPRIMENTO},0 Q0,${CORTE_CURVATURA - CORTE_METADE_ESPESSURA} ${CORTE_METADE_COMPRIMENTO},0 Q0,${CORTE_CURVATURA + CORTE_METADE_ESPESSURA} -${CORTE_METADE_COMPRIMENTO},0 Z`;
+const CORTE_CENTRO = { x: 50, y: 47 };
+const CORTE_ANGULO_GRAUS = 38;
+const DURACAO_DANO_MS = 380;
+
+// `versaoChapeu` é só um contador: subir ele (ver botão "🎩 Novos chapéus"
+// em MesaExperimento.jsx) sorteia um chapéu novo sem mexer em mais nada
+// (cor, timing da cauda/flutuar continuam os mesmos) — se fosse um `key`
+// remontando o componente inteiro, tudo sortearia de novo junto.
+export default function Fantasminha({ versaoChapeu, children, destacado, danoVersao }) {
     const idGradiente = useId();
+    const idCorteClip = useId();
+    const chapeu = useMemo(sortearChapeu, [versaoChapeu]);
     const { hue, duracao, atraso, duracaoCauda, atrasoCauda } = useMemo(() => ({
         hue: Math.random() * 360,
         duracao: DURACAO_MIN_S + Math.random() * (DURACAO_MAX_S - DURACAO_MIN_S),
@@ -49,12 +83,32 @@ export default function Fantasminha() {
         atrasoCauda: Math.random() * DURACAO_CAUDA_MAX_S,
     }), []);
 
+    // `danoVersao` é o mesmo truque de `versaoChapeu`: um contador que só
+    // interessa MUDAR (ver botão "💥 Fantasma leva dano" em
+    // MesaExperimento.jsx), não o valor em si. `primeiraVez` evita disparar
+    // a animação já no mount (quando o valor inicial, 0, "muda" de
+    // undefined pra 0 na primeira renderização).
+    const [machucado, setMachucado] = useState(false);
+    const primeiraVez = useRef(true);
+    useEffect(() => {
+        if (primeiraVez.current) {
+            primeiraVez.current = false;
+            return;
+        }
+        setMachucado(true);
+        const id = setTimeout(() => setMachucado(false), DURACAO_DANO_MS);
+        return () => clearTimeout(id);
+    }, [danoVersao]);
+
     return (
         <div
             className="fantasminha-flutuante"
             style={{ animationDuration: `${duracao.toFixed(2)}s`, animationDelay: `-${atraso.toFixed(2)}s` }}
         >
-            <svg className="fantasminha-svg" viewBox="0 0 100 100">
+            <svg
+                className={`fantasminha-svg${destacado ? ' fantasminha-svg-destacado' : ''}`}
+                viewBox="0 0 100 100"
+            >
                 <defs>
                     <radialGradient id={idGradiente} cx="35%" cy="30%" r="75%">
                         <stop offset="0%" stopColor={`hsl(${hue}, 90%, 95%)`} />
@@ -62,7 +116,16 @@ export default function Fantasminha() {
                         <stop offset="100%" stopColor={`hsl(${hue}, 65%, 68%)`} />
                     </radialGradient>
                 </defs>
-                <path d={corpoComPonta(50)} fill={`url(#${idGradiente})`}>
+                {/* `destacado` (ver MesaExperimento.jsx: assento de quem
+                    jogou a carta em hover) contorna o CONTORNO DE VERDADE
+                    do fantasma — a silhueta do path, não um retângulo por
+                    cima dele — via stroke direto no SVG. */}
+                <path
+                    d={corpoComPonta(50)}
+                    fill={`url(#${idGradiente})`}
+                    stroke={destacado ? '#ffd75e' : 'none'}
+                    strokeWidth={destacado ? 3 : 0}
+                >
                     {/* centro -> direita -> centro -> esquerda -> centro,
                         num ciclo só — "andar pra direita pra esquerda" em
                         vaivém, não só ida. */}
@@ -79,12 +142,70 @@ export default function Fantasminha() {
                         repeatCount="indefinite"
                     />
                 </path>
+                {/* Flash branco por cima da silhueta inteira — bem mais
+                    rápido que o resto do impact frame (o corte/aperto de
+                    olho seguram DURACAO_DANO_MS inteiro), some sozinho
+                    rápido pra dar aquele "pisca" de dano. `d` fixo (sem a
+                    animação da cauda) de propósito: dura tão pouco que o
+                    descompasso com a cauda balançando não dá pra notar. */}
+                {machucado && (
+                    <path key={`flash-${danoVersao}`} className="fantasminha-flash" d={corpoComPonta(50)} fill="#ffffff" />
+                )}
+                {/* O corte só existe enquanto machucado — `key={danoVersao}`
+                    força remontar (e reiniciar as animações do zero, tanto
+                    a SMIL do <rect> quanto a CSS do <g>) a cada nova
+                    pancada, mesmo que a anterior ainda não tenha sumido de
+                    todo. */}
+                {machucado && (
+                    <g
+                        key={danoVersao}
+                        className="fantasminha-corte-grupo"
+                        transform={`translate(${CORTE_CENTRO.x} ${CORTE_CENTRO.y}) rotate(${CORTE_ANGULO_GRAUS})`}
+                    >
+                        <defs>
+                            <clipPath id={idCorteClip}>
+                                {/* Largura anima de 0 até cobrir a lente
+                                    inteira — "desenha" o corte de ponta a
+                                    ponta por cima da forma já pronta (fina
+                                    nas pontas, grossa no meio). */}
+                                <rect
+                                    x={-CORTE_METADE_COMPRIMENTO}
+                                    y={-CORTE_METADE_ESPESSURA * 2}
+                                    width="0"
+                                    height={CORTE_METADE_ESPESSURA * 4}
+                                >
+                                    <animate
+                                        attributeName="width"
+                                        from="0"
+                                        to={CORTE_METADE_COMPRIMENTO * 2}
+                                        dur="0.22s"
+                                        fill="freeze"
+                                    />
+                                </rect>
+                            </clipPath>
+                        </defs>
+                        <path className="fantasminha-corte" d={CORTE_LENTE} clipPath={`url(#${idCorteClip})`} />
+                    </g>
+                )}
             </svg>
-            <div className="fantasminha-rosto">
+            <div className={`fantasminha-rosto${machucado ? ' fantasminha-machucado' : ''}`}>
                 <div className="fantasminha-olho fantasminha-olho-esq" />
                 <div className="fantasminha-olho fantasminha-olho-dir" />
                 <div className="fantasminha-boca" />
             </div>
+            {/* Sorteado uma vez por fantasminha (ver chapeus.js) — nasce
+                fixo em cima da cabeça, não acompanha a cauda nem o rosto. */}
+            <span
+                className="fantasminha-chapeu"
+                style={{ backgroundImage: `url(${chapeu})` }}
+            />
+            {/* Filho de .fantasminha-flutuante de propósito (não um
+                irmão) — assim quem passar algo aqui (ver MaoEmLeque em
+                MesaExperimento.jsx) recebe o EXATO mesmo flutuar em onda
+                senoidal deste fantasminha, sem duplicar duração/atraso
+                sorteados: é o mesmo elemento animado carregando os dois
+                juntos. */}
+            {children}
         </div>
     );
 }

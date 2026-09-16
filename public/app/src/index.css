@@ -460,6 +460,20 @@ button.secundario {
     z-index: 40;
 }
 
+.mesa-exp-fantasma-taca {
+    position: fixed;
+    top: 60px;
+    left: 16px;
+    z-index: 40;
+}
+
+.mesa-exp-fantasma-dano {
+    position: fixed;
+    top: 104px;
+    left: 16px;
+    z-index: 40;
+}
+
 .mesa-exp-controle {
     position: fixed;
     top: 16px;
@@ -479,6 +493,61 @@ button.secundario {
 .mesa-exp-controle .botoes {
     display: flex;
     gap: 6px;
+}
+
+.mesa-exp-controle-cartas-teste {
+    top: 62px; /* logo abaixo do .mesa-exp-controle de quantidade, mesmo canto */
+}
+
+.mesa-exp-rolar-chapeus {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 40;
+}
+
+.mesa-exp-dar-cartas {
+    position: fixed;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 40;
+}
+
+.mesa-exp-ver-ranks {
+    position: fixed;
+    top: 104px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 40;
+}
+
+/* Galeria de revisão (ver GaleriaRanks em MesaExperimento.jsx) — troca a
+   mesa inteira por uma grade de todos os ranks do baralho, grandes, lado a
+   lado, só pra decidir mudanças de design nas cartas. */
+.mesa-exp-galeria-ranks {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    overflow: auto;
+    padding: 80px 24px 24px;
+}
+
+.mesa-exp-galeria-ranks-grade {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    justify-content: center;
+}
+
+.mesa-exp-galeria-ranks-item {
+    transform: scale(1.8);
+    transform-origin: top center;
+    /* Margem extra embaixo pra compensar o scale (senão os itens da grade
+       ficam colados/sobrepostos verticalmente — scale não empurra layout
+       junto). */
+    margin-bottom: 90px;
 }
 
 /* Mesa em formato "estádio" (como as mesas de poker de verdade): lados
@@ -567,6 +636,12 @@ button.secundario {
     filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .35));
 }
 
+/* Glow extra por cima do stroke inline do path (ver `destacado` em
+   Fantasminha.jsx) — soma às duas sombras, não substitui a de baixo. */
+.fantasminha-svg-destacado {
+    filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .35)) drop-shadow(0 0 8px #ffd75e);
+}
+
 @keyframes fantasminha-flutuar {
     0%, 100% { transform: translateY(-8px); }
     50% { transform: translateY(8px); }
@@ -589,6 +664,7 @@ button.secundario {
     height: 15%;
     background: #3b0764;
     border-radius: 50%;
+    transition: transform .15s ease;
 }
 
 /* rotate(42deg)/rotate(-42deg) veio direto da referência (ver comentário
@@ -613,4 +689,373 @@ button.secundario {
     background: #3b0764;
     transform: translate(-50%, -50%);
     border-radius: 60% 40% 30% 70% / 70% 60% 40% 30%;
+    transition: transform .15s ease;
+}
+
+/* Dano (ver `machucado`/danoVersao em Fantasminha.jsx) — olhos "apertam"
+   (escala achatada na direção do rotate deles, viram uma linha fina) e a
+   boca aumenta, "como se tivesse fechando o olho de dor". A transition
+   normal (não uma @keyframes) já cuida da volta sozinha quando a classe
+   sai — só precisa do estado "apertado" aqui. */
+.fantasminha-machucado .fantasminha-olho-esq {
+    transform: translate(-50%, -50%) rotate(42deg) scaleY(0.15);
+}
+
+.fantasminha-machucado .fantasminha-olho-dir {
+    transform: translate(-50%, -50%) rotate(-42deg) scaleY(0.15);
+}
+
+.fantasminha-machucado .fantasminha-boca {
+    transform: translate(-50%, -50%) scale(1.7);
+}
+
+/* O corte (ver CORTE_LENTE/machucado em Fantasminha.jsx) — a FORMA em si
+   (fina nas pontas, grossa no meio) já vem pronta do path, calculada em
+   coordenadas locais; aqui só o preenchimento e o desaparecer no fim. O
+   "desenhar de ponta a ponta" é o clipPath com <rect> animado por SMIL
+   (ver <animate> no JSX) — largura crescendo de 0, não algo em CSS. */
+.fantasminha-corte {
+    fill: #e0263f;
+}
+
+.fantasminha-corte-grupo {
+    animation: fantasminha-corte-sumir .35s ease-out forwards;
+}
+
+@keyframes fantasminha-corte-sumir {
+    0%, 55% { opacity: 1; }
+    100%    { opacity: 0; }
+}
+
+/* Flash de dano: pisca branco por cima da silhueta inteira e some rápido —
+   bem mais curto que o corte/aperto de olho (esses seguram DURACAO_DANO_MS
+   inteiro), é só o "estalo" inicial do impact frame. */
+.fantasminha-flash {
+    pointer-events: none;
+    animation: fantasminha-flash-sumir .16s ease-out forwards;
+}
+
+@keyframes fantasminha-flash-sumir {
+    0%   { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* Chapéu sorteado (ver chapeus.js/Fantasminha.jsx) — sprite minúsculo de
+   pixel art, por isso o image-rendering: pixelated (sem isso o navegador
+   borra ele ao ampliar). Pousado perto do pico do dome (topo do corpo,
+   ligeiramente acima de y=0 no viewBox do SVG — daí o top negativo). */
+.fantasminha-chapeu {
+    position: absolute;
+    top: 4%;
+    left: 50%;
+    width: 168px;
+    height: 168px;
+    /* background-image vem inline por elemento (style, ver Fantasminha.jsx)
+       — cada fantasminha sorteia o seu. */
+    background-size: contain;
+    background-repeat: no-repeat;
+    /* "top", não "center": os sprites quadrados (48x48, 54x54...) enchem a
+       caixa inteira e não sobra respiro nenhum pra mudar de lugar, mas os
+       mais largos que altos (60x48, 54x48, 64x48...) sobram um respiro
+       vertical com o contain — ancorado no topo, esse respiro todo fica
+       embaixo, então o chapéu não desce em relação aos quadrados. */
+    background-position: top;
+    image-rendering: pixelated;
+    transform: translate(-50%, -55%);
+    pointer-events: none;
+}
+
+/* Carta (ver components/novo/Carta.jsx) — bege claro clássico de baralho
+   de verdade (não o fundo escuro do .carta de Partida.jsx), com nome
+   prefixado "carta-exp-" pra não colidir com aquele. position:relative pra
+   .carta-exp-indice se ancorar no canto (ver mais abaixo). */
+.carta-exp {
+    position: relative;
+    width: 110px;
+    height: 154px;
+    border: 2px solid #c9bfa5;
+    border-radius: 10px;
+    background: #f7f1e3;
+    /* Contorno: um traço fino e escuro logo por fora da borda clara, além
+       da sombra de profundidade — sem ele a borda #c9bfa5 quase some contra
+       fundos claros (mesa/tela), a carta ficava sem uma silhueta definida. */
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, .45), 0 8px 18px rgba(0, 0, 0, .4);
+    font-family: system-ui, sans-serif;
+}
+
+/* Índice no canto superior esquerdo (rank em cima, naipe embaixo) — não
+   centralizado: num leque cheio (ver SuaMaoEmLeque) as cartas se
+   sobrepõem, e é só esse canto de cada uma que sobra visível por cima da
+   vizinha. */
+.carta-exp-indice {
+    position: absolute;
+    top: 2px;
+    left: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+}
+
+/* Mesmo índice, só que ancorado no canto oposto (embaixo/direita em vez de
+   cima/esquerda) e girado 180° — não é outro conteúdo, é o de cima virado
+   de cabeça pra baixo, igual carta de baralho de verdade. */
+.carta-exp-indice-invertido {
+    top: auto;
+    left: auto;
+    bottom: 2px;
+    right: 4px;
+    transform: rotate(180deg);
+}
+
+.carta-exp-rank {
+    font-size: 34px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+}
+
+.carta-exp-naipe {
+    font-size: 20px;
+    margin-top: 0px;
+}
+
+/* Pips do meio da carta (ver PIPS/pips em Carta.jsx) — cada um é um <span>
+   absoluto posicionado por %, left/top vêm inline por pip. */
+.carta-exp-pips {
+    position: absolute;
+    inset: 0;
+}
+
+.carta-exp-pip {
+    position: absolute;
+    font-size: 28px;
+    line-height: 1;
+}
+
+.carta-exp-pip-grande {
+    font-size: 46px;
+}
+
+/* Manilha: mesmo tratamento que .carta-vencedora já usa (borda + glow),
+   só dourado em vez de verde — sinaliza "essa é a carta mais forte agora"
+   em vez de "essa venceu a vaza". */
+.carta-exp-manilha {
+    border-color: #ffd75e;
+    box-shadow: 0 0 0 2px #ffd75e, 0 0 18px rgba(255, 215, 94, .5);
+}
+
+/* Verso: sem rank/naipe nenhum, só um padrão listrado repetindo — cor
+   independente do naipe (a carta virada não revela nada). */
+.carta-exp-verso {
+    background:
+        repeating-linear-gradient(45deg, #7a1f2b, #7a1f2b 6px, #5c1620 6px, #5c1620 12px);
+    border-color: #2a2a2a;
+}
+
+/* Baralho: pilha de versos no centro da mesa (ver CARTAS_DO_BARALHO em
+   MesaExperimento.jsx — rotação/deslocamento de cada carta fixos, não
+   sorteados, é só decoração). left/top/transform vêm inline (React) —
+   parados no centro na maior parte do tempo, mas MesaExperimento.jsx muda
+   os três durante distribuirCartas() (gira + sai um pouco em direção a
+   quem está recebendo). transitionDuration também vem inline, igual a
+   DURACAO_DECK_MS de lá — duração fixa aqui desalinhava (JS soltava as
+   cartas antes do baralho terminar de girar/deslocar de verdade). z-index
+   abaixo dos assentos (15/16), acima do feltro. */
+.mesa-exp-baralho {
+    position: absolute;
+    z-index: 13;
+    transition-property: left, top, transform;
+    transition-timing-function: ease;
+}
+
+.mesa-exp-baralho-carta {
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+
+/* Uma carta que já saiu do baralho, voando até o assento (ver
+   CartaVoando em MesaExperimento.jsx) — left/top/--escala-carta vêm
+   inline e mudam uma vez só (de -> para, inicial -> final), a transition
+   abaixo é o que faz esse pulo virar um deslize suave. Pra a maioria dos
+   assentos --escala-carta não muda (mesmo valor início/fim); só pras
+   cartas indo pra "Você" ela cresce durante o voo (ver
+   ESCALA_CARTA_VOANDO_FINAL_VOCE). */
+.mesa-exp-carta-voando {
+    position: absolute;
+    /* --angulo-carta vem inline (o ângulo do baralho no instante em que
+       esta carta nasceu) — sai "alinhada" com o baralho, não sempre
+       esquadrada. */
+    transform: translate(-50%, -50%) scale(var(--escala-carta, 0.32)) rotate(var(--angulo-carta, 0deg));
+    transition-property: left, top, transform;
+    transition-timing-function: ease;
+    z-index: 17;
+    pointer-events: none;
+}
+
+/* Mão em leque de quem não somos nós (ver MaoEmLeque em
+   MesaExperimento.jsx) — agora filha de .fantasminha-flutuante (ver
+   `children` em Fantasminha.jsx), não mais um wrapper próprio: usa o
+   position:relative e o tamanho (180px) que aquele elemento já tinha, e
+   por ser filha dele flutua na mesma onda senoidal do fantasminha sem
+   precisar duplicar duração/atraso. Ancorada acima do topo do fantasminha
+   (top negativo) — translateX(-50%) só no eixo horizontal, o vertical fica
+   livre pra cada carta abrir o leque a partir desse ponto pra baixo (ver
+   transform-origin "center bottom" abaixo). */
+.mesa-exp-mao-leque {
+    position: absolute;
+    left: 50%;
+    top: -10%;
+    transform: translateX(-50%);
+}
+
+.mesa-exp-mao-carta {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    /* --rotacao-carta/--deslocamento-carta vêm inline, um valor por carta
+       (ver offset em MaoEmLeque) — é isso que abre o leque. */
+    transform: translateX(-50%) translateX(var(--deslocamento-carta)) rotate(var(--rotacao-carta));
+    transform-origin: center bottom;
+}
+
+/* Entrada de cada carta nova: sobe um pouquinho enquanto aparece. Só esta
+   camada anima (não .mesa-exp-mao-carta, que cuida da posição no leque) —
+   assim os dois transforms não brigam um com o outro. animationDelay vem
+   inline (índice da carta * ATRASO_ENTRADA_CARTA_MS), pra escalonar uma
+   depois da outra em vez de todas de uma vez. */
+.mesa-exp-mao-carta-entrada {
+    transform: scale(0.36);
+    transform-origin: center bottom;
+    animation: mesa-exp-carta-assentar .3s ease both;
+}
+
+@keyframes mesa-exp-carta-assentar {
+    from { opacity: 0; transform: translateY(8px) scale(0.36); }
+    to   { opacity: 1; transform: translateY(0) scale(0.36); }
+}
+
+/* A SUA mão (ver SuaMaoEmLeque em MesaExperimento.jsx) — ancorada na TELA
+   (.mesa-exp-tela tem position:fixed, então vira o container de
+   referência), não na mesa: fica presa perto da base da janela
+   independente de onde a mesa estiver, e as cartas nascem escondidas
+   ABAIXO da borda de baixo (bottom negativo) — "de fora da tela" de
+   verdade, não só de fora da mesa. */
+.mesa-exp-sua-mao {
+    position: absolute;
+    left: 50%;
+    bottom: -30px;
+    transform: translateX(-50%);
+    z-index: 20;
+    /* Sem pointer-events:none aqui (diferente de antes) — as cartas
+       precisam receber hover agora (ver .mesa-exp-sua-mao-carta:hover). O
+       próprio container não tem largura/altura (só os filhos absolutos
+       estouram pra fora dele), então não sobra "área vazia" nenhuma pra
+       atrapalhar cliques em outra coisa. */
+}
+
+.mesa-exp-sua-mao-carta {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    /* Mesma ideia do leque em miniatura (--rotacao-carta/
+       --deslocamento-carta inline, um valor por carta), só que aberto bem
+       mais (ANGULO_ENTRE_CARTAS_VOCE/DESLOCAMENTO_ENTRE_CARTAS_VOCE) e
+       1.5x maior que o tamanho de verdade do Carta.jsx (que já é maior
+       que o das outras mãos). */
+    transform: translateX(-50%) translateX(var(--deslocamento-carta)) rotate(var(--rotacao-carta)) scale(1.5);
+    transform-origin: center bottom;
+    transition: transform .18s ease;
+    z-index: 1;
+    cursor: pointer;
+}
+
+/* Hover: a carta sob o mouse pula pra cima e cresce um pouco mais (1.5 ->
+   1.7, mais o translateY negativo). As outras (":not(:hover)", pra não
+   competir com a regra de cima na carta que ESTÁ sob o mouse — as duas
+   bateriam nela senão) recuam um pouco (1.5 -> 1.4) enquanto qualquer
+   carta da mão estiver em hover. z-index sobe só na carta ativa, pra ela
+   ficar por cima das vizinhas em vez de atrás. */
+.mesa-exp-sua-mao-carta:hover {
+    transform: translateX(-50%) translateX(var(--deslocamento-carta)) translateY(-30px) rotate(var(--rotacao-carta)) scale(1.7);
+    z-index: 30;
+}
+
+.mesa-exp-sua-mao:hover .mesa-exp-sua-mao-carta:not(:hover) {
+    transform: translateX(-50%) translateX(var(--deslocamento-carta)) rotate(var(--rotacao-carta)) scale(1.4);
+}
+
+/* Sobe de bem mais longe que o leque em miniatura (160px, não 8px) — "de
+   fora da tela" pede uma distância que dê pra sentir a subida, não só um
+   assentar. Mais rápida que o próprio baralho entregando (DURACAO_CARTA_MS
+   em MesaExperimento.jsx, ~346ms com VELOCIDADE=1.3) de propósito — a
+   carta chega rápido no baralho e o "aparecer" na sua mão é ainda mais
+   ágil que isso. animationDelay inline escalona uma depois da outra,
+   mesma lógica de sempre. */
+.mesa-exp-sua-mao-carta-entrada {
+    animation: mesa-exp-sua-carta-subir .22s ease both;
+}
+
+@keyframes mesa-exp-sua-carta-subir {
+    from { opacity: 0; transform: translateY(160px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Saída (ver jogarCarta em MesaExperimento.jsx, className aplicada só na
+   carta clicada) — o MESMO trajeto de mesa-exp-sua-carta-subir, ao
+   contrário: "sai da mão do jeito que veio". animation-name sozinho troca
+   só isso (duração/timing/fill continuam do .mesa-exp-sua-mao-carta-
+   entrada base) — e como troca o NOME, reinicia do zero mesmo a carta já
+   estando parada no fim de mesa-exp-sua-carta-subir. */
+.mesa-exp-sua-mao-carta-saindo {
+    animation-name: mesa-exp-sua-carta-descer;
+    animation-duration: .22s; /* bate com DURACAO_SAIDA_MAO_MS */
+}
+
+@keyframes mesa-exp-sua-carta-descer {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(160px); }
+}
+
+/* Carta pousada na mesa depois de jogada (ver jogarCarta/cartasNaMesa) —
+   left/top/transform vêm inline (posição final de onde ela pousou), sem
+   transition: quando aparece aqui já é porque a CartaVoando terminou de
+   voar até esse ponto exato, não precisa animar de novo. */
+.mesa-exp-carta-jogada {
+    position: absolute;
+    z-index: 14;
+    cursor: pointer;
+}
+
+/* Hover: mesmo tratamento dourado que .carta-exp-manilha já usa (borda +
+   glow) — aqui em cima do .carta-exp de dentro, que é quem tem a borda de
+   verdade. */
+.mesa-exp-carta-jogada-hover .carta-exp {
+    border-color: #ffd75e;
+    box-shadow: 0 0 0 2px #ffd75e, 0 0 18px rgba(255, 215, 94, .6);
+}
+
+/* Legenda ao lado da carta em hover (ver cartaEmHover em
+   MesaExperimento.jsx) — SEM o rotate/scale da carta (é um elemento
+   irmão, não filho dela), pra o texto nunca ficar de lado ou espremido. */
+.mesa-exp-carta-jogada-legenda {
+    position: absolute;
+    transform: translate(24px, -50%);
+    z-index: 21;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: rgba(0, 0, 0, .65);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-family: system-ui, sans-serif;
+    font-size: 13px;
+    color: #f1e6d2;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.mesa-exp-carta-jogada-legenda span {
+    color: #ffd75e;
+    font-weight: 700;
 }
