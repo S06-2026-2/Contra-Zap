@@ -208,7 +208,13 @@ function calcularAssentos(quantidade) {
     });
 }
 
-function CartaVoando({ de, para, anguloInicial, anguloFinal, escalaInicial, escalaFinal, duracaoMs, carta, onChegou }) {
+// `escondida` (ver iniciarRodadaNova, rodada de 1 carta): a SUA própria
+// carta viajando até você continua carregando o valor de VERDADE em
+// `carta` (aoChegarCarta precisa dele pra popular suaMao direito), mas o
+// voo em si tem que mostrar as costas — senão dava pra ver a própria carta
+// ANTES dela pousar escondida em SuaMaoEmLeque, exatamente o vazamento que
+// a rodada cega existe pra evitar.
+function CartaVoando({ de, para, anguloInicial, anguloFinal, escalaInicial, escalaFinal, duracaoMs, carta, escondida, onChegou }) {
     const [pos, setPos] = useState(de);
     const [escala, setEscala] = useState(escalaInicial);
     const [angulo, setAngulo] = useState(anguloInicial);
@@ -238,7 +244,7 @@ function CartaVoando({ de, para, anguloInicial, anguloFinal, escalaInicial, esca
                 '--escala-carta': escala,
             }}
         >
-            {carta ? <Carta rank={carta.rank} naipe={carta.naipe} /> : <Carta virada />}
+            {carta && !escondida ? <Carta rank={carta.rank} naipe={carta.naipe} /> : <Carta virada />}
         </div>
     );
 }
@@ -574,11 +580,6 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     const [faseVira, setFaseVira] = useState(null);
     const [baralhoEmVira, setBaralhoEmVira] = useState(false);
     const [viraEmHover, setViraEmHover] = useState(false);
-    // Dado cru de `estado.vira` ainda não animado — só processado quando
-    // `distribuindo` (a entrega da mão) já tiver terminado (ver efeito da
-    // vira mais abaixo), senão a vira "furaria fila" na frente das cartas
-    // ainda voando pra cada assento.
-    const [viraPendente, setViraPendente] = useState(null);
 
     const [chatClicado, setChatClicado] = useState(false);
     const [bolhasFala, setBolhasFala] = useState([]);
@@ -594,6 +595,16 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     const cantoFichasRef = useRef(null);
     const assentoRefs = useRef([]);
     const apostasProcessadasRef = useRef(new Set());
+
+    // Popup de aposta (ver Fatia 2 — suas ações): só o input/validação; o
+    // arremesso de fichas em si já é 100% reativo (ver o efeito de
+    // estado.apostas mais abaixo, que dispara pra QUALQUER nome novo,
+    // inclusive o seu) — o popup só chama `acoes.apostar`, nunca anima
+    // nada sozinho.
+    const [apostaPopupAberto, setApostaPopupAberto] = useState(false);
+    const [apostaValorPopup, setApostaValorPopup] = useState('0');
+    const [apostaErro, setApostaErro] = useState(null);
+    const [apostaEnviando, setApostaEnviando] = useState(false);
 
     const [assentoEmHoverIndex, setAssentoEmHoverIndex] = useState(null);
 
@@ -716,19 +727,30 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         const carta = lerCarta(jogada.carta);
         if (!assento || !carta) return;
 
+        // A carta que saiu da SUA mão (pra remover de vez depois da saída,
+        // ver `disparar` abaixo) — lida direto do closure de `suaMao`
+        // (estado desta mesma renderização), não via updater funcional:
+        // aqui só precisamos LER o id, quem MUDA o estado é o filter lá
+        // embaixo, depois que a animação de saída terminar.
+        const suaCartaJogada = indice === 0
+            ? suaMao.find((c) => c.rank === carta.rank && c.naipe === carta.naipe)
+            : null;
+
         if (indice === 0) {
-            setSuaMao((atual) => {
-                const posicao = atual.findIndex((c) => c.rank === carta.rank && c.naipe === carta.naipe);
-                if (posicao === -1) return atual;
-                setCartaSaindoId(atual[posicao].id);
-                return atual;
-            });
+            if (suaCartaJogada) setCartaSaindoId(suaCartaJogada.id);
         } else {
             setMaos((atual) => atual.map((qtd, i) => (i === indice ? Math.max(0, qtd - 1) : qtd)));
         }
 
         const disparar = () => {
             setCartaSaindoId(null);
+            // Só agora ela sai de vez da mão — sem isto a contagem nunca
+            // diminuía (a carta ficava presa em suaMao pra sempre, só com
+            // a classe CSS de "saindo" ligada, ver bug relatado pelo
+            // Henrique).
+            if (suaCartaJogada) {
+                setSuaMao((atual) => atual.filter((c) => c.id !== suaCartaJogada.id));
+            }
             const giroInicial = 360 + Math.random() * 360;
             const rotFinal = Math.random() * 360;
             const id = ++proximoIdCarta.current;
@@ -781,25 +803,26 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- processarJogada fecha sobre estado local (vazaRevelando/assentos/...) que muda a cada render; ler direto no corpo já pega o valor atual
     }, [estado.mesa]);
 
-    // Vira: só entra na fila de animação depois que `distribuindo` (a
-    // entrega da mão) já tiver acabado — ver `viraPendente` acima.
+    // Vira: dispara assim que `estado.vira` chegar, mesmo se a distribuição
+    // ainda estiver voando (na prática é sempre o caso — manilhaVirada
+    // chega do servidor quase junto com suaMao, bem antes da coreografia
+    // de dar carta terminar de rodar no cliente). `viraProcessadaRef` (não
+    // outro `useState`) guarda qual `estado.vira` já foi animado — comparar
+    // direto contra um ref evita o antigo esquema de "guardar pendente,
+    // esperar outro efeito notar que já pode processar", que dependia de
+    // dois efeitos separados concordarem sobre QUANDO reprocessar.
+    const viraProcessadaRef = useRef(null);
     useEffect(() => {
-        if (!estado.vira) return;
-        setViraPendente((atual) => (atual?.carta === estado.vira.carta ? atual : estado.vira));
-    }, [estado.vira]);
-
-    useEffect(() => {
-        if (!viraPendente || distribuindo) return;
-        const dados = viraPendente;
-        setViraPendente(null);
-        const carta = lerCarta(dados.carta);
+        if (!estado.vira || viraProcessadaRef.current === estado.vira) return;
+        viraProcessadaRef.current = estado.vira;
+        const carta = lerCarta(estado.vira.carta);
         if (!carta) return;
         setViraEmHover(false);
-        setVira({ id: ++proximoIdVira.current, rank: carta.rank, naipe: carta.naipe, valorInt: dados.valor });
+        setVira({ id: ++proximoIdVira.current, rank: carta.rank, naipe: carta.naipe, valorInt: estado.vira.valor });
         setFaseVira('subindo');
         tocarVira();
         // eslint-disable-next-line react-hooks/exhaustive-deps -- tocarVira é estável (não depende de props/estado que mudem o comportamento entre chamadas)
-    }, [viraPendente, distribuindo]);
+    }, [estado.vira]);
 
     // Rodada nova: `estado.mao` (sua mão de verdade) é o sinal de que já dá
     // pra montar a coreografia de distribuir — novaRodadaIniciada chega
@@ -824,7 +847,11 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         setFaseVira(null);
         setBaralhoEmVira(false);
         setViraEmHover(false);
-        setViraPendente(null);
+        // Solta a trava de "já processei esta vira" — sem isto a vira da
+        // rodada NOVA nunca dispararia (o ref continuaria apontando pro
+        // objeto `estado.vira` da rodada anterior, que só é substituído
+        // pelo próximo manilhaVirada de verdade, ainda por vir).
+        viraProcessadaRef.current = null;
         setVazaRevelando(null);
         setFaseRevelacaoVaza(null);
         setCartasExplodindo({});
@@ -835,6 +862,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         setFichasFantasmaVoando([]);
         apostasProcessadasRef.current = new Set();
         filaJogadasRef.current = [];
+        vazaAguardandoRef.current = null;
         setSuaMao([]);
         setMaos(Array(ordemAssentos.length).fill(0));
 
@@ -868,6 +896,11 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                         escalaInicial: assento.eVoce ? ESCALA_CARTA_VOANDO_INICIAL_VOCE : ESCALA_CARTA_VOANDO_INICIAL,
                         escalaFinal: assento.eVoce ? ESCALA_CARTA_VOANDO_FINAL_VOCE : ESCALA_CARTA_VOANDO_FINAL,
                         carta: cartaDeVerdade,
+                        // Rodada de 1 carta: a SUA própria carta não pode
+                        // aparecer nem durante o voo (ver escondida em
+                        // CartaVoando) — os fantasminhas já voam sempre
+                        // viradas (cartaDeVerdade nem existe pra eles).
+                        escondida: assento.indice === 0 && estado.cartasRodada === 1,
                     },
                 ]);
                 await esperar(ATRASO_ENTRE_CARTAS_MS);
@@ -888,8 +921,8 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     useEffect(() => {
         if (!estado.vazaResultado || estado.vazaResultado === vazaProcessadaRef.current) return;
         vazaProcessadaRef.current = estado.vazaResultado;
-        iniciarRevelacaoVaza(estado.vazaResultado);
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- iniciarRevelacaoVaza fecha sobre cartasNaMesa/assentos atuais
+        tentarIniciarRevelacaoVaza(estado.vazaResultado);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- tentarIniciarRevelacaoVaza fecha sobre cartasNaMesa/assentos atuais
     }, [estado.vazaResultado]);
 
     function explodirCartasDaMesa() {
@@ -920,29 +953,86 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         for (const jogada of pendentes) animarJogada(jogada);
     }
 
-    async function iniciarRevelacaoVaza({ vencedor, carta: cartaTexto }) {
+    // Tenta achar a carta vencedora em `cartasNaMesa` e, se conseguir, já
+    // dispara a coreografia inteira. Existe pra cobrir corridas reais:
+    //   - Se a SUA última carta da vaza for a vencedora, o servidor pode
+    //     mandar `vazaFinalizada` antes dela sequer terminar de voar da sua
+    //     mão até a mesa (~550ms de animação client-side, ver
+    //     DURACAO_SAIDA_MAO_MS + DURACAO_JOGADA_MS em animarJogada).
+    //   - `distribuindo` (a distribuição da mão ainda rolando — ver
+    //     iniciarRodadaNova) pode muito bem ainda estar de pé quando a
+    //     PRIMEIRA vaza da rodada se resolve: o servidor não espera a
+    //     animação de distribuir/apostar do cliente terminar pra seguir
+    //     jogando (bots respondem em ~2s cada, ver atrasoBotMs), então com
+    //     uma mão grande (mais assentos/mais cartas) o cliente pode ainda
+    //     estar entregando carta quando a primeira vaza já fechou de
+    //     verdade. Tocar a revelação (que mexe na mesa/baralho/z-index)
+    //     por cima do baralho ainda se deslocando é a composição
+    //     "quebrada" que o Henrique via.
+    // Sem essa espera, a busca falhava (`vencedora` undefined) e a função
+    // voltava sem limpar NADA: a mesa ficava com lixo da vaza anterior, a
+    // vaza seguinte se empilhava em cima, e o estado geral da mesa ficava
+    // visualmente quebrado dali pra frente. `vazaAguardandoRef` guarda o
+    // resultado enquanto isso — o efeito de baixo tenta de novo a cada
+    // carta que pousa OU quando a distribuição termina, o que vier primeiro.
+    const vazaAguardandoRef = useRef(null);
+
+    function tentarIniciarRevelacaoVaza(resultado) {
+        const { vencedor, carta: cartaTexto } = resultado;
+        if (distribuindo) {
+            vazaAguardandoRef.current = resultado;
+            return;
+        }
         if (!vencedor) {
-            // Melada: ninguém pontuou — sem carta crescendo/viajando, só o
-            // aviso + a mesa inteira explodindo junto.
-            setFaseRevelacaoVaza('melada');
-            await esperar(VAZA_MELADA_PAUSA_MS);
-            setChoqueVaza((v) => v + 1);
-            explodirCartasDaMesa();
-            await esperar(VAZA_EXPLOSAO_DURACAO_MS);
-            setCartasNaMesa([]);
-            setCartasExplodindo({});
-            setCartaEmHoverId(null);
-            setFaseRevelacaoVaza(null);
-            drenarFilaJogadas();
+            vazaAguardandoRef.current = null;
+            iniciarRevelacaoVazaMelada();
             return;
         }
 
         const cartaVencedora = lerCarta(cartaTexto);
         const vencedora = cartasNaMesa.find((c) => c.jogador === vencedor && c.rank === cartaVencedora?.rank && c.naipe === cartaVencedora?.naipe);
-        if (!vencedora || !cartaVencedora) return;
+        if (!vencedora || !cartaVencedora) {
+            vazaAguardandoRef.current = resultado;
+            return;
+        }
 
         const el = cartaMesaRefs.current[vencedora.id];
-        if (!el) return;
+        if (!el) {
+            // Achou a carta no estado mas o <div> ainda não montou (mesmo
+            // motivo — corrida com a animação de pouso) — tenta de novo no
+            // próximo pouso também.
+            vazaAguardandoRef.current = resultado;
+            return;
+        }
+
+        vazaAguardandoRef.current = null;
+        iniciarRevelacaoVazaComVencedora(vencedor, vencedora, el);
+    }
+
+    // Reavalia um resultado pendente sempre que uma carta nova pousa em
+    // cartasNaMesa OU quando a distribuição termina (ver comentário de
+    // vazaAguardandoRef acima).
+    useEffect(() => {
+        if (vazaAguardandoRef.current) tentarIniciarRevelacaoVaza(vazaAguardandoRef.current);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- só reage a cartasNaMesa ganhar entrada nova ou distribuindo mudar; tentarIniciarRevelacaoVaza lê o resto fresco
+    }, [cartasNaMesa, distribuindo]);
+
+    async function iniciarRevelacaoVazaMelada() {
+        // Melada: ninguém pontuou — sem carta crescendo/viajando, só o
+        // aviso + a mesa inteira explodindo junto.
+        setFaseRevelacaoVaza('melada');
+        await esperar(VAZA_MELADA_PAUSA_MS);
+        setChoqueVaza((v) => v + 1);
+        explodirCartasDaMesa();
+        await esperar(VAZA_EXPLOSAO_DURACAO_MS);
+        setCartasNaMesa([]);
+        setCartasExplodindo({});
+        setCartaEmHoverId(null);
+        setFaseRevelacaoVaza(null);
+        drenarFilaJogadas();
+    }
+
+    async function iniciarRevelacaoVazaComVencedora(vencedor, vencedora, el) {
         const rect = el.getBoundingClientRect();
 
         const assentoIndice = indiceDoNome(vencedor);
@@ -1062,6 +1152,43 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     function aoChegarFichaFantasma(ficha) {
         setFichasFantasmaVoando((atuais) => atuais.filter((f) => f.id !== ficha.id));
         setFichasFantasmaNoCanto((atual) => [...atual, ficha]);
+    }
+
+    function abrirPopupAposta() {
+        setApostaValorPopup('0');
+        setApostaErro(null);
+        setApostaPopupAberto(true);
+    }
+
+    function ajustarApostaValorPopup(novoValor) {
+        setApostaValorPopup(String(Math.max(0, Math.min(estado.cartasRodada, novoValor))));
+        setApostaErro(null);
+    }
+
+    function digitarApostaValorPopup(texto) {
+        setApostaValorPopup(texto);
+        setApostaErro(null);
+    }
+
+    // Confirmar só CHAMA o servidor e fecha o popup — não anima ficha
+    // nenhuma aqui (ver comentário do estado lá em cima): o arremesso
+    // acontece quando `apostaFeita` chegar de verdade (estado.apostas), do
+    // MESMO jeito pra você e pra qualquer fantasminha.
+    async function confirmarApostaPopup() {
+        const texto = apostaValorPopup.trim();
+        const valor = Number(texto);
+        if (texto === '' || !Number.isInteger(valor) || valor < 0 || valor > estado.cartasRodada) {
+            setApostaErro(`Aposta precisa ser um número inteiro entre 0 e ${estado.cartasRodada}.`);
+            return;
+        }
+        setApostaEnviando(true);
+        const resultado = await acoes.apostar(valor);
+        setApostaEnviando(false);
+        if (!resultado.ok) {
+            setApostaErro(resultado.mensagem);
+            return;
+        }
+        setApostaPopupAberto(false);
     }
 
     // Fim de rodada (ver estado.ultimoPlacar) — revela o coração de todos
@@ -1194,7 +1321,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         <div className={`mesa-exp-tela${faseRevelacaoVaza === 'impacto' ? ' mesa-exp-tela-tremendo' : ''}`}>
             <h1 className="mesa-exp-cabecalho-titulo">Sala {estado.salaId}</h1>
             <div className="mesa-exp-cabecalho-direita">
-                <button type="button" className="secundario" onClick={() => acoes?.sair?.()} disabled={!acoes}>
+                <button type="button" className="secundario" onClick={() => acoes?.sair?.()} disabled={!acoes?.sair}>
                     Sair da partida
                 </button>
             </div>
@@ -1215,7 +1342,73 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                 </div>
             )}
 
-            <SuaMaoEmLeque cartas={suaMao} idSaindo={cartaSaindoId} onJogar={(carta) => acoes?.jogar?.(carta)} escondida={rodadaCegaAtiva} />
+            {/* Só chama de verdade na SUA vez — o servidor recusaria fora
+                dela mesmo (NAO_E_SUA_VEZ, ver PROTOCOLO.md), isto aqui só
+                evita a chamada de rede/erro confuso por engano. */}
+            <SuaMaoEmLeque
+                cartas={suaMao}
+                idSaindo={cartaSaindoId}
+                onJogar={(carta) => estado.jogadorDaVez === estado.meuNome && acoes?.jogar?.(carta)}
+                escondida={rodadaCegaAtiva}
+            />
+
+            {estado.jogadorDaVezAposta === estado.meuNome && acoes?.apostar && !apostaPopupAberto && (
+                <button type="button" className="mesa-exp-aposta-botao" onClick={abrirPopupAposta}>
+                    Apostar
+                </button>
+            )}
+
+            {apostaPopupAberto && (() => {
+                const numero = Number(apostaValorPopup);
+                const valorPreview = Math.max(0, Math.min(estado.cartasRodada, Number.isFinite(numero) ? Math.trunc(numero) : 0));
+                return (
+                    <div className="mesa-exp-aposta-overlay" onClick={() => !apostaEnviando && setApostaPopupAberto(false)}>
+                        <div className="mesa-exp-aposta-popup" onClick={(e) => e.stopPropagation()}>
+                            <h3>Quantas vazas você vai fazer?</h3>
+
+                            <div className="mesa-exp-aposta-pilha">
+                                {valorPreview === 0
+                                    ? <span className="mesa-exp-aposta-pilha-vazia">nenhuma ficha ainda</span>
+                                    : Array.from({ length: valorPreview }, (_, i) => (
+                                        <div key={i} className="mesa-exp-aposta-ficha-pilha" style={{ '--indice-pilha': i }}>
+                                            <Ficha />
+                                        </div>
+                                    ))}
+                            </div>
+
+                            <div className={`mesa-exp-aposta-campo${apostaErro ? ' mesa-exp-aposta-campo-erro' : ''}`}>
+                                <button
+                                    type="button"
+                                    onClick={() => ajustarApostaValorPopup(valorPreview - 1)}
+                                    disabled={valorPreview <= 0 || apostaEnviando}
+                                >
+                                    −
+                                </button>
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={apostaValorPopup}
+                                    onChange={(e) => digitarApostaValorPopup(e.target.value)}
+                                    disabled={apostaEnviando}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => ajustarApostaValorPopup(valorPreview + 1)}
+                                    disabled={valorPreview >= estado.cartasRodada || apostaEnviando}
+                                >
+                                    +
+                                </button>
+                            </div>
+
+                            {apostaErro && <p className="mesa-exp-aposta-erro">{apostaErro}</p>}
+
+                            <button type="button" className="mesa-exp-aposta-confirmar" onClick={confirmarApostaPopup} disabled={apostaEnviando}>
+                                {apostaEnviando ? 'Enviando...' : 'Apostar'}
+                            </button>
+                        </div>
+                    </div>
+                );
+            })()}
 
             <div className="mesa-exp-chat">
                 <button
@@ -1235,7 +1428,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                                         key={mensagem.id}
                                         type="button"
                                         className="secundario"
-                                        disabled={!acoes}
+                                        disabled={!acoes?.enviarChatPronta}
                                         onClick={() => acoes?.enviarChatPronta?.(mensagem.id)}
                                     >
                                         {mensagem.texto}
@@ -1309,9 +1502,16 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                             ) : (
                                 <>
                                     <Fantasminha destacado={destacado} danoVersao={danoPorAssento[i] ?? 0} bot={ehBot} monitor hue={huesPorAssento[i]} chapeu={chapeusPorAssento[i]} naVez={naVez} estadoMorte={estadoMorte}>
+                                        {/* `maos[i] > 0` é o que já chegou de VERDADE (via
+                                            CartaVoando/aoChegarCarta) — sem essa trava a carta
+                                            revelada (estado.maosReveladas) aparecia na hora que o
+                                            evento chegava, ANTES da animação de dar carta terminar
+                                            de voar, e continuava revelada mesmo depois dele já ter
+                                            jogado a carta embora (maosReveladas nunca "esquece" a
+                                            mão de ninguém, é um retrato tirado uma vez por rodada). */}
                                         <MaoEmLeque
                                             quantidade={maos[i] ?? 0}
-                                            cartas={rodadaCegaAtiva && estado.maosReveladas?.[nomeAssento] ? estado.maosReveladas[nomeAssento].map(lerCarta).filter(Boolean) : undefined}
+                                            cartas={rodadaCegaAtiva && (maos[i] ?? 0) > 0 && estado.maosReveladas?.[nomeAssento] ? estado.maosReveladas[nomeAssento].map(lerCarta).filter(Boolean) : undefined}
                                         />
                                     </Fantasminha>
                                     <span className="mesa-exp-assento-legenda">
@@ -1467,6 +1667,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                         escalaInicial={carta.escalaInicial}
                         escalaFinal={carta.escalaFinal}
                         carta={carta.carta}
+                        escondida={carta.escondida}
                         duracaoMs={carta.tipo === 'jogar' ? DURACAO_JOGADA_MS : DURACAO_CARTA_MS}
                         onChegou={() => aoChegarCarta(carta)}
                     />

@@ -617,6 +617,35 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
         }
     }
 
+    // Mesma validação/chamada de `apostar` acima, só que pro popup do
+    // visual novo (ver acoes.apostar em MesaExperimento.jsx): recebe o
+    // VALOR já pronto (não um evento de form) e devolve { ok, mensagem }
+    // em vez de escrever em `erro` — o popup mostra o erro dentro dele
+    // mesmo, não no rodapé da tela de texto.
+    async function apostarValor(valor) {
+        if (!Number.isInteger(valor) || valor < 0 || valor > cartasRodada) {
+            return { ok: false, mensagem: `Aposta precisa ser um número inteiro entre 0 e ${cartasRodada}.` };
+        }
+        try {
+            await chamar('apostar', { salaId, valor });
+            return { ok: true };
+        } catch (erroDaChamada) {
+            return { ok: false, mensagem: erroDaChamada.message };
+        }
+    }
+
+    // Mesma ideia de `jogar` acima, só que pro clique numa carta do visual
+    // novo (ver acoes.jogar em MesaExperimento.jsx): lá a carta clicada só
+    // carrega { rank, naipe } (não o índice na mão) — acha o índice pelo
+    // MESMO critério que cartaJogada já usa pra reconciliar jogada
+    // automática (indexOf pela string, primeira ocorrência — só importa em
+    // rodadas com baralhos repetidos, onde a MESMA carta pode aparecer mais
+    // de uma vez na mão).
+    function jogarCartaClicada({ rank, naipe }) {
+        const indice = mao.indexOf(`[${rank} de ${naipe}]`);
+        if (indice !== -1) jogar(indice);
+    }
+
     async function forcarInicio() {
         setErro(null);
         try {
@@ -719,11 +748,10 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
     // MesaExperimento.jsx tinha antes de virar componente de apresentação.
     // `estado` é só uma leitura do que este componente JÁ monta a partir
     // dos handlers de socket lá em cima — nenhum evento novo é assinado
-    // aqui, nenhuma lógica de jogo é duplicada. `acoes` fica de fora de
-    // propósito nesta primeira fatia (só exibição, ver DEV-front.md): sem
-    // ele, MesaExperimento mostra tudo mas nenhum controle seu (jogar
-    // carta, apostar, chat, sair) faz nada ainda — só "← Voltar" (volta
-    // pra esta MESMA tela, em texto) funciona.
+    // aqui, nenhuma lógica de jogo é duplicada. `acoes.jogar`/`acoes.apostar`
+    // reaproveitam `jogar`/`apostarValor` de cima (mesma chamada de
+    // verdade pro servidor) — chat/sair/jogar de novo ainda não estão
+    // plugados aqui, só exibição por enquanto nesses.
     if (visualNovo) {
         return (
             <MesaExperimento
@@ -734,6 +762,10 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
                     mesa, vira, jogadorDaVez, jogadorDaVezAposta, apostas,
                     eliminados, desconectados, ultimoPlacar, vencedor,
                     vazaResultado, mensagensChat,
+                }}
+                acoes={{
+                    jogar: jogarCartaClicada,
+                    apostar: apostarValor,
                 }}
                 onFechar={() => setVisualNovo(false)}
             />
