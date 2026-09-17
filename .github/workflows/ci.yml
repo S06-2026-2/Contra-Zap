@@ -149,4 +149,4 @@ jobs:
           push: false
           tags: contra-zap-game-server:${{ github.sha }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
