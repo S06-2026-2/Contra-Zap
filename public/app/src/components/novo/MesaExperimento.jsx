@@ -78,6 +78,22 @@ function calcularAlvoJogada(assento) {
     };
 }
 
+// Canto de "cartas meladas" (ver analiseMesa/idsMeladas em
+// MesaExperimento.jsx) — saem de onde pousaram e vão todas pro topo-
+// esquerda da mesa, uma ligeiramente por cima da outra (mesmo espírito do
+// pequeno escalonamento fixo de CARTAS_DO_BARALHO lá em cima, só que aqui
+// por ÍNDICE de ordem de chegada entre as meladas, não por posição fixa
+// num array — ver `indiceMelada` no JSX).
+const MELADA_CANTO_X = 18;
+const MELADA_CANTO_Y = 20;
+const MELADA_CANTO_ESPACAMENTO_PX = 10;
+// Distância extra ENTRE grupos de rank diferente (ex.: par de 6 vs par de
+// Rei melados ao mesmo tempo) — só no eixo X, "um pouquinho pro lado" de
+// propósito (não tão pronunciado quanto o espaçamento dentro do mesmo
+// grupo): a legenda de hover já deixa claro qual é qual, não precisa
+// separar bem longe.
+const MELADA_GRUPO_ESPACAMENTO_PX = 30;
+
 function esperar(ms) {
     return new Promise((resolver) => setTimeout(resolver, ms));
 }
@@ -149,6 +165,108 @@ function cartaAleatoria() {
         naipe: NAIPES_TESTE[Math.floor(Math.random() * NAIPES_TESTE.length)],
     };
 }
+
+// Vira/manilha (ver virarCarta/tocarVira mais abaixo): no jogo de verdade
+// o servidor distribui as mãos e SÓ DEPOIS vira a manilha (ver ordem dos
+// eventos em conexao/PROTOCOLO.md — novaRodadaIniciada/suaMao vêm antes de
+// manilhaVirada) — por isso distribuirCartas ENCADEIA essa animação no
+// próprio final, em vez de deixar só o botão manual solto. RANKS_TESTE já
+// está na MESMA ordem de valorInt que game/Baralho.js (4,5,6,7,Q,J,K,A,2,3)
+// — a manilha é sempre o rank SEGUINTE nessa sequência (com "3", o mais
+// alto, virando pro "4" — mesma conta de Rodada.js: `viraValor === 9 ? 0 :
+// viraValor + 1`), daí dar pra reusar esse mesmo array em vez de duplicar
+// a sequência.
+function rankDaManilha(rankVira) {
+    const indice = RANKS_TESTE.indexOf(rankVira);
+    return RANKS_TESTE[(indice + 1) % RANKS_TESTE.length];
+}
+
+// naipeInt na MESMA ordem de game/Baralho.js (Ouros=0, Espadas=1, Copas=2,
+// Paus=3) — força de manilha por naipe usa essa ordem (ver
+// compararForcaMesa abaixo). É DIFERENTE da ordem de NAIPES_TESTE
+// (Ouros/Copas/Espadas/Paus) usada só pra exibição/sorteio ali em cima —
+// não dá pra reusar aquele array aqui sem embaralhar a força real.
+const NAIPE_INT = { Ouros: 0, Espadas: 1, Copas: 2, Paus: 3 };
+
+// Mesmo critério de game/Mesa.js (saoIdenticas/compararForca), portado pra
+// cá pra decidir contorno verde (mais forte) e preto (melada) na mesa do
+// experimento — ver useMemo de analiseMesa em MesaExperimento. `viraValor`
+// aqui é sempre o valorInt da MANILHA (rankDaManilha), não da vira em si.
+function saoIdenticasMesa(c1, c2, viraValor) {
+    if (c1.valorInt !== c2.valorInt) return false;
+    // Manilha só anula com naipe TAMBÉM idêntico (caso de 2 baralhos — com
+    // 1 baralho só nunca acontece, cada naipe só tem uma manilha).
+    if (c1.valorInt === viraValor) return c1.naipeInt === c2.naipeInt;
+    // Cartas normais anulam só pelo valor de face (ex.: 6 de Copas e 6 de
+    // Paus), naipe não importa.
+    return true;
+}
+
+// > 0 se c1 for mais forte que c2, < 0 se c2 for mais forte.
+function compararForcaMesa(c1, c2, viraValor) {
+    const c1EhManilha = c1.valorInt === viraValor;
+    const c2EhManilha = c2.valorInt === viraValor;
+    if (c1EhManilha && !c2EhManilha) return 1;
+    if (!c1EhManilha && c2EhManilha) return -1;
+    if (c1EhManilha && c2EhManilha) return c1.naipeInt - c2.naipeInt;
+    return c1.valorInt - c2.valorInt;
+}
+
+// Coreografia de virar a vira (ver tocarVira): o baralho SOBE (mesma
+// escala ENTREGANDO de quando dá carta — ver escalaBaralho — só que aqui
+// sem alvo/ângulo nenhum, ele não se desloca, só "cresce"), a carta do
+// topo sai pra ESQUERDA girando a metade do flip (0deg -> ~meio, quase de
+// perfil), depois VOLTA pra direita completando o giro (meio -> 180deg,
+// virada de vez) — e pousa de volta EXATAMENTE no centro (50,50), o MESMO
+// ponto do baralho, não mais deslocada pro canto: literalmente embaixo
+// dele (z-index, ver CSS), não do lado. Só que embaixo de verdade some
+// inteira atrás do baralho — por isso ROTACAO_VIRA_POUSADA_GRAUS: gira a
+// carta (2D, no próprio plano — nada a ver com o flip 3D em Y) uns 70°
+// assim que ela assenta, e como o retângulo da carta é maior que a
+// "sombra" do baralho por cima, só as pontas sobram pra fora, espiando.
+const VIRA_IDA_X = 50 - 16;
+const VIRA_IDA_Y = 50 - 3;
+const VIRA_ROT_MEIO_GRAUS = 82; // "90 ou 70 por aí" — quase de perfil, some quase de todo
+const DURACAO_VIRA_IDA_MS = 280;
+const DURACAO_VIRA_VOLTA_MS = 300;
+const ROTACAO_VIRA_POUSADA_GRAUS = -60;
+// Pouso final: quase embaixo do baralho, só uns pixels pra ESQUERDA do
+// centro exato (não fica em cima de verdade, "literalmente embaixo" era
+// só a composição visual — ver ROTACAO_VIRA_POUSADA_GRAUS pra ainda dar
+// pra ver as pontas mesmo assim).
+const VIRA_POUSADA_X = 50 - 3;
+const VIRA_POUSADA_Y = 50;
+// Mesma escala de repouso do baralho (ESCALA_BARALHO_REPOUSO) — os dois
+// precisam parecer do mesmo "baralho físico", não um maior que o outro.
+const ESCALA_VIRA = 0.55;
+
+// Onde a vira está (x/y em % da mesa), quanto já girou no flip 3D (rotY)
+// e quanto está girada no próprio plano (rotZ — só diferente de 0 depois
+// de já ter pousado, ver ROTACAO_VIRA_POUSADA_GRAUS), a cada fase da
+// coreografia acima. null/'subindo' (carta ainda "debaixo" do baralho, no
+// centro exato, sem girar nada) e 'pousada' (fica assim pro resto da
+// rodada, ligeiramente à esquerda — ver VIRA_POUSADA_X/Y) são os dois
+// estados de REPOUSO.
+function calcularEstadoVira(fase) {
+    if (fase === 'indo') return { x: VIRA_IDA_X, y: VIRA_IDA_Y, rotY: VIRA_ROT_MEIO_GRAUS, rotZ: 0 };
+    // 'voltando' e 'pousada' são o MESMO alvo (a volta pra direita já
+    // chega girada uns ROTACAO_VIRA_POUSADA_GRAUS — não é um passo extra
+    // depois de já ter chegado) — só existem como fases separadas porque
+    // tocarVira precisa de um instante pra desligar baralhoEmVira DEPOIS
+    // que ela já tiver chegado.
+    if (fase === 'voltando' || fase === 'pousada') {
+        return { x: VIRA_POUSADA_X, y: VIRA_POUSADA_Y, rotY: 180, rotZ: ROTACAO_VIRA_POUSADA_GRAUS };
+    }
+    return { x: 50, y: 50, rotY: 0, rotZ: 0 };
+}
+
+// Leque de preview da manilha na legenda (ver GaleriaRanks pro mesmo
+// espírito, mas ali é a grade de revisão — aqui é só decorativo dentro do
+// popup de hover): os 4 naipes do MESMO rank, levemente abertos e
+// sobrepostos, sem interação nenhuma (a legenda inteira já é
+// pointer-events:none, ver .mesa-exp-carta-jogada-legenda).
+const VIRA_LEGENDA_ANGULO_ENTRE_CARTAS = 12;
+const VIRA_LEGENDA_DESLOCAMENTO_ENTRE_CARTAS = 20;
 
 // "Você" sempre no ângulo de baixo (90°: em coordenadas de tela, com y
 // crescendo pra baixo, sen(90°)=1 é o ponto mais embaixo da elipse); os
@@ -325,6 +443,33 @@ function GaleriaRanks({ onFechar }) {
     );
 }
 
+// Preview da manilha na legenda da vira (ver rotuloVira/hover mais abaixo)
+// — os 4 naipes do mesmo rank em leque, só decorativo ("como uma foto"):
+// sem key por identidade nem onClick nenhum, é sempre a MESMA renderização
+// pro mesmo `rank`, recalculada a cada hover.
+function LequeManilha({ rank }) {
+    const meio = (NAIPES_TESTE.length - 1) / 2;
+    return (
+        <div className="mesa-exp-vira-legenda-leque">
+            {NAIPES_TESTE.map((naipe, i) => {
+                const offset = i - meio;
+                return (
+                    <div
+                        key={naipe}
+                        className="mesa-exp-vira-legenda-carta"
+                        style={{
+                            '--rotacao-carta': `${offset * VIRA_LEGENDA_ANGULO_ENTRE_CARTAS}deg`,
+                            '--deslocamento-carta': `${offset * VIRA_LEGENDA_DESLOCAMENTO_ENTRE_CARTAS}px`,
+                        }}
+                    >
+                        <Carta rank={rank} naipe={naipe} />
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
 export default function MesaExperimento({ onFechar }) {
     const [quantidade, setQuantidade] = useState(4);
     const assentos = useMemo(() => calcularAssentos(quantidade), [quantidade]);
@@ -382,6 +527,25 @@ export default function MesaExperimento({ onFechar }) {
     // Só pra pré-visualizar o leque com 0-4 cartas sem rodar a distribuição
     // inteira — muda a mão de todo mundo (menos "Você") de uma vez.
     const [cartasTeste, setCartasTeste] = useState(0);
+    // Vira atual: { id, rank, naipe } ou null (nenhuma virada ainda). `id`
+    // é só pra virar `key` do wrapper (ver JSX) — remontar em cima de um
+    // `id` novo reinicia a coreografia do zero mesmo clicando de novo
+    // antes da anterior "assentar", mesmo truque de key={danoVersao} em
+    // Fantasminha.jsx.
+    const [vira, setVira] = useState(null);
+    const proximoIdVira = useRef(0);
+    // Fase da coreografia da vira (ver calcularEstadoVira/tocarVira): null
+    // = nenhuma vira ainda OU baralho parado sem nada acontecendo;
+    // 'subindo' -> 'indo' -> 'voltando' -> 'pousada' (fica nesse último
+    // valor pro resto da rodada, não volta a null sozinho).
+    const [faseVira, setFaseVira] = useState(null);
+    // Baralho "elevado" (escala ENTREGANDO) enquanto essa coreografia toda
+    // roda — ver escalaBaralho mais abaixo: some do alvoIndex normal
+    // porque aqui o baralho NÃO se desloca pra assento nenhum, só cresce.
+    const [baralhoEmVira, setBaralhoEmVira] = useState(false);
+    // Hover da vira: só um boolean (não um id como cartaEmHoverId) porque
+    // só existe UMA vira na mesa, não uma lista.
+    const [viraEmHover, setViraEmHover] = useState(false);
 
     // Mudar a quantidade de jogadores muda os assentos (e o que cada
     // índice significa) — mão de todo mundo (incluindo a sua) e a mesa
@@ -397,6 +561,10 @@ export default function MesaExperimento({ onFechar }) {
         setProximoFantasmaIndex(0);
         setProximoDanoIndex(0);
         setDanoPorAssento(Array(quantidade).fill(0));
+        setVira(null);
+        setFaseVira(null);
+        setBaralhoEmVira(false);
+        setViraEmHover(false);
     }, [quantidade]);
 
     function ajustarCartasTeste(novoValor) {
@@ -405,20 +573,137 @@ export default function MesaExperimento({ onFechar }) {
         setMaos((atual) => atual.map((_, i) => (assentos[i]?.eVoce ? 0 : valor)));
     }
 
+    // A coreografia em si (ver constantes VIRA_*/calcularEstadoVira lá em
+    // cima) — função PRÓPRIA, não inline em virarCarta/distribuirCartas,
+    // porque as duas precisam disparar a MESMA sequência (uma na resposta
+    // ao clique do botão, a outra encadeada no fim de dar as cartas),
+    // cada uma só cuidando de quando ligar/desligar `distribuindo` ao
+    // redor dela.
+    async function tocarVira() {
+        setBaralhoEmVira(true);
+        // Mesma folga que o resto do baralho já usa entre girar/deslocar
+        // e soltar a primeira carta (FOLGA_APOS_BARALHO_MS) — dá tempo da
+        // transition de escalaBaralho (DURACAO_DECK_MS) realmente
+        // terminar antes de "puxar" a carta do topo.
+        await esperar(DURACAO_DECK_MS + FOLGA_APOS_BARALHO_MS);
+        setFaseVira('indo');
+        await esperar(DURACAO_VIRA_IDA_MS);
+        setFaseVira('voltando');
+        await esperar(DURACAO_VIRA_VOLTA_MS);
+        setFaseVira('pousada');
+        // Baralho desce de volta pro repouso — como ele nunca saiu do
+        // centro e a vira pousou NO MESMO ponto (girada, ver
+        // ROTACAO_VIRA_POUSADA_GRAUS), o z-index (ver CSS) faz ele
+        // "pousar" literalmente por cima dela sozinho.
+        setBaralhoEmVira(false);
+        await esperar(DURACAO_DECK_MS);
+    }
+
+    // Botão "🂡 Virar carta" — só faz sentido com o baralho parado no
+    // centro (ver `alvo`/distribuindo abaixo: alvoIndex só deixa de ser
+    // null DURANTE distribuirCartas), mesma trava que os outros botões de
+    // teste já usam. `distribuindo` cobre a coreografia INTEIRA (não só a
+    // "ida"), pra nenhum outro botão mexer no baralho/vira no meio dela.
+    async function virarCarta() {
+        if (distribuindo) return;
+        setDistribuindo(true);
+        setViraEmHover(false);
+        setVira({ id: ++proximoIdVira.current, ...cartaAleatoria() });
+        setFaseVira('subindo');
+        await tocarVira();
+        setDistribuindo(false);
+    }
+
     const alvo = alvoIndex != null ? assentos[alvoIndex] : null;
     // Ângulo do centro da mesa até o assento alvo, +90° porque o baralho
     // "olha pra cima" (0°) por padrão — sem o ajuste, ele apontaria 90°
-    // fora do lugar certo.
+    // fora do lugar certo. `baralhoEmVira` não mexe aqui (o baralho não se
+    // desloca nem gira pra "virar a vira", só cresce — ver escalaBaralho).
     const anguloBaralho = alvo
         ? (Math.atan2(alvo.y - 50, alvo.x - 50) * 180) / Math.PI + 90
         : 0;
     const baralhoX = 50 + (alvo ? (alvo.x - 50) * ALCANCE_BARALHO : 0);
     const baralhoY = 50 + (alvo ? (alvo.y - 50) * ALCANCE_BARALHO : 0);
-    const escalaBaralho = alvo ? ESCALA_BARALHO_ENTREGANDO : ESCALA_BARALHO_REPOUSO;
+    // "Sobe" tanto pra entregar carta (alvo) quanto pra virar a vira
+    // (baralhoEmVira) — mesma escala ENTREGANDO nos dois casos, só o que
+    // dispara é diferente.
+    const escalaBaralho = (alvo || baralhoEmVira) ? ESCALA_BARALHO_ENTREGANDO : ESCALA_BARALHO_REPOUSO;
+    const estadoVira = vira ? calcularEstadoVira(faseVira) : null;
+    // Duração da transition de left/top/rotateY da vira — cada perna da
+    // viagem (ida/volta) tem a SUA própria (ver DURACAO_VIRA_IDA_MS/
+    // DURACAO_VIRA_VOLTA_MS), as demais fases (parada) usam qualquer uma,
+    // não muda nada em pé quieto.
+    const duracaoTransicaoVira = faseVira === 'indo' ? DURACAO_VIRA_IDA_MS : DURACAO_VIRA_VOLTA_MS;
     // A carta na mesa sob o mouse agora (ou undefined) — de onde vem o
     // "{jogador}" comparado no rótulo de cada assento (ver rotuloAssento no
     // JSX) pra saber quem também ganha o contorno amarelo.
     const cartaEmHover = cartasNaMesa.find((c) => c.id === cartaEmHoverId);
+
+    // Quem está "ganhando" agora na mesa (contorno verde) e quais cartas
+    // estão "meladas"/anuladas por repetição (contorno preto) — mesmo
+    // critério de game/Mesa.js (recalcularMesa/saoIdenticas/compararForca,
+    // ver saoIdenticasMesa/compararForcaMesa lá em cima). useMemo (não
+    // estado próprio) recalcula TODA VEZ que cartasNaMesa muda — cada
+    // carta nova entra na comparação assim que pousa de vez (ver
+    // aoChegarCarta), nunca fica dessincronizado. A vira em si NUNCA entra
+    // aqui — só cartasNaMesa, que só tem cartas jogadas de verdade.
+    const analiseMesa = useMemo(() => {
+        const viraValor = vira ? RANKS_TESTE.indexOf(rankDaManilha(vira.rank)) : -1;
+        const cartas = cartasNaMesa.map((c) => ({
+            id: c.id,
+            valorInt: RANKS_TESTE.indexOf(c.rank),
+            naipeInt: NAIPE_INT[c.naipe],
+        }));
+
+        const idsMeladas = new Set();
+        const validas = cartas.filter((carta) => {
+            const repeticoes = cartas.filter((outra) => saoIdenticasMesa(carta, outra, viraValor));
+            if (repeticoes.length > 1) {
+                idsMeladas.add(carta.id);
+                return false;
+            }
+            return true;
+        });
+
+        let idVencedora = null;
+        if (validas.length > 0) {
+            let melhor = validas[0];
+            for (let i = 1; i < validas.length; i++) {
+                if (compararForcaMesa(validas[i], melhor, viraValor) > 0) melhor = validas[i];
+            }
+            idVencedora = melhor.id;
+        }
+
+        // Agrupa as meladas por RANK (valorInt) — dentro de um grupo, todas
+        // já são idênticas entre si por definição (saoIdenticasMesa exige
+        // valorInt igual como condição base, manilha ou não), então basta
+        // isso pra separar visualmente "o par de 6" do "par de Rei" quando
+        // os dois estão melados ao mesmo tempo (ver
+        // MELADA_GRUPO_ESPACAMENTO_PX no JSX). Ordem = ordem de CHEGADA na
+        // mesa (primeira carta de cada grupo a pousar), não ordem
+        // alfabética/numérica de rank.
+        const porValor = new Map();
+        for (const carta of cartas) {
+            if (!idsMeladas.has(carta.id)) continue;
+            if (!porValor.has(carta.valorInt)) porValor.set(carta.valorInt, []);
+            porValor.get(carta.valorInt).push(carta.id);
+        }
+        const gruposMeladas = [...porValor.values()];
+
+        return { idVencedora, idsMeladas, gruposMeladas };
+    }, [cartasNaMesa, vira]);
+
+    // Onde uma carta melada cai dentro do agrupamento por rank (ver
+    // gruposMeladas acima) — `grupo` escolhe o rank (desloca mais pro
+    // lado), `indice` escolhe a posição DENTRO desse rank (escalona
+    // diagonal, mesmo espírito de antes).
+    function localizarGrupoMelada(id) {
+        for (let g = 0; g < analiseMesa.gruposMeladas.length; g++) {
+            const indice = analiseMesa.gruposMeladas[g].indexOf(id);
+            if (indice !== -1) return { grupo: g, indice };
+        }
+        return { grupo: 0, indice: 0 };
+    }
 
     // Quando uma CartaVoando termina o trajeto: sempre some da lista de
     // "voando", e o que acontece depois depende do `tipo` dela (ver
@@ -594,6 +879,16 @@ export default function MesaExperimento({ onFechar }) {
 
         setAlvoIndex(null);
         await esperar(DURACAO_DECK_MS);
+
+        // Encadeada aqui de propósito (ver comentário em rankDaManilha lá
+        // em cima): no jogo de verdade a vira só vira DEPOIS de todo mundo
+        // já ter recebido a mão, então o fim natural de "dar as cartas" já
+        // é o começo de "virar a vira" — sem precisar de um segundo clique
+        // manual pra isso acontecer na ordem certa.
+        setVira({ id: ++proximoIdVira.current, ...cartaAleatoria() });
+        setFaseVira('subindo');
+        await tocarVira();
+
         setDistribuindo(false);
     }
 
@@ -652,6 +947,20 @@ export default function MesaExperimento({ onFechar }) {
                 disabled={distribuindo}
             >
                 {distribuindo ? '🂠 Distribuindo...' : '🂠 Dar cartas'}
+            </button>
+
+            {/* No jogo de verdade a vira só existe DEPOIS da mão distribuída
+                (ver comentário em rankDaManilha lá em cima), mas aqui é
+                manual — trava só enquanto o baralho está se deslocando
+                (mesma guarda de virarCarta), não depende de já ter dado
+                carta nenhuma. */}
+            <button
+                type="button"
+                className="mesa-exp-virar-carta"
+                onClick={virarCarta}
+                disabled={distribuindo}
+            >
+                🂡 Virar carta
             </button>
 
             {/* Só pra testar o arranjo com quantidades diferentes de
@@ -731,6 +1040,69 @@ export default function MesaExperimento({ onFechar }) {
                     );
                 })}
 
+                {/* Vira (ver tocarVira/calcularEstadoVira lá em cima): nasce
+                    no centro (debaixo do baralho), sai pra esquerda girando
+                    metade do flip 3D (rotateY, ver .mesa-exp-vira-miolo no
+                    CSS), depois volta e pousa de volta NO MESMO ponto do
+                    baralho (x/y sempre 50,50 na volta — literalmente embaixo
+                    dele, não do lado) — só que já girada uns
+                    ROTACAO_VIRA_POUSADA_GRAUS no PRÓPRIO plano (--vira-rot-z,
+                    2D, nada a ver com o flip em Y): embaixo "reto" ela
+                    sumiria inteira atrás do baralho, girada sobram as pontas
+                    pra fora. `key={vira.id}` força remontar — e reiniciar a
+                    coreografia do ZERO — a cada clique novo, mesmo clicando
+                    de novo antes da anterior "assentar". Fica ANTES do
+                    baralho no DOM só por organização; quem garante "baralho
+                    por cima" de verdade é o z-index dos dois (ver
+                    index.css) somado ao baralho descer (escalaBaralho) só
+                    depois da vira já ter chegado. */}
+                {vira && (
+                    <div
+                        key={vira.id}
+                        className={`mesa-exp-vira${viraEmHover ? ' mesa-exp-vira-hover' : ''}`}
+                        style={{
+                            left: `${estadoVira.x}%`,
+                            top: `${estadoVira.y}%`,
+                            '--escala-vira': ESCALA_VIRA,
+                            '--vira-rot-z': `${estadoVira.rotZ}deg`,
+                            transitionDuration: `${duracaoTransicaoVira}ms`,
+                        }}
+                        onMouseEnter={() => setViraEmHover(true)}
+                        onMouseLeave={() => setViraEmHover(false)}
+                    >
+                        <div
+                            className="mesa-exp-vira-miolo"
+                            style={{
+                                '--vira-rot-y': `${estadoVira.rotY}deg`,
+                                transitionDuration: `${duracaoTransicaoVira}ms`,
+                            }}
+                        >
+                            <div className="mesa-exp-vira-face mesa-exp-vira-face-verso">
+                                <Carta virada />
+                            </div>
+                            <div className="mesa-exp-vira-face mesa-exp-vira-face-frente">
+                                <Carta rank={vira.rank} naipe={vira.naipe} />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Legenda da vira, mesmo espírito da legenda de carta
+                    jogada (ver mais abaixo) — só que em vez de "jogador +
+                    rank de naipe", mostra a MANILHA (o rank seguinte na
+                    sequência, ver rankDaManilha) como um preview visual dos
+                    4 naipes em leque, não só texto. Acompanha a MESMA
+                    posição ao vivo da vira (estadoVira), não um ponto fixo
+                    — só importa na prática depois de 'pousada', que é
+                    quando ela realmente para de se mover. */}
+                {viraEmHover && vira && (
+                    <div className="mesa-exp-vira-legenda" style={{ left: `${estadoVira.x}%`, top: `${estadoVira.y}%` }}>
+                        <strong>Vira</strong>
+                        <span>Manilha:</span>
+                        <LequeManilha rank={rankDaManilha(vira.rank)} />
+                    </div>
+                )}
+
                 {/* Baralho: decoração a maior parte do tempo — não
                     representa nenhum monte de verdade — mas gira/desloca/
                     aumenta sozinho durante distribuirCartas() (ver estado
@@ -757,40 +1129,84 @@ export default function MesaExperimento({ onFechar }) {
 
                 {/* Cartas já jogadas, pousadas de vez (ver jogarCarta) —
                     posição/rotação/escala próprias, não recalculadas a
-                    cada render como o baralho ou a sua mão. Hover liga o
-                    contorno amarelo (ver .carta-exp dentro de
-                    mesa-exp-carta-jogada-hover) e alimenta cartaEmHoverId
-                    lá em cima, que é o que também destaca o assento de
-                    quem jogou. */}
-                {cartasNaMesa.map((carta) => (
-                    <div
-                        key={carta.id}
-                        className={`mesa-exp-carta-jogada${carta.id === cartaEmHoverId ? ' mesa-exp-carta-jogada-hover' : ''}`}
-                        style={{
-                            left: `${carta.x}%`,
-                            top: `${carta.y}%`,
-                            transform: `translate(-50%, -50%) rotate(${carta.rot}deg) scale(${carta.escala})`,
-                        }}
-                        onMouseEnter={() => setCartaEmHoverId(carta.id)}
-                        onMouseLeave={() => setCartaEmHoverId(null)}
-                    >
-                        <Carta rank={carta.rank} naipe={carta.naipe} />
-                    </div>
-                ))}
+                    cada render como o baralho ou a sua mão (EXCETO quando
+                    melada, ver abaixo — aí a posição renderizada troca pro
+                    canto, mas x/y guardados em cartasNaMesa não mudam, só a
+                    exibição). Hover liga o contorno amarelo (ver .carta-exp
+                    dentro de mesa-exp-carta-jogada-hover) e alimenta
+                    cartaEmHoverId lá em cima, que é o que também destaca o
+                    assento de quem jogou. Verde (vencendo) e preto+canto
+                    (melada) vêm de analiseMesa, recalculado a cada carta
+                    nova — ver useMemo lá em cima. */}
+                {cartasNaMesa.map((carta) => {
+                    const vencendo = carta.id === analiseMesa.idVencedora;
+                    const melada = analiseMesa.idsMeladas.has(carta.id);
+                    // grupo = qual rank melado (0 = primeiro a aparecer),
+                    // indice = posição DENTRO desse rank — ver
+                    // localizarGrupoMelada/gruposMeladas lá em cima.
+                    const { grupo: grupoMelada, indice: indiceMelada } = melada
+                        ? localizarGrupoMelada(carta.id)
+                        : { grupo: 0, indice: 0 };
+                    const classes = ['mesa-exp-carta-jogada'];
+                    if (carta.id === cartaEmHoverId) classes.push('mesa-exp-carta-jogada-hover');
+                    if (vencendo) classes.push('mesa-exp-carta-jogada-vencendo');
+                    if (melada) classes.push('mesa-exp-carta-jogada-melada');
+                    return (
+                        <div
+                            key={carta.id}
+                            className={classes.join(' ')}
+                            style={melada ? {
+                                left: `${MELADA_CANTO_X}%`,
+                                top: `${MELADA_CANTO_Y}%`,
+                                // X soma os dois deslocamentos (entre grupos
+                                // + dentro do grupo); Y só o de dentro do
+                                // grupo — é o que separa "pro lado", não
+                                // "mais pra baixo", um rank melado do outro.
+                                transform: `translate(calc(-50% + ${grupoMelada * MELADA_GRUPO_ESPACAMENTO_PX + indiceMelada * MELADA_CANTO_ESPACAMENTO_PX}px), calc(-50% + ${indiceMelada * MELADA_CANTO_ESPACAMENTO_PX}px)) rotate(${carta.rot}deg) scale(${carta.escala})`,
+                            } : {
+                                left: `${carta.x}%`,
+                                top: `${carta.y}%`,
+                                transform: `translate(-50%, -50%) rotate(${carta.rot}deg) scale(${carta.escala})`,
+                            }}
+                            onMouseEnter={() => setCartaEmHoverId(carta.id)}
+                            onMouseLeave={() => setCartaEmHoverId(null)}
+                        >
+                            <Carta rank={carta.rank} naipe={carta.naipe} />
+                        </div>
+                    );
+                })}
 
                 {/* Legenda ao lado da carta em hover — elemento PRÓPRIO
                     (não filho da carta), pra não herdar o rotate/scale
-                    dela: usa o mesmo x/y, mas sem esse transform, então o
-                    texto sempre fica na horizontal, legível. */}
-                {cartaEmHover && (
-                    <div
-                        className="mesa-exp-carta-jogada-legenda"
-                        style={{ left: `${cartaEmHover.x}%`, top: `${cartaEmHover.y}%` }}
-                    >
-                        <strong>{cartaEmHover.jogador}</strong>
-                        <span>{cartaEmHover.rank} de {cartaEmHover.naipe}</span>
-                    </div>
-                )}
+                    dela: usa a mesma posição RENDERIZADA (canto, se
+                    melada — não o x/y guardado, que só vale enquanto não
+                    melou), mas sem esse transform, então o texto sempre
+                    fica na horizontal, legível. */}
+                {cartaEmHover && (() => {
+                    const melada = analiseMesa.idsMeladas.has(cartaEmHover.id);
+                    const vencendo = cartaEmHover.id === analiseMesa.idVencedora;
+                    const pos = melada
+                        ? { x: MELADA_CANTO_X, y: MELADA_CANTO_Y }
+                        : { x: cartaEmHover.x, y: cartaEmHover.y };
+                    return (
+                        <div
+                            className="mesa-exp-carta-jogada-legenda"
+                            style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+                        >
+                            <strong>{cartaEmHover.jogador}</strong>
+                            <span>{cartaEmHover.rank} de {cartaEmHover.naipe}</span>
+                            {/* Mesma info do contorno roxo (ver
+                                .mesa-exp-carta-jogada-vencendo), só que em
+                                texto — útil quando o contorno já não dá pra
+                                ver direito (ex.: o próprio hover amarelo por
+                                cima). melada/vencendo nunca são true junto:
+                                uma carta anulada não compete por "mais
+                                forte" nenhuma (ver analiseMesa). */}
+                            {vencendo && <span className="mesa-exp-carta-jogada-legenda-vencendo">👑 Carta mais forte</span>}
+                            {melada && <span className="mesa-exp-carta-jogada-legenda-melada">🤝 Melada (anulada)</span>}
+                        </div>
+                    );
+                })()}
 
                 {cartasVoando.map((carta) => (
                     <CartaVoando

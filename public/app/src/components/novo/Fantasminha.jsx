@@ -61,7 +61,19 @@ const CORTE_CURVATURA = 16;
 const CORTE_LENTE = `M-${CORTE_METADE_COMPRIMENTO},0 Q0,${CORTE_CURVATURA - CORTE_METADE_ESPESSURA} ${CORTE_METADE_COMPRIMENTO},0 Q0,${CORTE_CURVATURA + CORTE_METADE_ESPESSURA} -${CORTE_METADE_COMPRIMENTO},0 Z`;
 const CORTE_CENTRO = { x: 50, y: 47 };
 const CORTE_ANGULO_GRAUS = 38;
-const DURACAO_DANO_MS = 380;
+const DURACAO_DANO_MS = 1500;
+
+// Impacto do chapéu (ver chapeuImpacto abaixo): sobe uma quantia
+// aleatória por pancada (nunca a mesma, pra não ficar mecânico igual toda
+// vez), desloca um pouco pro lado (direção também sorteada) e gira —
+// depois volta sozinho pro lugar de origem (ver @keyframes
+// fantasminha-chapeu-impacto: começa e termina exatamente na mesma
+// transform do CSS parado, "solta" a animação sem pulo nenhum quando
+// `machucado` vira false de novo).
+const CHAPEU_IMPACTO_SOBE_MIN = 10;
+const CHAPEU_IMPACTO_SOBE_MAX = 24;
+const CHAPEU_IMPACTO_LADO = 14;
+const CHAPEU_IMPACTO_ROT_GRAUS = 20;
 
 // `versaoChapeu` é só um contador: subir ele (ver botão "🎩 Novos chapéus"
 // em MesaExperimento.jsx) sorteia um chapéu novo sem mexer em mais nada
@@ -100,9 +112,27 @@ export default function Fantasminha({ versaoChapeu, children, destacado, danoVer
         return () => clearTimeout(id);
     }, [danoVersao]);
 
+    // Sorteado de novo a CADA pancada (chave é danoVersao, não []) — mesmo
+    // espírito do corte/flash logo abaixo, que também usam `key={danoVersao}`
+    // pra reiniciar do zero a cada hit mesmo que o anterior ainda não tenha
+    // sumido de todo.
+    const chapeuImpacto = useMemo(() => ({
+        x: (Math.random() * 2 - 1) * CHAPEU_IMPACTO_LADO,
+        y: -(CHAPEU_IMPACTO_SOBE_MIN + Math.random() * (CHAPEU_IMPACTO_SOBE_MAX - CHAPEU_IMPACTO_SOBE_MIN)),
+        rot: (Math.random() * 2 - 1) * CHAPEU_IMPACTO_ROT_GRAUS,
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- só deve resortear quando MUDA danoVersao, não a cada render
+    }), [danoVersao]);
+
     return (
         <div
-            className="fantasminha-flutuante"
+            // Modificador "atacado" (ver machucado acima) vive AQUI, no
+            // container de fora, não só no .fantasminha-rosto — é o que
+            // deixa o CSS reagir de fora pra dentro (ver
+            // .fantasminha-flutuante-atacado .mesa-exp-mao-carta/-leque em
+            // index.css) sem precisar passar `machucado` como prop pra
+            // dentro de `children` (MaoEmLeque, que nem sabe que existe
+            // dano — só o CSS liga os dois via seletor descendente).
+            className={`fantasminha-flutuante${machucado ? ' fantasminha-flutuante-atacado' : ''}`}
             style={{ animationDuration: `${duracao.toFixed(2)}s`, animationDelay: `-${atraso.toFixed(2)}s` }}
         >
             <svg
@@ -123,7 +153,7 @@ export default function Fantasminha({ versaoChapeu, children, destacado, danoVer
                 <path
                     d={corpoComPonta(50)}
                     fill={`url(#${idGradiente})`}
-                    stroke={destacado ? '#ffd75e' : 'none'}
+                    stroke={destacado ? '#ffcc00' : 'none'}
                     strokeWidth={destacado ? 3 : 0}
                 >
                     {/* centro -> direita -> centro -> esquerda -> centro,
@@ -194,10 +224,23 @@ export default function Fantasminha({ versaoChapeu, children, destacado, danoVer
                 <div className="fantasminha-boca" />
             </div>
             {/* Sorteado uma vez por fantasminha (ver chapeus.js) — nasce
-                fixo em cima da cabeça, não acompanha a cauda nem o rosto. */}
+                fixo em cima da cabeça, não acompanha a cauda nem o rosto.
+                Durante `machucado`, ganha a classe -impacto (ver
+                @keyframes fantasminha-chapeu-impacto em index.css): sobe/
+                desloca/gira pelos valores de chapeuImpacto (variáveis CSS
+                inline, sorteados por pancada) e volta sozinho pro lugar —
+                animationDuration bate com DURACAO_DANO_MS de propósito,
+                pra terminar exatamente quando `machucado` vira false de
+                novo, sem sobrar uma ponta de animação cortada. */}
             <span
-                className="fantasminha-chapeu"
-                style={{ backgroundImage: `url(${chapeu})` }}
+                className={`fantasminha-chapeu${machucado ? ' fantasminha-chapeu-impacto' : ''}`}
+                style={{
+                    backgroundImage: `url(${chapeu})`,
+                    animationDuration: `${DURACAO_DANO_MS}ms`,
+                    '--chapeu-impacto-x': `${chapeuImpacto.x.toFixed(1)}px`,
+                    '--chapeu-impacto-y': `${chapeuImpacto.y.toFixed(1)}px`,
+                    '--chapeu-impacto-rot': `${chapeuImpacto.rot.toFixed(1)}deg`,
+                }}
             />
             {/* Filho de .fantasminha-flutuante de propósito (não um
                 irmão) — assim quem passar algo aqui (ver MaoEmLeque em

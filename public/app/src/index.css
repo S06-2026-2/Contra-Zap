@@ -523,6 +523,14 @@ button.secundario {
     z-index: 40;
 }
 
+.mesa-exp-virar-carta {
+    position: fixed;
+    top: 148px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 40;
+}
+
 /* Galeria de revisão (ver GaleriaRanks em MesaExperimento.jsx) — troca a
    mesa inteira por uma grade de todos os ranks do baralho, grandes, lado a
    lado, só pra decidir mudanças de design nas cartas. */
@@ -636,10 +644,12 @@ button.secundario {
     filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .35));
 }
 
-/* Glow extra por cima do stroke inline do path (ver `destacado` em
-   Fantasminha.jsx) — soma às duas sombras, não substitui a de baixo. */
+/* Destacado (ver `destacado` em Fantasminha.jsx): só o stroke inline do
+   path já dá conta do contorno — sem glow aqui (drop-shadow ficava
+   "borrado" demais em cima da silhueta, contorno puro lê melhor), então a
+   sombra de baixo (profundidade) continua igual, sem somar uma segunda. */
 .fantasminha-svg-destacado {
-    filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .35)) drop-shadow(0 0 8px #ffd75e);
+    filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .35));
 }
 
 @keyframes fantasminha-flutuar {
@@ -727,17 +737,20 @@ button.secundario {
     100%    { opacity: 0; }
 }
 
-/* Flash de dano: pisca branco por cima da silhueta inteira e some rápido —
-   bem mais curto que o corte/aperto de olho (esses seguram DURACAO_DANO_MS
-   inteiro), é só o "estalo" inicial do impact frame. */
+/* Flash de dano: pisca branco por cima da silhueta inteira — segura no
+   branco cheio por uma fração (0%-40%) antes de desvanecer, em vez de já
+   começar a sumir no primeiro frame, pra ficar bem mais aparente (antes
+   ".16s" inteiro de fade já começando em opacity:1 mal dava tempo de
+   registrar). Ainda mais curto que o corte/aperto de olho (esses seguram
+   DURACAO_DANO_MS inteiro) — é só o "estalo" inicial do impact frame. */
 .fantasminha-flash {
     pointer-events: none;
-    animation: fantasminha-flash-sumir .16s ease-out forwards;
+    animation: fantasminha-flash-sumir .26s ease-out forwards;
 }
 
 @keyframes fantasminha-flash-sumir {
-    0%   { opacity: 1; }
-    100% { opacity: 0; }
+    0%, 40% { opacity: 1; }
+    100%    { opacity: 0; }
 }
 
 /* Chapéu sorteado (ver chapeus.js/Fantasminha.jsx) — sprite minúsculo de
@@ -763,6 +776,29 @@ button.secundario {
     image-rendering: pixelated;
     transform: translate(-50%, -55%);
     pointer-events: none;
+}
+
+/* Impacto do dano (ver chapeuImpacto/machucado em Fantasminha.jsx):
+   --chapeu-impacto-x/-y/-rot vêm inline, sorteados por pancada — some pra
+   cima/lado/ângulo no pico (35%) e volta pro MESMO transform do
+   .fantasminha-chapeu parado no 100%, então quando a classe sai (React
+   remove ao fim de DURACAO_DANO_MS) não sobra pulo nenhum, a animação já
+   tinha voltado sozinha pro lugar de origem. animationDuration vem inline
+   (bate com DURACAO_DANO_MS) — fixo aqui desalinharia do tempo real que a
+   classe fica aplicada. */
+.fantasminha-chapeu-impacto {
+    animation-name: fantasminha-chapeu-impacto;
+    animation-timing-function: ease-out;
+}
+
+@keyframes fantasminha-chapeu-impacto {
+    0%   { transform: translate(-50%, -55%); }
+    35%  {
+        transform:
+            translate(calc(-50% + var(--chapeu-impacto-x)), calc(-55% + var(--chapeu-impacto-y)))
+            rotate(var(--chapeu-impacto-rot));
+    }
+    100% { transform: translate(-50%, -55%); }
 }
 
 /* Carta (ver components/novo/Carta.jsx) — bege claro clássico de baralho
@@ -874,6 +910,123 @@ button.secundario {
     top: 0;
 }
 
+/* Vira (ver tocarVira/calcularEstadoVira em MesaExperimento.jsx) — nasce
+   colada no centro (debaixo do baralho), viaja até um ponto à esquerda e
+   VOLTA pro MESMO centro (x/y nunca mudam entre 'subindo' e 'pousada' —
+   só a perna 'indo' desvia), literalmente embaixo do baralho, não do lado.
+   --vira-rot-z (2D, no próprio plano — nada a ver com o flip em Y do
+   miolo) é o que evita ela sumir inteira atrás dele: gira uns
+   ROTACAO_VIRA_POUSADA_GRAUS assim que pousa, só as pontas do retângulo
+   sobram pra fora da "sombra" do baralho por cima. left/top/
+   --vira-rot-z vêm inline e mudam a cada fase da coreografia
+   (transitionDuration também vem inline, uma perna de cada vez — ver
+   duracaoTransicaoVira). O baralho (z-index 13, acima) só desce de volta
+   pro repouso DEPOIS dela já ter chegado, daí cobrir por cima na
+   composição final apesar do z-index aqui ser menor. `perspective` direto
+   aqui (não num ancestral comum) porque só ESTE elemento precisa da
+   projeção 3D do flip — ver .mesa-exp-vira-miolo logo abaixo. */
+.mesa-exp-vira {
+    position: absolute;
+    z-index: 12;
+    transform: translate(-50%, -50%) rotate(var(--vira-rot-z, 0deg)) scale(var(--escala-vira, 0.55));
+    transition-property: left, top, transform;
+    transition-timing-function: ease-in-out;
+    perspective: 600px;
+}
+
+/* O "miolo" que de fato gira — as DUAS faces (verso/frente) ficam
+   empilhadas dentro dele, cada uma com backface-visibility:hidden (ver
+   .mesa-exp-vira-face abaixo), técnica clássica de flip-card em CSS.
+   --vira-rot-y vem inline (0 parada/no centro, ~82deg na perna de ida,
+   180 na volta — ver calcularEstadoVira) e MUDA em transition (não uma
+   @keyframes fixa): o giro precisa ficar sincronizado com left/top acima,
+   uma perna de cada vez, não rodar sozinho num tempo fixo próprio. Ela não
+   "desvira" depois — uma vez em 180 (fase 'pousada'), fica lá pro resto da
+   rodada. `key={vira.id}` no componente é quem reinicia tudo do zero a
+   cada clique novo (remonta o elemento). */
+.mesa-exp-vira-miolo {
+    position: relative;
+    width: 110px;
+    height: 154px;
+    transform-style: preserve-3d;
+    transform: rotateY(var(--vira-rot-y, 0deg));
+    transition-property: transform;
+    transition-timing-function: ease-in-out;
+}
+
+.mesa-exp-vira-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+}
+
+/* A face de trás já nasce virada 180° (o pulo do gato do truque): quando
+   o miolo GIRA os mesmos 180°, a soma dá 360° (de frente pro observador de
+   novo, não espelhada) bem na hora em que a de verso aponta pra longe e
+   some (backface-visibility). */
+.mesa-exp-vira-face-frente {
+    transform: rotateY(180deg);
+}
+
+/* Hover (ver viraEmHover) — mesmo amarelo saturado do resto da mesa (ver
+   .mesa-exp-carta-jogada-hover/.fantasminha-svg-destacado), na FACE de
+   dentro (.carta-exp), que é quem tem a borda de verdade. */
+.mesa-exp-vira-hover .carta-exp {
+    border-color: #ffcc00;
+    box-shadow: 0 0 0 2px #ffcc00, 0 0 18px rgba(255, 204, 0, .6);
+}
+
+/* Legenda da vira — mesmo tratamento visual de .mesa-exp-carta-jogada-
+   legenda (fundo escuro, texto claro, pointer-events:none), só que com o
+   preview da manilha (ver LequeManilha) em vez de só um rank+naipe em
+   texto. */
+.mesa-exp-vira-legenda {
+    position: absolute;
+    transform: translate(calc(-50% + 92px), -50%);
+    z-index: 21;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0, 0, 0, .65);
+    padding: 12px 18px 6px;
+    border-radius: 8px;
+    font-family: system-ui, sans-serif;
+    font-size: 16px;
+    color: #f1e6d2;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.mesa-exp-vira-legenda strong {
+    color: #ffcc00;
+    font-size: 17px;
+}
+
+/* Leque de preview (ver LequeManilha em MesaExperimento.jsx) — mesma
+   técnica de --rotacao-carta/--deslocamento-carta que .mesa-exp-mao-carta
+   já usa pro leque de verdade, só que ESTÁTICO (sem entrada animada, sem
+   clique nenhum — "como uma foto", ver pedido) e menor (scale fixa), pra
+   caber dentro do popup de hover. */
+.mesa-exp-vira-legenda-leque {
+    position: relative;
+    width: 200px;
+    height: 100px;
+    margin-top: 6px;
+}
+
+.mesa-exp-vira-legenda-carta {
+    position: absolute;
+    left: 50%;
+    top: -76px;
+    transform:
+        translateX(-50%)
+        translateX(var(--deslocamento-carta))
+        rotate(var(--rotacao-carta))
+        scale(0.5);
+    transform-origin: center bottom;
+}
+
 /* Uma carta que já saiu do baralho, voando até o assento (ver
    CartaVoando em MesaExperimento.jsx) — left/top/--escala-carta vêm
    inline e mudam uma vez só (de -> para, inicial -> final), a transition
@@ -906,7 +1059,19 @@ button.secundario {
     position: absolute;
     left: 50%;
     top: -10%;
-    transform: translateX(-50%);
+    transform: translateX(-50%) translateY(0);
+    transition: transform .13s ease-out;
+}
+
+/* Reação ao impacto de dano (ver .fantasminha-flutuante-atacado, ligado
+   por `machucado` em Fantasminha.jsx): o CONJUNTO desce em relação ao
+   fantasma — "quase caem da mão" — enquanto cada carta (ver
+   .mesa-exp-mao-carta logo abaixo) abre bem mais o leque. Puro CSS via
+   seletor descendente: MaoEmLeque (e MesaExperimento, que a renderiza)
+   nem sabem que dano existe, só herdam o efeito por estarem dentro de um
+   .fantasminha-flutuante-atacado. */
+.fantasminha-flutuante-atacado .mesa-exp-mao-leque {
+    transform: translateX(-50%) translateY(22px);
 }
 
 .mesa-exp-mao-carta {
@@ -914,25 +1079,43 @@ button.secundario {
     left: 50%;
     top: 0;
     /* --rotacao-carta/--deslocamento-carta vêm inline, um valor por carta
-       (ver offset em MaoEmLeque) — é isso que abre o leque. */
-    transform: translateX(-50%) translateX(var(--deslocamento-carta)) rotate(var(--rotacao-carta));
+       (ver offset em MaoEmLeque) — é isso que abre o leque.
+       --mesa-exp-leque-mult multiplica os dois JUNTOS (ângulo e raio) —
+       1 em repouso (fallback), bem maior durante o impacto (ver regra
+       -atacado abaixo); mesma duração/easing da transition de
+       .mesa-exp-mao-leque acima, pra abrir/fechar tudo sincronizado. */
+    transform:
+        translateX(-50%)
+        translateX(calc(var(--deslocamento-carta) * var(--mesa-exp-leque-mult, 1)))
+        rotate(calc(var(--rotacao-carta) * var(--mesa-exp-leque-mult, 1)));
     transform-origin: center bottom;
+    transition: transform .13s ease-out;
+}
+
+.fantasminha-flutuante-atacado .mesa-exp-mao-carta {
+    --mesa-exp-leque-mult: 2.6;
 }
 
 /* Entrada de cada carta nova: sobe um pouquinho enquanto aparece. Só esta
    camada anima (não .mesa-exp-mao-carta, que cuida da posição no leque) —
    assim os dois transforms não brigam um com o outro. animationDelay vem
    inline (índice da carta * ATRASO_ENTRADA_CARTA_MS), pra escalonar uma
-   depois da outra em vez de todas de uma vez. */
+   depois da outra em vez de todas de uma vez.
+   O "squash" (topo mais largo que a base) é perspective+rotateX de
+   verdade, não um trapézio desenhado à mão (clip-path cortaria a borda/
+   sombra do .carta-exp de um jeito estranho) — rotateX negativo inclina o
+   TOPO da carta pra mais perto da câmera e a base pra mais longe, e é a
+   projeção 3D que estreita a base sozinha; carta em si (border-radius,
+   box-shadow, pips) continua sendo o .carta-exp normal por baixo. */
 .mesa-exp-mao-carta-entrada {
-    transform: scale(0.36);
+    transform: perspective(420px) rotateX(-16deg) scale(0.36);
     transform-origin: center bottom;
     animation: mesa-exp-carta-assentar .3s ease both;
 }
 
 @keyframes mesa-exp-carta-assentar {
-    from { opacity: 0; transform: translateY(8px) scale(0.36); }
-    to   { opacity: 1; transform: translateY(0) scale(0.36); }
+    from { opacity: 0; transform: perspective(420px) rotateX(-30deg) translateY(8px) scale(0.36); }
+    to   { opacity: 1; transform: perspective(420px) rotateX(-30deg) translateY(0) scale(0.36); }
 }
 
 /* A SUA mão (ver SuaMaoEmLeque em MesaExperimento.jsx) — ancorada na TELA
@@ -1018,21 +1201,50 @@ button.secundario {
 }
 
 /* Carta pousada na mesa depois de jogada (ver jogarCarta/cartasNaMesa) —
-   left/top/transform vêm inline (posição final de onde ela pousou), sem
-   transition: quando aparece aqui já é porque a CartaVoando terminou de
-   voar até esse ponto exato, não precisa animar de novo. */
+   left/top/transform vêm inline (posição final de onde ela pousou). Tem
+   transition agora (antes não tinha) por causa de -melada logo abaixo:
+   quando uma carta melada troca de alvo (do lugar onde pousou pro canto),
+   precisa deslizar até lá — pra quem NÃO está melada, left/top/transform
+   simplesmente não mudam depois de pousar, então a transition não faz
+   nada (sem custo, só fica pronta caso um dia mude). */
 .mesa-exp-carta-jogada {
     position: absolute;
     z-index: 14;
     cursor: pointer;
+    transition: left .3s ease, top .3s ease, transform .3s ease;
 }
 
-/* Hover: mesmo tratamento dourado que .carta-exp-manilha já usa (borda +
-   glow) — aqui em cima do .carta-exp de dentro, que é quem tem a borda de
+/* Hover: amarelo mais saturado que o dourado pastel de
+   .carta-exp-manilha/.mesa-exp-assento-voce (#ffd75e) — de propósito bem
+   mais aceso que aquele, pra destacar mesmo em cima da carta virada pra
+   cima na mesa. Em cima do .carta-exp de dentro, que é quem tem a borda de
    verdade. */
 .mesa-exp-carta-jogada-hover .carta-exp {
-    border-color: #ffd75e;
-    box-shadow: 0 0 0 2px #ffd75e, 0 0 18px rgba(255, 215, 94, .6);
+    border-color: #ffcc00;
+    box-shadow: 0 0 0 2px #ffcc00, 0 0 18px rgba(255, 204, 0, .6);
+}
+
+/* Vencendo (ver analiseMesa/idVencedora em MesaExperimento.jsx) — roxo, NÃO
+   o verde que .carta-vencedora usa em Partida.jsx/index.css: aqui o feltro
+   da mesa (.mesa-exp-mesa) já É verde, então um contorno verde some contra
+   o fundo — roxo destaca de verdade. Em cima do .carta-exp de dentro,
+   mesmo padrão do hover acima. Recalculado a CADA carta nova (não fica
+   preso na primeira vencedora), então troca de carta em carta sozinho
+   conforme a mesa. */
+.mesa-exp-carta-jogada-vencendo .carta-exp {
+    border-color: #a855f7;
+    box-shadow: 0 0 0 2px #a855f7, 0 0 18px rgba(168, 85, 247, .6);
+}
+
+/* Melada (ver analiseMesa/idsMeladas) — duas (ou mais) cartas de mesmo
+   valor se anulam (mesma regra de game/Mesa.js: saoIdenticas), então
+   contorno PRETO em vez de colorido (sem glow — um "glow preto" não
+   apareceria contra o feltro escuro, só o anel sólido já basta pra
+   diferenciar das outras). A REPOSIÇÃO pro canto (left/top/transform) já
+   vem calculada inline no JSX (ver MELADA_CANTO_X/Y) — aqui é só a cor. */
+.mesa-exp-carta-jogada-melada .carta-exp {
+    border-color: #0a0a0a;
+    box-shadow: 0 0 0 2px #0a0a0a;
 }
 
 /* Legenda ao lado da carta em hover (ver cartaEmHover em
@@ -1040,16 +1252,16 @@ button.secundario {
    irmão, não filho dela), pra o texto nunca ficar de lado ou espremido. */
 .mesa-exp-carta-jogada-legenda {
     position: absolute;
-    transform: translate(24px, -50%);
+    transform: translate(28px, -50%);
     z-index: 21;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
     background: rgba(0, 0, 0, .65);
-    padding: 6px 12px;
-    border-radius: 6px;
+    padding: 10px 16px;
+    border-radius: 8px;
     font-family: system-ui, sans-serif;
-    font-size: 13px;
+    font-size: 16px;
     color: #f1e6d2;
     white-space: nowrap;
     pointer-events: none;
@@ -1058,4 +1270,25 @@ button.secundario {
 .mesa-exp-carta-jogada-legenda span {
     color: #ffd75e;
     font-weight: 700;
+}
+
+/* Linha extra só quando a carta em hover é a vencedora (ver
+   cartaEmHover/analiseMesa) — mesmo roxo do contorno
+   (.mesa-exp-carta-jogada-vencendo), só que em texto. Duas classes no
+   seletor (não só uma) pelo mesmo motivo de -melada logo abaixo:
+   especificidade contra ".mesa-exp-carta-jogada-legenda span". */
+.mesa-exp-carta-jogada-legenda .mesa-exp-carta-jogada-legenda-vencendo {
+    color: #a855f7;
+    font-weight: 700;
+}
+
+/* Linha extra só quando a carta em hover está melada (ver
+   cartaEmHover/analiseMesa) — cor neutra (não o dourado de
+   .mesa-exp-carta-jogada-legenda span acima), pra não parecer destaque
+   bom, é o oposto. Duas classes no seletor (não só uma) de propósito: só
+   uma span perderia pra ".mesa-exp-carta-jogada-legenda span" acima por
+   especificidade (classe+elemento > classe sozinha). */
+.mesa-exp-carta-jogada-legenda .mesa-exp-carta-jogada-legenda-melada {
+    color: #cfcfcf;
+    font-weight: 600;
 }
