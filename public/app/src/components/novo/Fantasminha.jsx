@@ -75,16 +75,108 @@ const CHAPEU_IMPACTO_SOBE_MAX = 24;
 const CHAPEU_IMPACTO_LADO = 14;
 const CHAPEU_IMPACTO_ROT_GRAUS = 20;
 
+// Monitor de peito (ver `bot` mais abaixo) — um retângulo só, tipo tela de
+// osciloscópio, colado na barriga do robô. Coordenadas conservadoras de
+// propósito: o corpo (corpoComPonta) é uma gota que já estreita bastante
+// entre y=33 (dome, largura cheia 13-87) e a ponta da cauda em (50,97) —
+// sem clipar o monitor na silhueta, mantém tudo dentro de x 28-72 / y
+// 46-70, a faixa que ainda fica sob o corpo mesmo já estreitado, com folga.
+// Rosto (HTML por cima) termina por volta de y=42, então o monitor começa
+// logo abaixo dele. `TELA_*` é a área ÚTIL (dentro da moldura, onde a onda
+// desenha) — `MONITOR_RECT` (a moldura em si) só um pouco maior em volta.
+const MONITOR_BORDA = 2;
+const TELA_LARGURA = 32;
+const TELA_ALTURA = 15;
+// Centro fixo (não canto): reduzir TELA_LARGURA/ALTURA encolhe o monitor
+// sem descentralizar ele do peito — x/y da moldura vêm DAQUI, não de um
+// canto fixo.
+const MONITOR_CENTRO = { x: 50, y: 58 };
+const MONITOR_RECT = {
+    x: MONITOR_CENTRO.x - (TELA_LARGURA + MONITOR_BORDA * 2) / 2,
+    y: MONITOR_CENTRO.y - (TELA_ALTURA + MONITOR_BORDA * 2) / 2,
+    width: TELA_LARGURA + MONITOR_BORDA * 2,
+    height: TELA_ALTURA + MONITOR_BORDA * 2,
+    rx: 3,
+};
+const TELA_RECT = { x: MONITOR_RECT.x + MONITOR_BORDA, y: MONITOR_RECT.y + MONITOR_BORDA, width: TELA_LARGURA, height: TELA_ALTURA };
+const MONITOR_COR_MOLDURA = '#23262c';
+const MONITOR_COR_TELA = '#0c0f12';
+
+// Onda (ver gerarOndaQuadrada/`bot` mais abaixo): "degraus" retos (sobe/
+// desce na vertical, anda reto na horizontal — nada de curva), altura de
+// cada degrau sorteada, não um padrão fixo repetindo — é o que dá a cara
+// de "quadrada, sharp, e aleatória" pedida, tipo um osciloscópio mostrando
+// ruído digital em vez de uma onda senoidal lisa.
+const ONDA_PASSOS = 9;
+const ONDA_MARGEM_V = 2.5; // não deixa a onda encostar na moldura de cima/baixo
+const ONDA_DURACAO_S = 2.6;
+
+// Gera os pontos de UM ciclo da onda (largura TELA_LARGURA) — o path final
+// duplica esse mesmo ciclo lado a lado (ver JSX) e faz o <g> deslizar
+// exatamente TELA_LARGURA pra a esquerda num loop indefinite: como as duas
+// cópias são IDÊNTICAS, a emenda entre elas é invisível, e a onda parece
+// rolar pra sempre sem nunca "pular".
+function gerarOndaQuadrada(passos, largura, altura, margemV) {
+    const passoX = largura / passos;
+    const alturaUtil = altura - margemV * 2;
+    let yAtual = margemV + Math.random() * alturaUtil;
+    const pontos = [[0, yAtual]];
+    for (let i = 1; i <= passos; i++) {
+        const x = i * passoX;
+        pontos.push([x, yAtual]); // reto na horizontal até o próximo degrau
+        yAtual = margemV + Math.random() * alturaUtil;
+        pontos.push([x, yAtual]); // reto na vertical, sobe/desce de uma vez (canto vivo)
+    }
+    return pontos;
+}
+
+// Engrenagem decorativa (ver `bot` mais abaixo) — dentes como retângulos
+// arredondados distribuídos em volta de um corpo circular (mais simples de
+// desenhar/ler que um <path> de engrenagem de verdade, e já solto no
+// mesmo espírito pragmático do resto deste arquivo: formas geométricas
+// básicas compostas, não ilustração). Dois anéis no centro (mais escuro por
+// cima do corpo, mais claro por cima desse) sugerem o furo do eixo sem
+// precisar de transparência de verdade — não dá pra saber o que fica atrás
+// do fantasminha na mesa.
+function Engrenagem({ className, dentes = 8, corBase = '#cbd1d6', corSombra = '#8a9096' }) {
+    return (
+        <svg className={className} viewBox="0 0 100 100">
+            <g fill={corBase}>
+                <circle cx="50" cy="50" r="34" />
+                {Array.from({ length: dentes }, (_, i) => (
+                    <rect
+                        key={i}
+                        x="43" y="4" width="14" height="22" rx="3"
+                        transform={`rotate(${(360 / dentes) * i} 50 50)`}
+                    />
+                ))}
+            </g>
+            <circle cx="50" cy="50" r="15" fill={corSombra} />
+            <circle cx="50" cy="50" r="7" fill={corBase} />
+        </svg>
+    );
+}
+
 // `versaoChapeu` é só um contador: subir ele (ver botão "🎩 Novos chapéus"
 // em MesaExperimento.jsx) sorteia um chapéu novo sem mexer em mais nada
 // (cor, timing da cauda/flutuar continuam os mesmos) — se fosse um `key`
 // remontando o componente inteiro, tudo sortearia de novo junto.
-export default function Fantasminha({ versaoChapeu, children, destacado, danoVersao }) {
+// `bot` (ver botPorAssento/alternarBotFantasma em MesaExperimento.jsx):
+// vira o avatar temporário de quem está jogando no automático — duas
+// engrenagens por cima do corpo + olhos/boca quadrados em vez de
+// redondos (ver .fantasminha-rosto-bot no CSS), sem mexer em cor, chapéu
+// nem no balançar/flutuar, que continuam os mesmos de sempre.
+// `hue` vem de FORA agora (ver MesaExperimento.jsx: huesPorAssento) — não é
+// mais sorteado aqui dentro. Precisa disso porque a ficha de aposta de cada
+// fantasminha (ver Ficha.jsx/fantasmaAposta) tem que saber a MESMA cor do
+// corpo dele, e antes esse hue nascia e morria dentro deste componente, sem
+// ninguém de fora conseguir ler.
+export default function Fantasminha({ versaoChapeu, children, destacado, danoVersao, bot, monitor = true, hue, naVez }) {
     const idGradiente = useId();
     const idCorteClip = useId();
+    const idTelaClip = useId();
     const chapeu = useMemo(sortearChapeu, [versaoChapeu]);
-    const { hue, duracao, atraso, duracaoCauda, atrasoCauda } = useMemo(() => ({
-        hue: Math.random() * 360,
+    const { duracao, atraso, duracaoCauda, atrasoCauda } = useMemo(() => ({
         duracao: DURACAO_MIN_S + Math.random() * (DURACAO_MAX_S - DURACAO_MIN_S),
         // Atraso NEGATIVO adianta o relógio da animação em vez de esperar
         // pra começar — é isso que faz cada fantasminha nascer num ponto
@@ -123,6 +215,15 @@ export default function Fantasminha({ versaoChapeu, children, destacado, danoVer
         // eslint-disable-next-line react-hooks/exhaustive-deps -- só deve resortear quando MUDA danoVersao, não a cada render
     }), [danoVersao]);
 
+    // Sorteada uma vez por fantasminha (não muda ligando/desligando `bot`
+    // de novo — mesmo espírito do `hue` acima) — vira só o `d` de um
+    // <path>, ver JSX: "M x0,y0 L x1,y1 L x2,y2 ...".
+    const ondaD = useMemo(() => {
+        const pontos = gerarOndaQuadrada(ONDA_PASSOS, TELA_LARGURA, TELA_ALTURA, ONDA_MARGEM_V);
+        return `M${pontos.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' L')}`;
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- só sorteia no mount, mesmo padrão do `hue`/chapéu
+    }, []);
+
     return (
         <div
             // Modificador "atacado" (ver machucado acima) vive AQUI, no
@@ -135,6 +236,30 @@ export default function Fantasminha({ versaoChapeu, children, destacado, danoVer
             className={`fantasminha-flutuante${machucado ? ' fantasminha-flutuante-atacado' : ''}`}
             style={{ animationDuration: `${duracao.toFixed(2)}s`, animationDelay: `-${atraso.toFixed(2)}s` }}
         >
+            {/* ANTES do <svg> do corpo de propósito — sem z-index nem
+                position própria pra nenhum dos dois, quem vem primeiro no
+                DOM pinta embaixo: assim o corpo (opaco) cobre o miolo das
+                engrenagens, só os dentes/pontas sobram pra fora da
+                silhueta, "espiando" atrás do fantasminha. Cores tiradas do
+                MESMO gradiente do corpo (stops de 45%/100%, ver
+                radialGradient abaixo) — a engrenagem tem que parecer FEITA
+                do fantasminha, não uma peça solta por cima. */}
+            {bot && (
+                <>
+                    <Engrenagem
+                        className="fantasminha-engrenagem fantasminha-engrenagem-pequena"
+                        dentes={8}
+                        corBase={`hsl(${hue}, 80%, 82%)`}
+                        corSombra={`hsl(${hue}, 65%, 68%)`}
+                    />
+                    <Engrenagem
+                        className="fantasminha-engrenagem fantasminha-engrenagem-grande"
+                        dentes={10}
+                        corBase={`hsl(${hue}, 80%, 82%)`}
+                        corSombra={`hsl(${hue}, 65%, 68%)`}
+                    />
+                </>
+            )}
             <svg
                 className={`fantasminha-svg${destacado ? ' fantasminha-svg-destacado' : ''}`}
                 viewBox="0 0 100 100"
@@ -147,14 +272,18 @@ export default function Fantasminha({ versaoChapeu, children, destacado, danoVer
                     </radialGradient>
                 </defs>
                 {/* `destacado` (ver MesaExperimento.jsx: assento de quem
-                    jogou a carta em hover) contorna o CONTORNO DE VERDADE
-                    do fantasma — a silhueta do path, não um retângulo por
-                    cima dele — via stroke direto no SVG. */}
+                    jogou a carta em hover, OU o próprio assento em hover)
+                    contorna o CONTORNO DE VERDADE do fantasma — a
+                    silhueta do path, não um retângulo por cima dele — via
+                    stroke direto no SVG. `naVez` (de quem é a vez agora,
+                    NÃO depende do mouse) usa a MESMA técnica, só que azul
+                    claro — os dois nunca aparecem juntos, hover (amarelo)
+                    tem prioridade por ser o estado mais "imediato". */}
                 <path
                     d={corpoComPonta(50)}
                     fill={`url(#${idGradiente})`}
-                    stroke={destacado ? '#ffcc00' : 'none'}
-                    strokeWidth={destacado ? 3 : 0}
+                    stroke={destacado ? '#ffcc00' : naVez ? '#7dd3fc' : 'none'}
+                    strokeWidth={destacado || naVez ? 3 : 0}
                 >
                     {/* centro -> direita -> centro -> esquerda -> centro,
                         num ciclo só — "andar pra direita pra esquerda" em
@@ -217,8 +346,52 @@ export default function Fantasminha({ versaoChapeu, children, destacado, danoVer
                         <path className="fantasminha-corte" d={CORTE_LENTE} clipPath={`url(#${idCorteClip})`} />
                     </g>
                 )}
+                {/* Monitor de peito (ver MONITOR_/TELA_/ONDA_ e `bot` lá em
+                    cima) — POR CIMA do corpo (não antes, como as
+                    engrenagens): é um equipamento colado na "roupa" do
+                    robô, não algo por trás dele. Moldura + tela escura fixas;
+                    dentro dela, a onda (gerada uma vez em `ondaD`) rola pra
+                    a esquerda pra sempre — SMIL, mesmo padrão do balanço da
+                    cauda/clip do corte acima, não CSS. Cor da onda: o MESMO
+                    hue do corpo, só que bem mais saturada/escura (o corpo
+                    usa no máximo 90% de saturação nos tons claros; aqui
+                    100%, quase neon contra a tela quase preta). `monitor`
+                    (default true) é uma chave À PARTE de `bot` — ver botão
+                    "🔀 Monitor" em MesaExperimento.jsx: dá pra comparar o
+                    visual de bot com/sem ele, sem desligar engrenagens nem
+                    olhos/boca quadrados junto. */}
+                {bot && monitor && (
+                    <g>
+                        <rect {...MONITOR_RECT} fill={MONITOR_COR_TELA} stroke={MONITOR_COR_MOLDURA} strokeWidth="2" />
+                        <defs>
+                            <clipPath id={idTelaClip}>
+                                <rect x="0" y="0" width={TELA_LARGURA} height={TELA_ALTURA} />
+                            </clipPath>
+                        </defs>
+                        <g transform={`translate(${TELA_RECT.x} ${TELA_RECT.y})`} clipPath={`url(#${idTelaClip})`}>
+                            <g fill="none" stroke={`hsl(${hue}, 100%, 62%)`} strokeWidth="1.6" strokeLinejoin="round">
+                                {/* Duas cópias idênticas lado a lado (a
+                                    segunda começa exatamente onde a primeira
+                                    termina, TELA_LARGURA à direita) — o <g>
+                                    desliza TELA_LARGURA inteira pra esquerda
+                                    e volta pro começo (from/to), sem dar pra
+                                    notar a costura. */}
+                                <path d={ondaD} />
+                                <path d={ondaD} transform={`translate(${TELA_LARGURA} 0)`} />
+                                <animateTransform
+                                    attributeName="transform"
+                                    type="translate"
+                                    from="0 0"
+                                    to={`-${TELA_LARGURA} 0`}
+                                    dur={`${ONDA_DURACAO_S}s`}
+                                    repeatCount="indefinite"
+                                />
+                            </g>
+                        </g>
+                    </g>
+                )}
             </svg>
-            <div className={`fantasminha-rosto${machucado ? ' fantasminha-machucado' : ''}`}>
+            <div className={`fantasminha-rosto${machucado ? ' fantasminha-machucado' : ''}${bot ? ' fantasminha-rosto-bot' : ''}`}>
                 <div className="fantasminha-olho fantasminha-olho-esq" />
                 <div className="fantasminha-olho fantasminha-olho-dir" />
                 <div className="fantasminha-boca" />

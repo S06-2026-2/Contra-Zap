@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Fantasminha from './Fantasminha.jsx';
 import Carta from './Carta.jsx';
+import Ficha from './Ficha.jsx';
+// Mesmo catálogo que o Partida.jsx de verdade usa (fonte única no back, ver
+// comentário lá dentro) — os 4 tipos de mensagem pronta do chat "restrito".
+import { MENSAGENS_CHAT, CHAT_COOLDOWN_MS } from '../../../../../conexao/chat/mensagensChat.js';
 
 // Ordem fixa de rotação/deslocamento de cada carta do monte — estático de
 // propósito (não sorteado): é só decoração, não precisa mudar a cada
@@ -92,7 +96,11 @@ const MELADA_CANTO_ESPACAMENTO_PX = 10;
 // propósito (não tão pronunciado quanto o espaçamento dentro do mesmo
 // grupo): a legenda de hover já deixa claro qual é qual, não precisa
 // separar bem longe.
-const MELADA_GRUPO_ESPACAMENTO_PX = 30;
+const MELADA_GRUPO_ESPACAMENTO_PX = 60;
+// O primeiro grupo (grupoMelada === 0) sai ainda mais pra esquerda, só ele —
+// não mexe na posição dos outros grupos, só abre mais distância entre o
+// primeiro e o segundo.
+const MELADA_PRIMEIRO_GRUPO_EXTRA_PX = 20;
 
 function esperar(ms) {
     return new Promise((resolver) => setTimeout(resolver, ms));
@@ -138,6 +146,111 @@ const MAX_JOGADORES = 8;
 
 const MIN_CARTAS_TESTE = 0;
 const MAX_CARTAS_TESTE = 4;
+
+// Aposta (ver PROTOCOLO.md: `apostar` valida `valor` em [0, cartas da
+// rodada] — APOSTA_VALOR_MAX reaproveita MAX_CARTAS_TESTE de propósito, é
+// o MESMO limite de verdade, só que aqui fixo em vez de vir de
+// `cartasRodada` de um servidor que não existe neste sandbox).
+const APOSTA_VALOR_MAX = MAX_CARTAS_TESTE;
+// Tamanho-base de UMA ficha (a div em si, ver .mesa-exp-ficha-voando no
+// CSS) — tudo o resto (grande no popup/voando, pequena pousada no canto) é
+// só `scale()` em cima deste tamanho fixo, nunca muda width/height de
+// verdade.
+const FICHA_TAMANHO_PX = 64;
+const ESCALA_FICHA_CANTO = 0.62; // "diminuir" ao pousar no canto, mas não TANTO — pedido do Henrique
+// Pilha DENTRO do popup (cresce com o valor digitado, ainda flutuando) —
+// essa sim empilha pra CIMA, uma ficha em cima da outra.
+const FICHA_EMPILHA_POPUP_PX = 10;
+// Já as fichas que POUSAM no canto não empilham — ficam lado a lado, num
+// leque horizontal (mesma altura, só espalhadas em X), pedido do Henrique
+// depois de ver a pilha vertical. Espaçamento generoso de propósito ("um
+// pouco mais separado") — bem mais que o antigo deslocamento de pilha.
+const FICHA_LEQUE_ESPACAMENTO_PX = 34;
+// Aposta dos FANTASMINHAS (ver fantasmaAposta) — essas sim empilham (pediu
+// pra ser vertical mesmo, "um pouco espaçado" — mais que a pilha do popup,
+// menos que o leque da sua). `FICHA_FANTASMA_OFFSET_LADO_PX` é a distância
+// da BORDA do assento (não do centro) até onde a pilha nasce — PRA DENTRO
+// do retângulo (pediu pra ficar mais perto do fantasminha), não mais pro
+// lado de fora da mesa.
+const FICHA_EMPILHA_FANTASMA_PX = 20;
+const FICHA_FANTASMA_OFFSET_LADO_PX = 55;
+// Arremesso (ver FichaVoando/criarFicha em public/_intro/index.html, de
+// onde esta mecânica foi portada) — valores mais generosos que o
+// experimento original de propósito ("dá um boost", pediu o Henrique):
+// sobe mais alto, cresce mais no pico, gira mais vezes.
+const FICHA_FORCA_SUBIDA_MIN = 70;
+const FICHA_FORCA_SUBIDA_MAX = 190;
+const ESCALA_FICHA_PICO_MIN = 1.35;
+const ESCALA_FICHA_PICO_MAX = 1.75;
+// Múltiplo de meia-volta (180°), senão a ficha pousa de perfil (mostrando
+// a "quina" em vez da face) — mesmo motivo do comentário original.
+const FICHA_VOLTAS_MIN = 3;
+const FICHA_VOLTAS_MAX = 5.5;
+const FICHA_DURACAO_MIN_MS = 750;
+const FICHA_DURACAO_MAX_MS = 1150;
+// Desvio lateral senoidal leve (pico no meio do voo, zero nas pontas) —
+// só pra não ficar uma reta perfeita entre origem e destino, mais um
+// capricho de movimento que o experimento original não tinha.
+const FICHA_DESVIO_LATERAL_PX = 26;
+// Atraso entre o início do voo de uma ficha e da próxima (efeito cascata,
+// não todas saindo exatamente juntas).
+const FICHA_ATRASO_ENTRE_MS = 90;
+// Depois que a ficha CHEGA (t=1 do arremesso) ainda sobra este tempo de
+// assentamento (encolhe de escala 1 pra ESCALA_FICHA_CANTO via transition
+// CSS bouncy, ver .mesa-exp-ficha-pousada) antes de virar de vez uma ficha
+// estática na pilha do canto.
+const FICHA_ASSENTAMENTO_MS = 320;
+
+// Revelação de fim de vaza (ver finalizarVaza/CartaRevelando) — no jogo de
+// verdade é o servidor que manda `vazaFinalizada` já sabendo quem ganhou
+// (ver PROTOCOLO.md); aqui quem dispara é o botão de debug "🏆 Finalizar
+// vaza", mas a carta vencedora é a MESMA que analiseMesa já calcula ao
+// vivo (idVencedora) — não é um sorteio novo. Coreografia em QUATRO fases
+// (mesmo espírito de calcularEstadoVira/tocarVira lá embaixo — fase muda,
+// a transition CSS sempre ligada anima sozinha até o alvo novo):
+//   'crescendo' — sai de onde estava (px de verdade, capturado via
+//     getBoundingClientRect no clique) e cresce até um ponto quase-central
+//     da TELA (não da mesa oval, que é bem menor), já desgirada.
+//   'impacto'   — "bate" na mesa: desce um pouco e encolhe rápido de volta
+//     pro tamanho normal de carta. Dispara junto: overlay desescurece,
+//     legenda some, onda de choque, tremor de tela, e as cartas PERDEDORAS
+//     (ver cartasNaMesa) saem voando pra fora.
+//   'viajando'  — some do centro da tela e viaja até a pilha de fichas de
+//     aposta do vencedor (ver calcularAncoraFichaAssento).
+//   'pousada'   — fica ali pro resto da rodada, embaixo da pilha de fichas
+//     dele (ver cartasVazaGanhas) — "representa ele ter feito uma vaza".
+const VAZA_REVELACAO_X_FRACAO = 0.42; // "quase no meio, mas não no meio" — um pouco pra esquerda
+const VAZA_REVELACAO_TEXTO_X_FRACAO = 0.66; // do outro lado da carta, no espaço que sobrou
+const VAZA_REVELACAO_Y_FRACAO = 0.5;
+const VAZA_REVELACAO_ESCALA = 2.4; // "crescer até ficar grande na tela"
+const VAZA_REVELACAO_TRANSICAO_MS = 550; // duração do CRESCIMENTO em si
+// Depois de crescer, ainda segura um tempo PARADA grande/centralizada com
+// a legenda — só então o impacto acontece. Sem essa pausa o crescimento
+// emendava direto no impacto, sem dar tempo de ler "Fim de Vaza: ...".
+const VAZA_REVELACAO_PAUSA_MS = 1100;
+// Impacto: cai um pouco (px) e encolhe rápido pra escala ~normal de carta
+// pousada na mesa — aqui é só visualmente "carta normal", não precisa
+// bater o valor exato de nenhuma constante de jogada.
+const VAZA_IMPACTO_QUEDA_PX = 26;
+const VAZA_IMPACTO_ESCALA = 0.7;
+const VAZA_IMPACTO_DURACAO_MS = 220; // rápido/seco de propósito ("violentamente")
+// Depois do impacto, ainda segura um instante antes de viajar — sem isso a
+// onda de choque/tremor mal dava tempo de aparecer.
+const VAZA_IMPACTO_PAUSA_MS = 260;
+const VAZA_VIAGEM_DURACAO_MS = 600;
+const VAZA_POUSO_ESCALA = ESCALA_FICHA_CANTO; // mesmo tamanho pequeno da ficha pousada, "embaixo dela"
+const VAZA_POUSO_ROT_GRAUS = -12; // leve inclinação, não fica reta atrás da ficha redonda
+// Cartas PERDEDORAS "explodindo" pra fora no impacto — todo mundo sai
+// radialmente AFASTANDO do centro da mesa (não uma direção aleatória
+// solta), gira várias voltas ("uns flips") e cresce um pouco no caminho.
+const VAZA_EXPLOSAO_FATOR = 2.6; // multiplica a distância atual até o centro (50,50) da mesa
+const VAZA_EXPLOSAO_ESCALA_MULT = 1.35;
+const VAZA_EXPLOSAO_VOLTAS_MIN = 2;
+const VAZA_EXPLOSAO_VOLTAS_MAX = 4;
+const VAZA_EXPLOSAO_DURACAO_MS = 480;
+
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+function easeInCubic(t) { return t * t * t; }
 // Leque: ângulo/deslocamento entre cartas vizinhas — o resto (quantas
 // cartas, ordem) vem de `quantidade` na hora de desenhar.
 const ANGULO_ENTRE_CARTAS = 8;
@@ -153,6 +266,16 @@ const ATRASO_ENTRADA_CARTA_MS = 90;
 // abertos que o leque em miniatura dos outros jogadores.
 const ANGULO_ENTRE_CARTAS_VOCE = 10;
 const DESLOCAMENTO_ENTRE_CARTAS_VOCE = 70;
+
+// Cabeçalho da sala (ver checklist lá em cima, item 1): salaId/senha ainda
+// não vêm do servidor aqui (sandbox desligado do protocolo), só placeholders
+// pra fechar a posição/estilo antes de plugar o dado real.
+const SALA_ID_TESTE = 'A3F9K2';
+const SENHA_TESTE = '482913';
+
+// Chat (item do checklist): quanto tempo o balãozinho de fala fica em cima
+// do fantasminha antes de sumir sozinho.
+const DURACAO_BOLHA_MS = 3200;
 
 // Placeholder: ainda não existe "sua mão" de verdade vinda do servidor —
 // só pra essas cartas não nascerem em branco, cada uma sorteia um
@@ -342,6 +465,206 @@ function CartaVoando({ de, para, anguloInicial, anguloFinal, escalaInicial, esca
     );
 }
 
+// Ficha arremessada (ver confirmarAposta/FICHA_* lá em cima) — portada da
+// mecânica de criarFicha em public/_intro/index.html, mas com rAF PRÓPRIO
+// em vez de CSS transition: CartaVoando acima só pula de A pra B (um salto
+// só, a transition cuida do resto); aqui o "arco" (sobe girando, desce
+// crescendo depois encolhendo) precisa de controle quadro a quadro de
+// verdade, então não dá pra terceirizar pro CSS. Posições em PIXELS (não %
+// como CartaVoando) — a ficha viaja de um popup centralizado até um canto
+// fixo da TELA, não um ponto relativo à mesa oval.
+//
+// Fases: 1) `atrasoMs` de espera (cascata entre fichas da mesma aposta);
+// 2) o arremesso em si (sobe girando+crescendo até a metade, desce
+// girando+encolhendo de volta pra escala 1 na outra metade — mesma curva
+// dupla do experimento original, só que "boostada": sobe mais alto, gira
+// mais, ganha um desvio lateral senoidal pra não ser uma reta perfeita);
+// 3) ao pousar (t=1), `pousada` liga uma CSS transition bouncy que encolhe
+// de escala 1 pra ESCALA_FICHA_CANTO (ver .mesa-exp-ficha-pousada) — só
+// DEPOIS desse assentamento (FICHA_ASSENTAMENTO_MS) que `onChegou` roda de
+// verdade, trocando esta ficha voando por uma estática na pilha do canto
+// (ver fichasNoCanto), sem pulo nenhum entre uma e outra.
+function FichaVoando({ de, para, atrasoMs, onChegou, hue }) {
+    // `posBase` é só a trajetória NO CHÃO (interpolação linear de origem a
+    // destino, sem o "pulo") — usada pra sombra, que não deve subir junto
+    // com a ficha, só encolher/apagar enquanto ela sobe. `alturaExtra` é o
+    // deslocamento vertical do pulo em si, somado só na ficha.
+    const [posBase, setPosBase] = useState(de);
+    const [alturaExtra, setAlturaExtra] = useState(0);
+    const [escala, setEscala] = useState(1);
+    const [rotY, setRotY] = useState(0);
+    const [pousada, setPousada] = useState(false);
+
+    const params = useMemo(() => ({
+        forcaSubida: FICHA_FORCA_SUBIDA_MIN + Math.random() * (FICHA_FORCA_SUBIDA_MAX - FICHA_FORCA_SUBIDA_MIN),
+        escalaPico: ESCALA_FICHA_PICO_MIN + Math.random() * (ESCALA_FICHA_PICO_MAX - ESCALA_FICHA_PICO_MIN),
+        // Arredondado pro múltiplo de 0.5 mais próximo (meia-volta) — ver
+        // comentário da função inteira.
+        voltas: Math.round((FICHA_VOLTAS_MIN + Math.random() * (FICHA_VOLTAS_MAX - FICHA_VOLTAS_MIN)) * 2) / 2,
+        duracaoMs: FICHA_DURACAO_MIN_MS + Math.random() * (FICHA_DURACAO_MAX_MS - FICHA_DURACAO_MIN_MS),
+        desvioLateral: (Math.random() * 2 - 1) * FICHA_DESVIO_LATERAL_PX,
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- sorteia uma vez só, na criação desta ficha (mesmo espírito de chapeuImpacto em Fantasminha.jsx)
+    }), []);
+
+    useEffect(() => {
+        let raf;
+        let cancelado = false;
+        let timerAssentar;
+
+        const quadro = (inicio, agora) => {
+            if (cancelado) return;
+            const t = Math.min((agora - inicio) / params.duracaoMs, 1);
+            const naSubida = t < 0.5;
+            const fase = naSubida ? t / 0.5 : (t - 0.5) / 0.5;
+            const altura = naSubida
+                ? -params.forcaSubida * easeOutCubic(fase)
+                : -params.forcaSubida * (1 - easeInCubic(fase));
+            const escalaAtual = naSubida
+                ? 1 + (params.escalaPico - 1) * easeOutCubic(fase)
+                : params.escalaPico - (params.escalaPico - 1) * easeInCubic(fase);
+            const desvio = Math.sin(t * Math.PI) * params.desvioLateral;
+
+            setPosBase({ x: de.x + (para.x - de.x) * t + desvio, y: de.y + (para.y - de.y) * t });
+            setAlturaExtra(altura);
+            setEscala(escalaAtual);
+            setRotY(params.voltas * 360 * t);
+
+            if (t < 1) {
+                raf = requestAnimationFrame((prox) => quadro(inicio, prox));
+            } else {
+                // Pousou: liga a transition bouncy (ver .mesa-exp-ficha-
+                // pousada) mudando só a escala pra ESCALA_FICHA_CANTO — x/y
+                // já estão exatos em `para` (interpolação chegou em t=1) e
+                // o rotY já para num múltiplo de 180°, nenhum dos dois
+                // precisa de transition, só a escala "assentando".
+                setPousada(true);
+                setEscala(ESCALA_FICHA_CANTO);
+                timerAssentar = setTimeout(onChegou, FICHA_ASSENTAMENTO_MS);
+            }
+        };
+
+        const inicioTimer = setTimeout(() => {
+            raf = requestAnimationFrame((inicio) => quadro(inicio, inicio));
+        }, atrasoMs);
+
+        return () => {
+            cancelado = true;
+            clearTimeout(inicioTimer);
+            clearTimeout(timerAssentar);
+            cancelAnimationFrame(raf);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- de/para/atrasoMs/onChegou são fixos por instância (cada ficha voa uma vez só)
+    }, []);
+
+    // Sombra: mesma base (posBase, sem o pulo) — encolhe/esmaece conforme
+    // `alturaExtra` cresce (ficha mais alta = sombra menor/mais fraca),
+    // dá a sensação de profundidade sem precisar de luz/3D de verdade.
+    const sombraEscala = Math.max(0.35, 1 - Math.abs(alturaExtra) / (FICHA_FORCA_SUBIDA_MAX * 1.3));
+
+    return (
+        <>
+            <div
+                className="mesa-exp-ficha-sombra"
+                style={{
+                    left: `${posBase.x}px`,
+                    top: `${posBase.y}px`,
+                    transform: `translate(-50%, -50%) scale(${sombraEscala})`,
+                    opacity: sombraEscala * 0.55,
+                }}
+            />
+            <div
+                className={`mesa-exp-ficha-voando${pousada ? ' mesa-exp-ficha-pousada' : ''}`}
+                style={{
+                    left: `${posBase.x}px`,
+                    top: `${posBase.y + alturaExtra}px`,
+                    transform: `translate(-50%, -50%) scale(${escala}) rotateY(${rotY}deg)`,
+                }}
+            >
+                <Ficha destacada={pousada} hue={hue} />
+            </div>
+        </>
+    );
+}
+
+// Alvo (px/rot/escala) de cada fase da revelação — ver comentário de
+// VAZA_REVELACAO_X_FRACAO lá em cima pro que cada fase representa.
+// `destino` só importa nas duas últimas fases (é a pilha de fichas de
+// quem ganhou); nas duas primeiras a carta ainda tá "no meio da tela".
+function calcularEstadoRevelacaoVaza(fase, destino) {
+    if (fase === 'impacto') {
+        return {
+            x: window.innerWidth * VAZA_REVELACAO_X_FRACAO,
+            y: window.innerHeight * VAZA_REVELACAO_Y_FRACAO + VAZA_IMPACTO_QUEDA_PX,
+            rot: 0,
+            escala: VAZA_IMPACTO_ESCALA,
+        };
+    }
+    if (fase === 'viajando' || fase === 'pousada') {
+        return { x: destino.x, y: destino.y, rot: VAZA_POUSO_ROT_GRAUS, escala: VAZA_POUSO_ESCALA };
+    }
+    // 'crescendo' (a fase de nascimento) — qualquer outra coisa cai aqui,
+    // não deveria acontecer na prática.
+    return {
+        x: window.innerWidth * VAZA_REVELACAO_X_FRACAO,
+        y: window.innerHeight * VAZA_REVELACAO_Y_FRACAO,
+        rot: 0,
+        escala: VAZA_REVELACAO_ESCALA,
+    };
+}
+
+// Duração da TRANSITION CSS pra cada fase — bem diferente uma da outra
+// (crescendo é um voo mais longo, impacto é seco/rápido, viajando é
+// médio), então não dá pra fixar uma duração só no CSS: vem inline (ver
+// JSX) a cada render, sempre a da fase ATUAL.
+function duracaoFaseRevelacaoVaza(fase) {
+    if (fase === 'impacto') return VAZA_IMPACTO_DURACAO_MS;
+    if (fase === 'viajando' || fase === 'pousada') return VAZA_VIAGEM_DURACAO_MS;
+    return VAZA_REVELACAO_TRANSICAO_MS;
+}
+
+// Carta vencedora da vaza — coreografia de VÁRIAS fases (ver
+// calcularEstadoRevelacaoVaza/finalizarVaza), não um "voo" só de A pra B
+// como CartaVoando/FichaVoando. Ainda assim reaproveita o MESMO truque
+// pro primeiro alvo (nasce em `origem` SEM transition — um quadro depois
+// pula pro alvo da fase atual COM transition ligada, senão o navegador
+// nunca chega a pintar `origem` e não tem de onde animar); fases
+// SEGUINTES não precisam do truque porque o orquestrador (finalizarVaza)
+// já espera de verdade (esperar()) entre uma e outra — o navegador teve
+// tempo de sobra de pintar o estado anterior. `origem` vem em PIXELS de
+// tela (getBoundingClientRect no clique), não % da mesa.
+function CartaRevelando({ origem, destino, fase, carta }) {
+    const [estado, setEstado] = useState({ x: origem.x, y: origem.y, rot: origem.rot, escala: origem.escala });
+    const primeiraFaseRef = useRef(fase);
+
+    useEffect(() => {
+        const quadro = requestAnimationFrame(() => {
+            setEstado(calcularEstadoRevelacaoVaza(fase, destino));
+        });
+        return () => cancelAnimationFrame(quadro);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- só o alvo da fase de NASCIMENTO, mudanças de fase depois são o efeito de baixo
+    }, []);
+
+    useEffect(() => {
+        if (fase === primeiraFaseRef.current) return; // já tratado pelo efeito de cima
+        setEstado(calcularEstadoRevelacaoVaza(fase, destino));
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- destino é fixo por instância
+    }, [fase]);
+
+    return (
+        <div
+            className="mesa-exp-carta-revelando"
+            style={{
+                left: `${estado.x}px`,
+                top: `${estado.y}px`,
+                transform: `translate(-50%, -50%) rotate(${estado.rot}deg) scale(${estado.escala})`,
+                transitionDuration: `${duracaoFaseRevelacaoVaza(fase)}ms`,
+            }}
+        >
+            <Carta rank={carta.rank} naipe={carta.naipe} />
+        </div>
+    );
+}
+
 // A mão de quem não somos nós: sempre viradas (nunca se vê a carta do
 // outro) num leque centralizado embaixo do fantasminha. `key={i}` é de
 // propósito aqui, não descuido — é o que faz uma carta NOVA (índice que
@@ -471,8 +794,25 @@ function LequeManilha({ rank }) {
 }
 
 export default function MesaExperimento({ onFechar }) {
+    // Cabeçalho da sala (item 1 do checklist): o botão de sair troca de
+    // texto e a senha só aparece ANTES de iniciar (mesma regra do
+    // Partida.jsx de verdade — depois de iniciada a senha nunca mais volta
+    // a aparecer, nem num F5/reconexão). Default true porque o resto deste
+    // sandbox já mostra a mesa em andamento; o botão de baixo troca pra
+    // pré-visualizar o outro estado.
+    const [iniciada, setIniciada] = useState(true);
     const [quantidade, setQuantidade] = useState(4);
     const assentos = useMemo(() => calcularAssentos(quantidade), [quantidade]);
+    // Cor de cada fantasminha (ver Fantasminha.jsx — antes sorteava isso
+    // sozinho por dentro, agora vem daqui) — precisa morar no PAI porque a
+    // ficha de aposta dele (ver fantasmaAposta/Ficha.jsx) tem que usar a
+    // MESMA cor do corpo. Regenera junto com `assentos` (mesma dependência
+    // de `quantidade`), senão o índice 2 de uma mesa de 4 não seria o
+    // MESMO fantasminha do índice 2 de uma mesa de 6 depois de mudar.
+    const huesPorAssento = useMemo(
+        () => Array.from({ length: quantidade }, () => Math.random() * 360),
+        [quantidade]
+    );
     // Só um contador — subir ele reamostra o chapéu de cada fantasminha
     // (ver `versaoChapeu` em Fantasminha.jsx) sem mexer em mais nada.
     const [versaoChapeu, setVersaoChapeu] = useState(0);
@@ -506,6 +846,18 @@ export default function MesaExperimento({ onFechar }) {
     // só a MUDANÇA de valor interessa (ver danoVersao/machucado em
     // Fantasminha.jsx), o número em si não tem significado nenhum.
     const [danoPorAssento, setDanoPorAssento] = useState(() => Array(quantidade).fill(0));
+    // Quem virou bot (desconectado, ver 🤖 no jogo de verdade em
+    // Partida.jsx/`desconectados`) — booleano por assento, índice bate com
+    // `assentos`. Sem servidor aqui, é o botão de debug
+    // `alternarBotFantasma` que liga/desliga, ciclando um assento por vez
+    // (mesmo espírito de proximoFantasmaIndex/proximoDanoIndex).
+    const [botPorAssento, setBotPorAssento] = useState(() => Array(quantidade).fill(false));
+    const [proximoBotIndex, setProximoBotIndex] = useState(0);
+    // Monitor de peito é um elemento a mais dentro do "bot" (ver `bot`/
+    // Fantasminha.jsx) — chave PRÓPRIA (não junto de botPorAssento) pra dar
+    // pra comparar visualmente com/sem ele em qualquer fantasminha já
+    // marcado como bot, sem precisar alternar o bot em si.
+    const [monitorBotAtivo, setMonitorBotAtivo] = useState(true);
     // A SUA mão: array de cartas de verdade (id+rank+naipe, ver
     // cartaAleatoria), não um número — cada uma precisa da própria
     // identidade pra virar face pra cima em SuaMaoEmLeque.
@@ -520,10 +872,41 @@ export default function MesaExperimento({ onFechar }) {
     // render, é onde ela pousou), diferente do baralho ou da sua mão que
     // são leques recalculados toda vez.
     const [cartasNaMesa, setCartasNaMesa] = useState([]);
+    // Um <div> de carta-na-mesa por id (callback ref, ver JSX) — é daqui
+    // que finalizarVaza lê a posição de VERDADE (getBoundingClientRect) da
+    // carta vencedora no instante do clique, pra CartaRevelando nascer
+    // exatamente onde ela estava, não recalculada a partir de x/y%.
+    const cartaMesaRefs = useRef({});
     // Id da carta na mesa sob o mouse agora, ou null — usado tanto pro
     // contorno amarelo dela quanto pra achar (por `jogador`) qual assento
     // também destacar (ver rotuloAssento mais abaixo, no JSX).
     const [cartaEmHoverId, setCartaEmHoverId] = useState(null);
+    // Revelação de fim de vaza (ver finalizarVaza/CartaRevelando) — null
+    // enquanto não tem nenhuma rolando. `origem`/`destino` são posições em
+    // PX DE TELA capturadas/calculadas no instante do clique, não
+    // recalculadas depois (o assento pode até se mexer de mesa em mesa,
+    // mas não NO MEIO de uma revelação).
+    const [vazaRevelando, setVazaRevelando] = useState(null);
+    // Fase atual da coreografia (ver calcularEstadoRevelacaoVaza) — null
+    // junto com vazaRevelando null (nenhuma revelação rolando).
+    const [faseRevelacaoVaza, setFaseRevelacaoVaza] = useState(null);
+    // Só um contador — subir ele (na fase 'impacto', ver finalizarVaza)
+    // remonta a onda de choque com `key={choqueVaza}`, mesmo truque de
+    // versaoChapeu/danoVersao.
+    const [choqueVaza, setChoqueVaza] = useState(0);
+    // Cartas que já venceram uma vaza e foram "pro colo" de quem ganhou —
+    // { id, assentoIndice, rank, naipe, x, y } por entrada, renderizadas
+    // permanentemente ATRÁS da pilha de fichas de aposta dele (z-index
+    // menor que o das fichas, ver CSS — não depende de ordem no DOM).
+    // Nunca reseta sozinho durante a partida, só quando muda `quantidade`
+    // (rodada/mesa nova de verdade).
+    const [cartasVazaGanhas, setCartasVazaGanhas] = useState([]);
+    // Cartas PERDEDORAS "explodindo" pra fora na fase 'impacto' (ver
+    // finalizarVaza) — mapa { [cartaId]: {x,y,rot,escala} } com o alvo já
+    // calculado, sobrepõe tanto a posição normal quanto a de melada (ver
+    // JSX) enquanto a carta tem uma entrada aqui. Volta a {} assim que elas
+    // saem de cartasNaMesa de vez.
+    const [cartasExplodindo, setCartasExplodindo] = useState({});
     // Só pra pré-visualizar o leque com 0-4 cartas sem rodar a distribuição
     // inteira — muda a mão de todo mundo (menos "Você") de uma vez.
     const [cartasTeste, setCartasTeste] = useState(0);
@@ -547,6 +930,96 @@ export default function MesaExperimento({ onFechar }) {
     // só existe UMA vira na mesa, não uma lista.
     const [viraEmHover, setViraEmHover] = useState(false);
 
+    // Chat (ver botão circular no canto inferior esquerdo, mais abaixo no
+    // JSX). O painel (mensagens prontas + campo livre) só aparece com o
+    // botão CLICADO (não é hover — pediu pra ficar assim de propósito,
+    // senão fechava sozinho ao tirar o mouse no meio de digitar).
+    const [chatAberto, setChatAberto] = useState(true);
+    const [chatClicado, setChatClicado] = useState(false);
+    const [textoChat, setTextoChat] = useState('');
+    // Cosmético só (mesmo espírito do comentário de CHAT_COOLDOWN_MS no
+    // próprio módulo — quem trava de verdade é o servidor): desabilita os
+    // botões de envio por CHAT_COOLDOWN_MS depois de cada mensagem.
+    const [chatEmCooldown, setChatEmCooldown] = useState(false);
+    // Histórico (módulo à direita do painel, ver JSX) — cada mensagem já
+    // enviada (pronta ou livre, sua ou de fantasma) + avisos de sistema de
+    // entrar/sair (ver aumentarJogadores/diminuirJogadores). Mesmo shape do
+    // chatMensagem de verdade: { jogador, tipo: 'restrita'|'aberta'|
+    // 'sistema', texto } — só falta o `id`, que a UI não usa pra nada.
+    const [mensagensChat, setMensagensChat] = useState([]);
+    const chatHistoricoRef = useRef(null);
+    // Balõezinhos de fala ativos agora — um por mensagem enviada, cada um
+    // com o PRÓPRIO timer de sumir (ver mostrarBolhaFala), não uma fila:
+    // várias podem estar na tela ao mesmo tempo, uma por assento ou até
+    // empilhadas no mesmo (a de cima cobre a de baixo, sem tratamento
+    // especial — cenário raro no sandbox).
+    const [bolhasFala, setBolhasFala] = useState([]);
+    const proximoIdBolha = useRef(0);
+    // "Fantasma fala" (botão de debug, mesmo espírito de
+    // proximoFantasmaIndex/proximoDanoIndex): avança um assento (que não
+    // seja "Você") de cada vez, sentido normal, sorteando uma das 4
+    // mensagens prontas.
+    const [proximoFantasmaChatIndex, setProximoFantasmaChatIndex] = useState(0);
+
+    // Aposta (ver botão "Apostar" lá embaixo, popup + fichas no JSX).
+    // `apostaSuaVez` é o botão de debug simulando `turnoAposta` chegar pra
+    // você (ver PROTOCOLO.md) — sem ele o botão de apostar nem aparece.
+    const [apostaSuaVez, setApostaSuaVez] = useState(true);
+    const [apostaPopupAberto, setApostaPopupAberto] = useState(false);
+    // Valor sendo ajustado DENTRO do popup (campo + setinhas + pilha de
+    // fichas "flutuante") — só vira `apostaConfirmada` de verdade quando
+    // aperta o botão "Apostar" lá dentro (ver confirmarAposta).
+    const [apostaValorPopup, setApostaValorPopup] = useState(0);
+    // Valor já confirmado nesta "rodada" — null enquanto não apostou.
+    // Controla tanto o texto do botão quanto se a pilha do canto existe.
+    const [apostaConfirmada, setApostaConfirmada] = useState(null);
+    // Fichas em voo agora (uma por unidade da aposta confirmada, ver
+    // confirmarAposta) — cada uma some daqui e vira uma entrada em
+    // `fichasNoCanto` assim que FichaVoando chama aoChegarFicha (mesmo
+    // padrão de cartasVoando/cartasNaMesa: voando enquanto anima, estática
+    // depois de pousar, nunca as duas listas ao mesmo tempo pro mesmo id).
+    const [fichasVoando, setFichasVoando] = useState([]);
+    const [fichasNoCanto, setFichasNoCanto] = useState([]);
+    const proximoIdFicha = useRef(0);
+    // Ancorada onde a pilha "flutuante" aparece DENTRO do popup — é daqui
+    // que a gente lê a posição de origem (getBoundingClientRect) no
+    // instante de confirmar, antes do popup fechar e o ref sumir do DOM.
+    const popupFichasRef = useRef(null);
+    // Ancorada no canto de destino da pilha — existe na tela o tempo
+    // todo (mesmo com 0 fichas), só pra sempre ter uma posição de
+    // destino pronta pra ler.
+    const cantoFichasRef = useRef(null);
+    // Um <div> de assento por índice — callback ref (ver JSX), preenchido
+    // conforme cada assento monta. É daqui que fantasmaAposta lê a
+    // posição de VERDADE (getBoundingClientRect) do fantasminha que vai
+    // apostar, já que os assentos são posicionados em % (relativos à mesa
+    // oval), não em px de tela como o popup/canto da SUA aposta.
+    const assentoRefs = useRef([]);
+
+    // Aposta dos fantasminhas (não a sua) — valor por assento (índice bate
+    // com `assentos`), null enquanto não apostou. Diferente da sua: aqui
+    // não tem popup, o "arremesso" sai do PRÓPRIO fantasminha (local, uma
+    // saltada curta pro lado dele) — ver fantasmaAposta. As fichas ficam
+    // empilhadas na VERTICAL (não em leque) e sempre visíveis; só o texto
+    // "Aposta: N" é que só aparece com o mouse em cima do fantasminha (ver
+    // assentoEmHoverIndex mais abaixo).
+    const [apostaPorAssento, setApostaPorAssento] = useState(() => Array(quantidade).fill(null));
+    const [proximoApostaFantasmaIndex, setProximoApostaFantasmaIndex] = useState(0);
+    const [fichasFantasmaVoando, setFichasFantasmaVoando] = useState([]);
+    const [fichasFantasmaNoCanto, setFichasFantasmaNoCanto] = useState([]);
+    // Assento (índice) com o mouse em cima agora, ou null — reverso de
+    // cartaEmHoverId: aquele já destaca o ASSENTO de quem jogou a carta em
+    // hover; este destaca a CARTA de quem o assento em hover jogou, além
+    // do próprio fantasminha e da legenda da aposta dele (ver JSX).
+    const [assentoEmHoverIndex, setAssentoEmHoverIndex] = useState(null);
+
+    // De quem é a vez agora (índice em `assentos`, ou null = ninguém) —
+    // diferente de assentoEmHoverIndex: não depende do mouse, é um estado
+    // de verdade (no jogo real viria de `turnoJogador`/`turnoAposta`, ver
+    // PROTOCOLO.md). Só um por vez — avançarTurno troca, não acumula.
+    const [turnoAssentoIndex, setTurnoAssentoIndex] = useState(null);
+    const [proximoTurnoIndex, setProximoTurnoIndex] = useState(0);
+
     // Mudar a quantidade de jogadores muda os assentos (e o que cada
     // índice significa) — mão de todo mundo (incluindo a sua) e a mesa
     // zeram junto, senão sobrariam contagens/cartas penduradas em assentos
@@ -561,11 +1034,39 @@ export default function MesaExperimento({ onFechar }) {
         setProximoFantasmaIndex(0);
         setProximoDanoIndex(0);
         setDanoPorAssento(Array(quantidade).fill(0));
+        setBotPorAssento(Array(quantidade).fill(false));
+        setProximoBotIndex(0);
         setVira(null);
         setFaseVira(null);
         setBaralhoEmVira(false);
         setViraEmHover(false);
+        setBolhasFala([]);
+        setProximoFantasmaChatIndex(0);
+        setApostaPopupAberto(false);
+        setApostaConfirmada(null);
+        setFichasVoando([]);
+        setFichasNoCanto([]);
+        setApostaPorAssento(Array(quantidade).fill(null));
+        setProximoApostaFantasmaIndex(0);
+        setFichasFantasmaVoando([]);
+        setFichasFantasmaNoCanto([]);
+        setAssentoEmHoverIndex(null);
+        setTurnoAssentoIndex(null);
+        setProximoTurnoIndex(0);
+        setVazaRevelando(null);
+        setFaseRevelacaoVaza(null);
+        setCartasVazaGanhas([]);
+        setCartasExplodindo({});
     }, [quantidade]);
+
+    // Rola o histórico pro fim sempre que chega mensagem nova (mesma ideia
+    // do feedChatRef em Partida.jsx). Só existe enquanto o painel está
+    // montado (chatClicado), então a dependência do elemento em si já cobre
+    // "painel acabou de abrir com mensagens antigas" também.
+    useEffect(() => {
+        const el = chatHistoricoRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+    }, [mensagensChat, chatClicado]);
 
     function ajustarCartasTeste(novoValor) {
         const valor = Math.max(MIN_CARTAS_TESTE, Math.min(MAX_CARTAS_TESTE, novoValor));
@@ -828,6 +1329,352 @@ export default function MesaExperimento({ onFechar }) {
         setDanoPorAssento((atual) => atual.map((v, i) => (i === assento.indice ? v + 1 : v)));
     }
 
+    // Botão "Alternar bot" — mesmo ciclo de assentos, só que LIGA/DESLIGA
+    // (não incrementa) o `botPorAssento` daquele assento: dá pra ver os
+    // dois estados no mesmo jogador clicando de novo depois de dar a volta
+    // completa nos outros. No jogo de verdade quem alterna é o servidor
+    // (ver `desconectados`/jogadorDesistiu/jogadorReconectou em
+    // Partida.jsx) — aqui não tem conexão nenhuma pra detectar de verdade.
+    function alternarBotFantasma() {
+        const outros = assentos
+            .map((assento, indice) => ({ ...assento, indice }))
+            .filter((assento) => !assento.eVoce);
+        if (outros.length === 0) return;
+
+        const assento = outros[proximoBotIndex % outros.length];
+        setProximoBotIndex((v) => (v + 1) % outros.length);
+        setBotPorAssento((atual) => atual.map((v, i) => (i === assento.indice ? !v : v)));
+    }
+
+    // Balão de fala em cima de um assento (índice em `assentos`) — some
+    // sozinho depois de DURACAO_BOLHA_MS, com o PRÓPRIO id/timer (mesmo
+    // truque de cartasVoando/danoPorAssento: várias podem coexistir).
+    function mostrarBolhaFala(assentoIndex, texto) {
+        const id = ++proximoIdBolha.current;
+        setBolhasFala((atuais) => [...atuais, { id, assentoIndex, texto }]);
+        setTimeout(() => {
+            setBolhasFala((atuais) => atuais.filter((b) => b.id !== id));
+        }, DURACAO_BOLHA_MS);
+    }
+
+    // Registra uma linha no histórico (ver mensagensChat) — mesmo shape do
+    // chatMensagem de verdade, chamado tanto por mensagem de jogador
+    // (restrita/aberta) quanto por aviso de sistema (entrar/sair).
+    function registrarMensagem(jogador, tipo, texto) {
+        setMensagensChat((atual) => [...atual.slice(-99), { jogador, tipo, texto }]);
+    }
+
+    // Caminho único de envio (ver enviarChat/enviarChatPronta/
+    // enviarChatLivre no Partida.jsx de verdade) — aqui não tem servidor pra
+    // validar cooldown, então o botão só trava sozinho por
+    // CHAT_COOLDOWN_MS, puramente cosmético, igual lá.
+    function enviarMensagem(texto, tipo) {
+        if (chatEmCooldown || !texto.trim()) return;
+        mostrarBolhaFala(0, texto); // índice 0 = "Você", ver calcularAssentos
+        registrarMensagem('Você', tipo, texto);
+        setChatEmCooldown(true);
+        setTimeout(() => setChatEmCooldown(false), CHAT_COOLDOWN_MS);
+    }
+
+    function enviarMensagemPronta(id) {
+        const mensagem = MENSAGENS_CHAT.find((m) => m.id === id);
+        if (mensagem) enviarMensagem(mensagem.texto, 'restrita');
+    }
+
+    function enviarMensagemLivre(evento) {
+        evento.preventDefault();
+        const texto = textoChat.trim();
+        if (!texto) return;
+        enviarMensagem(texto, 'aberta');
+        setTextoChat('');
+    }
+
+    // Botão de debug "Fantasma fala" — mesmo ciclo de assentos que
+    // tacarCartaFantasma/infligirDanoFantasma, sorteando uma das 4
+    // mensagens prontas pra pré-visualizar o balão em quem não é "Você".
+    // Sem cooldown próprio (independente do seu, mesmo espírito dos outros
+    // botões de debug de fantasma).
+    function fantasmaFala() {
+        const outros = assentos
+            .map((assento, indice) => ({ ...assento, indice }))
+            .filter((assento) => !assento.eVoce);
+        if (outros.length === 0) return;
+
+        const assento = outros[proximoFantasmaChatIndex % outros.length];
+        setProximoFantasmaChatIndex((v) => (v + 1) % outros.length);
+        const mensagem = MENSAGENS_CHAT[Math.floor(Math.random() * MENSAGENS_CHAT.length)];
+        mostrarBolhaFala(assento.indice, mensagem.texto);
+        registrarMensagem(`Player ${assento.indice}`, 'restrita', mensagem.texto);
+    }
+
+    // +/- jogadores (botão de teste, ver .mesa-exp-controle no JSX) também
+    // loga entrar/sair no histórico — igual ao "Fulano entrou/saiu na sala"
+    // de sistema que o socketServer manda de verdade (ver avisoSistema em
+    // conexao/socketServer.js), só que aqui disparado pelo próprio teste de
+    // quantidade em vez de um jogador real conectando. O jogador novo/
+    // removido é sempre o de ÍNDICE MAIS ALTO (assento 0 é "Você", nunca
+    // muda) — `q`/`novo` já são os valores ANTES/DEPOIS do clique.
+    function aumentarJogadores() {
+        setQuantidade((q) => {
+            const novo = Math.min(MAX_JOGADORES, q + 1);
+            if (novo !== q) registrarMensagem(`Player ${q}`, 'sistema', 'entrou na sala');
+            return novo;
+        });
+    }
+
+    function diminuirJogadores() {
+        setQuantidade((q) => {
+            const novo = Math.max(MIN_JOGADORES, q - 1);
+            if (novo !== q) registrarMensagem(`Player ${novo}`, 'sistema', 'saiu da sala');
+            return novo;
+        });
+    }
+
+    // Abre o popup sempre zerado (0 fichas) — o Henrique digita/ajusta a
+    // partir daí, nunca reaproveita o valor de uma aposta anterior.
+    function abrirPopupAposta() {
+        setApostaValorPopup(0);
+        setApostaPopupAberto(true);
+    }
+
+    function ajustarApostaValorPopup(novoValor) {
+        setApostaValorPopup(Math.max(0, Math.min(APOSTA_VALOR_MAX, novoValor)));
+    }
+
+    // Lê a posição de origem (pilha flutuante do popup) e destino (canto)
+    // ANTES de fechar o popup — depois de setApostaPopupAberto(false) o
+    // popup some do DOM e popupFichasRef.current vira null. Uma ficha por
+    // unidade do valor confirmado, cada uma com atraso crescente (cascata,
+    // ver FICHA_ATRASO_ENTRE_MS) — todas nascem no MESMO ponto de origem
+    // (o centro da pilha do popup), é o próprio arremesso que espalha elas.
+    function confirmarAposta() {
+        const origemRect = popupFichasRef.current?.getBoundingClientRect();
+        const destinoRect = cantoFichasRef.current?.getBoundingClientRect();
+        if (!origemRect || !destinoRect) return;
+
+        const de = { x: origemRect.left + origemRect.width / 2, y: origemRect.top + origemRect.height / 2 };
+        const para = { x: destinoRect.left + destinoRect.width / 2, y: destinoRect.top + destinoRect.height / 2 };
+        const valor = apostaValorPopup;
+
+        // Leque horizontal centralizado no canto: índice do MEIO fica bem
+        // em cima do alvo, os outros se espalham pra esquerda/direita dele
+        // (não empilhados um em cima do outro) — mesma altura pra todos.
+        const meio = (valor - 1) / 2;
+
+        setApostaPopupAberto(false);
+        setApostaConfirmada(valor);
+        setFichasVoando(
+            Array.from({ length: valor }, (_, i) => ({
+                id: ++proximoIdFicha.current,
+                indice: i,
+                de,
+                para: { x: para.x + (i - meio) * FICHA_LEQUE_ESPACAMENTO_PX, y: para.y },
+                atrasoMs: i * FICHA_ATRASO_ENTRE_MS,
+            }))
+        );
+    }
+
+    // Mesmo padrão de aoChegarCarta: recebe o objeto INTEIRO (não só o id)
+    // direto do closure do .map() que renderizou esta ficha — evita
+    // precisar procurar ela de volta dentro do estado.
+    function aoChegarFicha(ficha) {
+        setFichasVoando((atuais) => atuais.filter((f) => f.id !== ficha.id));
+        setFichasNoCanto((atual) => [...atual, ficha]);
+    }
+
+    // Só um botão de debug (ver JSX) — limpa a pilha do canto e o valor
+    // confirmado pra poder repetir a demonstração sem precisar mudar a
+    // quantidade de jogadores (que reseta um monte de outra coisa junto).
+    function resetarAposta() {
+        setApostaPopupAberto(false);
+        setApostaConfirmada(null);
+        setFichasVoando([]);
+        setFichasNoCanto([]);
+        setApostaPorAssento(Array(quantidade).fill(null));
+        setFichasFantasmaVoando([]);
+        setFichasFantasmaNoCanto([]);
+    }
+
+    // Onde a PILHA de fichas de aposta de um assento fica (ou ficaria,
+    // mesmo sem ter apostado ainda) — usado tanto por fantasmaAposta
+    // (pra saber pra onde jogar a ficha) quanto por finalizarVaza (pra
+    // saber pra onde mandar a carta vencedora "se esconder embaixo de uma
+    // ficha", ver comentário lá). "Você" usa o mesmo canto fixo do seu
+    // leque (cantoFichasRef); os fantasminhas usam a borda do PRÓPRIO
+    // assento (ver assentoRefs) + o mesmo deslocamento de lado que
+    // fantasmaAposta já usava.
+    function calcularAncoraFichaAssento(assentoIndice) {
+        const assento = assentos[assentoIndice];
+        if (!assento) return null;
+        if (assento.eVoce) {
+            const rect = cantoFichasRef.current?.getBoundingClientRect();
+            return rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null;
+        }
+        const el = assentoRefs.current[assentoIndice];
+        if (!el) return null;
+        const rect = el.getBoundingClientRect();
+        const lado = assento.x < 50 ? -1 : 1;
+        return {
+            x: (lado === -1 ? rect.left : rect.right) - lado * FICHA_FANTASMA_OFFSET_LADO_PX,
+            y: rect.top + rect.height / 2,
+        };
+    }
+
+    // Botão de debug "Fantasma aposta" — mesmo ciclo de assentos que os
+    // outros botões de fantasma, só que aqui o "arremesso" nasce e pousa
+    // PERTO do próprio assento (sem popup: quem tem popup é só a SUA
+    // aposta, ver confirmarAposta). Lê a posição de verdade do assento em
+    // tela via assentoRefs — os assentos são posicionados em % (relativos
+    // à mesa), não dá pra calcular em px sem o DOM de verdade.
+    function fantasmaAposta() {
+        const outros = assentos
+            .map((assento, indice) => ({ ...assento, indice }))
+            .filter((assento) => !assento.eVoce);
+        if (outros.length === 0) return;
+
+        const assento = outros[proximoApostaFantasmaIndex % outros.length];
+        setProximoApostaFantasmaIndex((v) => (v + 1) % outros.length);
+
+        const el = assentoRefs.current[assento.indice];
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const de = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        const ancora = calcularAncoraFichaAssento(assento.indice);
+        if (!ancora) return;
+        const baseX = ancora.x;
+        const baseY = ancora.y;
+
+        // Entre 1 e APOSTA_VALOR_MAX de propósito (não inclui 0) — um
+        // fantasma apostando 0 não voa ficha nenhuma, não dá pra ver o
+        // efeito. No jogo de verdade 0 é uma aposta válida igual.
+        const valor = 1 + Math.floor(Math.random() * APOSTA_VALOR_MAX);
+        // Mesma cor do CORPO deste fantasminha (ver huesPorAssento) — é o
+        // que faz a ficha "combinar com quem apostou".
+        const hue = huesPorAssento[assento.indice];
+        setApostaPorAssento((atual) => atual.map((v, i) => (i === assento.indice ? valor : v)));
+        setFichasFantasmaVoando((atuais) => [
+            ...atuais,
+            ...Array.from({ length: valor }, (_, i) => ({
+                id: ++proximoIdFicha.current,
+                de,
+                // Empilha pra CIMA (índice maior = mais alto), ver
+                // FICHA_EMPILHA_FANTASMA_PX.
+                para: { x: baseX, y: baseY - i * FICHA_EMPILHA_FANTASMA_PX },
+                atrasoMs: i * FICHA_ATRASO_ENTRE_MS,
+                hue,
+            })),
+        ]);
+    }
+
+    function aoChegarFichaFantasma(ficha) {
+        setFichasFantasmaVoando((atuais) => atuais.filter((f) => f.id !== ficha.id));
+        setFichasFantasmaNoCanto((atual) => [...atual, ficha]);
+    }
+
+    // Botão de debug "Avançar vez" — mesmo ciclo de assentos que os outros
+    // botões de fantasma, só que TROCA a vez em vez de acumular (só um
+    // fantasminha por vez tem o contorno azul/legenda "Vez de", nunca
+    // mais de um ao mesmo tempo — mesmo espírito de turnoJogador no jogo
+    // de verdade, ver PROTOCOLO.md).
+    function avancarTurno() {
+        const outros = assentos
+            .map((assento, indice) => ({ ...assento, indice }))
+            .filter((assento) => !assento.eVoce);
+        if (outros.length === 0) return;
+
+        const assento = outros[proximoTurnoIndex % outros.length];
+        setProximoTurnoIndex((v) => (v + 1) % outros.length);
+        setTurnoAssentoIndex(assento.indice);
+    }
+
+    // Botão de debug "Finalizar vaza" — no jogo de verdade quem manda essa
+    // notícia é o servidor (`vazaFinalizada`, já sabendo quem ganhou); aqui
+    // só lê a MESMA carta que analiseMesa já aponta como mais forte agora
+    // (idVencedora) e dispara a revelação. Se a vaza inteira melou (sem
+    // vencedora) ou a mesa tá vazia, não tem o que revelar.
+    async function finalizarVaza() {
+        if (vazaRevelando) return;
+        const vencedora = cartasNaMesa.find((c) => c.id === analiseMesa.idVencedora);
+        if (!vencedora) return;
+
+        const el = cartaMesaRefs.current[vencedora.id];
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+
+        const assentoIndice = vencedora.jogador === 'Você' ? 0 : Number(vencedora.jogador.replace('Player ', ''));
+        const destino = calcularAncoraFichaAssento(assentoIndice);
+        if (!destino) return;
+
+        const origem = {
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2,
+            rot: vencedora.rot,
+            escala: vencedora.escala,
+        };
+
+        setVazaRevelando({ cartaId: vencedora.id, jogador: vencedora.jogador, assentoIndice, rank: vencedora.rank, naipe: vencedora.naipe, origem, destino });
+        // Tira a vencedora da mesa NORMAL já de cara — a partir daqui quem
+        // representa ela na tela é o CartaRevelando (por cima do
+        // overlay); se ela continuasse em cartasNaMesa, o escurecido some
+        // no 'impacto' e ela apareceria DUPLICADA (a pequena original +ainda
+        // no lugar antigo, mais a grande viajando).
+        setCartasNaMesa((atual) => atual.filter((c) => c.id !== vencedora.id));
+        setFaseRevelacaoVaza('crescendo');
+
+        await esperar(VAZA_REVELACAO_TRANSICAO_MS);
+        await esperar(VAZA_REVELACAO_PAUSA_MS);
+
+        // Impacto: onda de choque + tremor de tela + overlay desescurece
+        // (a legenda já some sozinha, ver JSX — só existe na fase
+        // 'crescendo') + as PERDEDORAS que sobraram na mesa explodem pra
+        // fora (ver cartasExplodindo).
+        setFaseRevelacaoVaza('impacto');
+        setChoqueVaza((v) => v + 1);
+        setCartasExplodindo(() => {
+            const explosoes = {};
+            for (const carta of cartasNaMesa) {
+                // Direção radial AFASTANDO do centro da mesa (50,50) — não
+                // uma direção aleatória solta, "explode pra fora" de
+                // verdade a partir de onde cada uma já estava.
+                const dx = carta.x - 50;
+                const dy = carta.y - 50;
+                const distancia = Math.hypot(dx, dy) || 1;
+                const angulo = Math.atan2(dy, dx);
+                const novaDistancia = distancia * VAZA_EXPLOSAO_FATOR;
+                const voltas = VAZA_EXPLOSAO_VOLTAS_MIN + Math.random() * (VAZA_EXPLOSAO_VOLTAS_MAX - VAZA_EXPLOSAO_VOLTAS_MIN);
+                const sentido = Math.random() < 0.5 ? 1 : -1;
+                explosoes[carta.id] = {
+                    x: 50 + Math.cos(angulo) * novaDistancia,
+                    y: 50 + Math.sin(angulo) * novaDistancia,
+                    rot: carta.rot + voltas * 360 * sentido,
+                    escala: carta.escala * VAZA_EXPLOSAO_ESCALA_MULT,
+                };
+            }
+            return explosoes;
+        });
+
+        await esperar(VAZA_IMPACTO_DURACAO_MS + VAZA_IMPACTO_PAUSA_MS);
+
+        // As perdedoras já voaram pra fora — some com elas de vez, e a
+        // vencedora parte em viagem pro colo de quem ganhou.
+        setCartasNaMesa([]);
+        setCartasExplodindo({});
+        setCartaEmHoverId(null);
+        setFaseRevelacaoVaza('viajando');
+
+        await esperar(VAZA_VIAGEM_DURACAO_MS);
+
+        // Pousou: vira uma carta ESTÁTICA de vez (ver cartasVazaGanhas),
+        // no MESMO ponto exato que CartaRevelando parou — desmontar o
+        // CartaRevelando agora e nascer a estática ali não pula nada.
+        setCartasVazaGanhas((atual) => [
+            ...atual,
+            { id: vencedora.id, assentoIndice, rank: vencedora.rank, naipe: vencedora.naipe, x: destino.x, y: destino.y },
+        ]);
+        setVazaRevelando(null);
+        setFaseRevelacaoVaza(null);
+    }
+
     async function distribuirCartas() {
         if (distribuindo) return;
         setDistribuindo(true);
@@ -900,7 +1747,64 @@ export default function MesaExperimento({ onFechar }) {
     }
 
     return (
-        <div className="mesa-exp-tela">
+        <div className={`mesa-exp-tela${faseRevelacaoVaza === 'impacto' ? ' mesa-exp-tela-tremendo' : ''}`}>
+            {/* Cabeçalho da sala (item 1 do checklist) — título + botão de
+                sair, mesmo par que abria o Partida.jsx de verdade, só que
+                aqui cada um flutuando no próprio canto (sem barra de fundo
+                ligando os dois). A senha só aparece antes de iniciar, igual
+                lá. */}
+            <h1 className="mesa-exp-cabecalho-titulo">Sala {SALA_ID_TESTE}</h1>
+            <div className="mesa-exp-cabecalho-direita">
+                {!iniciada && (
+                    <span className="mesa-exp-cabecalho-senha">🔒 Senha: <strong>{SENHA_TESTE}</strong></span>
+                )}
+                <button type="button" className="secundario">
+                    {iniciada ? 'Sair da partida' : 'Sair da sala'}
+                </button>
+            </div>
+
+            {/* Só pra pré-visualizar o cabeçalho nos dois estados (antes/
+                depois de iniciar) — não existe no jogo de verdade, lá quem
+                decide é o servidor (ver `iniciada` em Partida.jsx). */}
+            <button
+                type="button"
+                className="mesa-exp-alternar-iniciada"
+                onClick={() => setIniciada((v) => !v)}
+            >
+                🔀 {iniciada ? 'Ver: antes de iniciar' : 'Ver: em partida'}
+            </button>
+
+            {/* Idem, pro chat: `chatAberto` é config da SALA (dono decide ao
+                criar, ver conexao/PROTOCOLO.md) — sem servidor aqui, só um
+                botão de debug pra pré-visualizar os dois casos. Restrito
+                continua funcionando sempre (as 4 mensagens prontas), só o
+                campo livre some. */}
+            <button
+                type="button"
+                className="mesa-exp-alternar-chat-aberto"
+                onClick={() => setChatAberto((v) => !v)}
+            >
+                🔀 Chat: {chatAberto ? 'aberto' : 'restrito'}
+            </button>
+
+            {/* Simula `turnoAposta` chegar pra você (ver PROTOCOLO.md) —
+                sem isto o botão "Apostar" lá embaixo nem aparece. */}
+            <button
+                type="button"
+                className="mesa-exp-alternar-aposta-vez"
+                onClick={() => setApostaSuaVez((v) => !v)}
+            >
+                🔀 Aposta: {apostaSuaVez ? 'sua vez' : 'não é sua vez'}
+            </button>
+
+            <button
+                type="button"
+                className="mesa-exp-resetar-aposta"
+                onClick={resetarAposta}
+            >
+                🔄 Resetar aposta
+            </button>
+
             {onFechar && (
                 <button type="button" className="mesa-exp-fechar" onClick={onFechar}>← Voltar</button>
             )}
@@ -920,6 +1824,59 @@ export default function MesaExperimento({ onFechar }) {
                 onClick={infligirDanoFantasma}
             >
                 💥 Fantasma leva dano
+            </button>
+
+            <button
+                type="button"
+                className="mesa-exp-fantasma-fala"
+                onClick={fantasmaFala}
+            >
+                💬 Fantasma fala
+            </button>
+
+            <button
+                type="button"
+                className="mesa-exp-fantasma-bot"
+                onClick={alternarBotFantasma}
+            >
+                🤖 Alternar bot
+            </button>
+
+            <button
+                type="button"
+                className="mesa-exp-fantasma-aposta"
+                onClick={fantasmaAposta}
+            >
+                🪙 Fantasma aposta
+            </button>
+
+            <button
+                type="button"
+                className="mesa-exp-avancar-turno"
+                onClick={avancarTurno}
+            >
+                ▶️ Avançar vez
+            </button>
+
+            <button
+                type="button"
+                className="mesa-exp-finalizar-vaza"
+                onClick={finalizarVaza}
+                disabled={!!vazaRevelando || distribuindo}
+            >
+                🏆 Finalizar vaza
+            </button>
+
+            {/* Liga/desliga só o monitor de peito, sem mexer no resto do
+                visual de bot (engrenagens, olhos/boca quadrados) — pra
+                comparar se ele é estímulo demais pra estética mais simples
+                que a mesa tá seguindo. */}
+            <button
+                type="button"
+                className="mesa-exp-alternar-monitor-bot"
+                onClick={() => setMonitorBotAtivo((v) => !v)}
+            >
+                🔀 Monitor: {monitorBotAtivo ? 'ligado' : 'desligado'}
             </button>
 
             <button
@@ -973,14 +1930,14 @@ export default function MesaExperimento({ onFechar }) {
                 <div className="botoes">
                     <button
                         type="button"
-                        onClick={() => setQuantidade((q) => Math.max(MIN_JOGADORES, q - 1))}
+                        onClick={diminuirJogadores}
                         disabled={quantidade <= MIN_JOGADORES || distribuindo}
                     >
                         −
                     </button>
                     <button
                         type="button"
-                        onClick={() => setQuantidade((q) => Math.min(MAX_JOGADORES, q + 1))}
+                        onClick={aumentarJogadores}
                         disabled={quantidade >= MAX_JOGADORES || distribuindo}
                     >
                         +
@@ -1019,21 +1976,68 @@ export default function MesaExperimento({ onFechar }) {
                     // tacarCartaFantasma — é a chave que liga "esta carta
                     // na mesa" a "este assento" pro contorno amarelo.
                     const rotuloAssento = assento.eVoce ? 'Você' : `Player ${i}`;
-                    const destacado = cartaEmHover?.jogador === rotuloAssento;
+                    // Destaca em DOIS casos agora, não só um: hover na
+                    // carta que este assento jogou (já existia) OU hover
+                    // no PRÓPRIO fantasminha (assentoEmHoverIndex — novo,
+                    // ver onMouseEnter/Leave abaixo). Os dois acendem o
+                    // MESMO contorno amarelo.
+                    const destacado = cartaEmHover?.jogador === rotuloAssento || assentoEmHoverIndex === i;
+                    // Balão de fala deste assento (ver mostrarBolhaFala) — no
+                    // máximo um renderizado por vez aqui (se chegar mais de
+                    // um pro mesmo assento antes do primeiro sumir, mostra
+                    // só o mais recente; os outros ainda existem em
+                    // `bolhasFala` e ainda vão sumir sozinhos no tempo deles).
+                    const bolha = [...bolhasFala].reverse().find((b) => b.assentoIndex === i);
+                    const ehBot = botPorAssento[i] ?? false;
+                    const apostaDele = apostaPorAssento[i] ?? null;
+                    const naVez = turnoAssentoIndex === i;
                     return (
                         <div
                             key={i}
+                            ref={(el) => { assentoRefs.current[i] = el; }}
                             className={`mesa-exp-assento${assento.eVoce ? ' mesa-exp-assento-voce' : ''}`}
                             style={{ left: `${assento.x}%`, top: `${assento.y}%` }}
+                            onMouseEnter={() => !assento.eVoce && setAssentoEmHoverIndex(i)}
+                            onMouseLeave={() => !assento.eVoce && setAssentoEmHoverIndex(null)}
                         >
+                            {bolha && (
+                                <div
+                                    key={bolha.id}
+                                    className="mesa-exp-bolha-fala"
+                                    style={{ '--duracao-bolha': `${DURACAO_BOLHA_MS}ms` }}
+                                >
+                                    {bolha.texto}
+                                </div>
+                            )}
                             {assento.eVoce ? (
                                 'Você'
                             ) : (
                                 <>
-                                    <Fantasminha versaoChapeu={versaoChapeu} destacado={destacado} danoVersao={danoPorAssento[i] ?? 0}>
+                                    <Fantasminha versaoChapeu={versaoChapeu} destacado={destacado} danoVersao={danoPorAssento[i] ?? 0} bot={ehBot} monitor={monitorBotAtivo} hue={huesPorAssento[i]} naVez={naVez}>
                                         <MaoEmLeque quantidade={maos[i] ?? 0} />
                                     </Fantasminha>
-                                    <span className="mesa-exp-assento-legenda">{rotuloAssento}</span>
+                                    <span className="mesa-exp-assento-legenda">
+                                        {rotuloAssento}
+                                        {ehBot && <span className="mesa-exp-assento-bot-tag"> 🤖 bot</span>}
+                                    </span>
+                                    {/* Mesmo lugar da legenda de aposta
+                                        (centralizada no retângulo, ver
+                                        .mesa-exp-assento-aposta-legenda) —
+                                        só que "Vez de" NÃO depende do
+                                        mouse (ver `naVez`, turnoAssentoIndex
+                                        lá em cima), e tem prioridade: com a
+                                        vez ativa, não mostra "Aposta: N"
+                                        no mesmo lugar mesmo em hover — só
+                                        um texto de cada vez ali. */}
+                                    {naVez ? (
+                                        <span className="mesa-exp-assento-aposta-legenda mesa-exp-assento-turno-legenda">
+                                            Vez de {rotuloAssento}
+                                        </span>
+                                    ) : assentoEmHoverIndex === i && apostaDele != null && (
+                                        <span className="mesa-exp-assento-aposta-legenda">
+                                            Aposta: {apostaDele}
+                                        </span>
+                                    )}
                                 </>
                             )}
                         </div>
@@ -1135,9 +2139,11 @@ export default function MesaExperimento({ onFechar }) {
                     exibição). Hover liga o contorno amarelo (ver .carta-exp
                     dentro de mesa-exp-carta-jogada-hover) e alimenta
                     cartaEmHoverId lá em cima, que é o que também destaca o
-                    assento de quem jogou. Verde (vencendo) e preto+canto
-                    (melada) vêm de analiseMesa, recalculado a cada carta
-                    nova — ver useMemo lá em cima. */}
+                    assento de quem jogou — e agora o CAMINHO INVERSO
+                    também: hover no assento (assentoEmHoverIndex) destaca
+                    a carta DELE aqui (jogadorHover abaixo). Verde
+                    (vencendo) e preto+canto (melada) vêm de analiseMesa,
+                    recalculado a cada carta nova — ver useMemo lá em cima. */}
                 {cartasNaMesa.map((carta) => {
                     const vencendo = carta.id === analiseMesa.idVencedora;
                     const melada = analiseMesa.idsMeladas.has(carta.id);
@@ -1147,22 +2153,37 @@ export default function MesaExperimento({ onFechar }) {
                     const { grupo: grupoMelada, indice: indiceMelada } = melada
                         ? localizarGrupoMelada(carta.id)
                         : { grupo: 0, indice: 0 };
+                    const jogadorHover = assentoEmHoverIndex != null
+                        ? (assentos[assentoEmHoverIndex]?.eVoce ? 'Você' : `Player ${assentoEmHoverIndex}`)
+                        : null;
+                    // Explodindo (ver cartasExplodindo/finalizarVaza) tem
+                    // prioridade sobre TUDO — inclusive melada: senão a
+                    // carta melada nem se mexeria (o estilo dela ignora
+                    // x/y e sempre volta pro canto fixo).
+                    const explosao = cartasExplodindo[carta.id];
                     const classes = ['mesa-exp-carta-jogada'];
-                    if (carta.id === cartaEmHoverId) classes.push('mesa-exp-carta-jogada-hover');
+                    if (carta.id === cartaEmHoverId || carta.jogador === jogadorHover) classes.push('mesa-exp-carta-jogada-hover');
                     if (vencendo) classes.push('mesa-exp-carta-jogada-vencendo');
                     if (melada) classes.push('mesa-exp-carta-jogada-melada');
+                    if (explosao) classes.push('mesa-exp-carta-jogada-explodindo');
                     return (
                         <div
                             key={carta.id}
+                            ref={(el) => { cartaMesaRefs.current[carta.id] = el; }}
                             className={classes.join(' ')}
-                            style={melada ? {
+                            style={explosao ? {
+                                left: `${explosao.x}%`,
+                                top: `${explosao.y}%`,
+                                transform: `translate(-50%, -50%) rotate(${explosao.rot}deg) scale(${explosao.escala})`,
+                            } : melada ? {
                                 left: `${MELADA_CANTO_X}%`,
                                 top: `${MELADA_CANTO_Y}%`,
-                                // X soma os dois deslocamentos (entre grupos
-                                // + dentro do grupo); Y só o de dentro do
+                                // X soma os deslocamentos (entre grupos +
+                                // dentro do grupo + o extra só do primeiro
+                                // grupo, pra esquerda); Y só o de dentro do
                                 // grupo — é o que separa "pro lado", não
                                 // "mais pra baixo", um rank melado do outro.
-                                transform: `translate(calc(-50% + ${grupoMelada * MELADA_GRUPO_ESPACAMENTO_PX + indiceMelada * MELADA_CANTO_ESPACAMENTO_PX}px), calc(-50% + ${indiceMelada * MELADA_CANTO_ESPACAMENTO_PX}px)) rotate(${carta.rot}deg) scale(${carta.escala})`,
+                                transform: `translate(calc(-50% + ${grupoMelada * MELADA_GRUPO_ESPACAMENTO_PX + indiceMelada * MELADA_CANTO_ESPACAMENTO_PX - (grupoMelada === 0 ? MELADA_PRIMEIRO_GRUPO_EXTRA_PX : 0)}px), calc(-50% + ${indiceMelada * MELADA_CANTO_ESPACAMENTO_PX}px)) rotate(${carta.rot}deg) scale(${carta.escala})`,
                             } : {
                                 left: `${carta.x}%`,
                                 top: `${carta.y}%`,
@@ -1228,6 +2249,293 @@ export default function MesaExperimento({ onFechar }) {
                 (ver .mesa-exp-sua-mao), não na mesa — é a sua mão, sobe de
                 fora da tela, não voa a partir do baralho. */}
             <SuaMaoEmLeque cartas={suaMao} idSaindo={cartaSaindoId} onJogar={jogarCarta} />
+
+            {/* Chat: botão circular no canto inferior esquerdo — painel
+                (mensagens prontas + campo livre, se a sala permitir) E
+                histórico (módulo à direita dele, com avisos de
+                entrar/sair) só aparecem com o botão CLICADO, fecham de novo
+                clicando outra vez. Enviar (pronta ou livre) sempre mostra o
+                balão em cima do SEU assento (índice 0) e entra no
+                histórico, sem fechar nada sozinho. */}
+            <div className="mesa-exp-chat">
+                <button
+                    type="button"
+                    className="mesa-exp-chat-botao"
+                    onClick={() => setChatClicado((v) => !v)}
+                    aria-expanded={chatClicado}
+                >
+                    💬
+                </button>
+                {chatClicado && (
+                    <div className="mesa-exp-chat-linha">
+                        <div className="mesa-exp-chat-painel">
+                            <div className="mesa-exp-chat-prontas">
+                                {MENSAGENS_CHAT.map((mensagem) => (
+                                    <button
+                                        key={mensagem.id}
+                                        type="button"
+                                        className="secundario"
+                                        disabled={chatEmCooldown}
+                                        onClick={() => enviarMensagemPronta(mensagem.id)}
+                                    >
+                                        {mensagem.texto}
+                                    </button>
+                                ))}
+                            </div>
+                            {chatAberto && (
+                                <form className="mesa-exp-chat-form" onSubmit={enviarMensagemLivre}>
+                                    <input
+                                        type="text"
+                                        maxLength={200}
+                                        placeholder="Mensagem..."
+                                        value={textoChat}
+                                        onChange={(e) => setTextoChat(e.target.value)}
+                                        disabled={chatEmCooldown}
+                                    />
+                                    <button type="submit" disabled={chatEmCooldown || !textoChat.trim()}>
+                                        Enviar
+                                    </button>
+                                </form>
+                            )}
+                            {chatEmCooldown && <span className="mesa-exp-chat-cooldown">aguarde pra enviar de novo</span>}
+                        </div>
+
+                        <div className="mesa-exp-chat-historico">
+                            <h3>Histórico</h3>
+                            <div className="mesa-exp-chat-historico-feed" ref={chatHistoricoRef}>
+                                {mensagensChat.length === 0
+                                    ? <span className="mesa-exp-chat-vazio">(sem mensagens)</span>
+                                    : mensagensChat.map((mensagem, i) => (
+                                        mensagem.tipo === 'sistema'
+                                            ? (
+                                                <div key={i} className="mesa-exp-chat-msg mesa-exp-chat-msg-sistema">
+                                                    <em>{mensagem.jogador} {mensagem.texto}</em>
+                                                </div>
+                                            )
+                                            : (
+                                                <div key={i} className="mesa-exp-chat-msg">
+                                                    <strong>{mensagem.jogador}:</strong> {mensagem.texto}
+                                                </div>
+                                            )
+                                    ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Aposta: botão lá embaixo só existe na sua vez (ver
+                apostaSuaVez) e enquanto ainda não confirmou nesta
+                "rodada" (apostaConfirmada null) — clicar abre o popup;
+                confirmar dentro dele fecha o popup e manda as fichas
+                voando pro canto (ver confirmarAposta/FichaVoando). Não
+                volta a aparecer sozinho depois de confirmar; só o botão
+                de debug "🔄 Resetar aposta" libera de novo. */}
+            {apostaSuaVez && apostaConfirmada === null && !apostaPopupAberto && (
+                <button type="button" className="mesa-exp-aposta-botao" onClick={abrirPopupAposta}>
+                    Apostar
+                </button>
+            )}
+
+            {apostaPopupAberto && (
+                <div className="mesa-exp-aposta-overlay" onClick={() => setApostaPopupAberto(false)}>
+                    {/* stopPropagation: clicar DENTRO do popup não pode
+                        fechar (só clicar no fundo escurecido, fora dele). */}
+                    <div className="mesa-exp-aposta-popup" onClick={(e) => e.stopPropagation()}>
+                        <h3>Quantas vazas você vai fazer?</h3>
+
+                        {/* Pilha "flutuante" — cresce/encolhe junto com o
+                            campo abaixo, ANTES de confirmar. popupFichasRef
+                            é a origem que confirmarAposta lê pra saber de
+                            onde as fichas de verdade vão sair voando. */}
+                        <div className="mesa-exp-aposta-pilha" ref={popupFichasRef}>
+                            {apostaValorPopup === 0
+                                ? <span className="mesa-exp-aposta-pilha-vazia">nenhuma ficha ainda</span>
+                                : Array.from({ length: apostaValorPopup }, (_, i) => (
+                                    <div
+                                        key={i}
+                                        className="mesa-exp-aposta-ficha-pilha"
+                                        style={{ '--indice-pilha': i }}
+                                    >
+                                        <Ficha />
+                                    </div>
+                                ))}
+                        </div>
+
+                        <div className="mesa-exp-aposta-campo">
+                            <button
+                                type="button"
+                                onClick={() => ajustarApostaValorPopup(apostaValorPopup - 1)}
+                                disabled={apostaValorPopup <= 0}
+                            >
+                                −
+                            </button>
+                            <input
+                                type="number"
+                                min={0}
+                                max={APOSTA_VALOR_MAX}
+                                value={apostaValorPopup}
+                                onChange={(e) => ajustarApostaValorPopup(Number(e.target.value))}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => ajustarApostaValorPopup(apostaValorPopup + 1)}
+                                disabled={apostaValorPopup >= APOSTA_VALOR_MAX}
+                            >
+                                +
+                            </button>
+                        </div>
+
+                        <button type="button" className="mesa-exp-aposta-confirmar" onClick={confirmarAposta}>
+                            Apostar
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Camada de tela inteira só pras fichas EM VOO (ver
+                FichaVoando) — pointer-events:none, mesmo espírito do
+                #ficha-perspectiva do experimento arquivado (public/_intro):
+                não pode atrapalhar clique em nada por baixo. As duas
+                origens (sua aposta E aposta de fantasminha) dividem a
+                MESMA camada — só o de/para/onChegou mudam. */}
+            <div className="mesa-exp-ficha-camada">
+                {fichasVoando.map((ficha) => (
+                    <FichaVoando
+                        key={ficha.id}
+                        de={ficha.de}
+                        para={ficha.para}
+                        atrasoMs={ficha.atrasoMs}
+                        onChegou={() => aoChegarFicha(ficha)}
+                    />
+                ))}
+                {fichasFantasmaVoando.map((ficha) => (
+                    <FichaVoando
+                        key={ficha.id}
+                        de={ficha.de}
+                        para={ficha.para}
+                        atrasoMs={ficha.atrasoMs}
+                        onChegou={() => aoChegarFichaFantasma(ficha)}
+                        hue={ficha.hue}
+                    />
+                ))}
+            </div>
+
+            {/* Fichas apostadas pelos FANTASMINHAS, já pousadas — SEMPRE
+                visíveis (não é hover-only, diferente da legenda de texto
+                com o valor, que fica dentro do próprio assento, ver JSX
+                acima). left/top vêm da mesma `para` (px) que a
+                FichaVoando terminou, mesmo truque da sua aposta: sem
+                pulo nenhum trocando de voando pra estática. */}
+            {fichasFantasmaNoCanto.map((ficha) => (
+                <div
+                    key={ficha.id}
+                    className="mesa-exp-aposta-ficha-canto"
+                    style={{ left: `${ficha.para.x}px`, top: `${ficha.para.y}px` }}
+                >
+                    <Ficha hue={ficha.hue} />
+                </div>
+            ))}
+
+            {/* Canto onde a SUA aposta confirmada fica empilhada pro resto
+                da "rodada" — sempre no DOM (mesmo com 0 fichas): é o alvo
+                que confirmarAposta lê (getBoundingClientRect) pra saber
+                pra onde mandar as fichas. Cada ficha pousada guarda a
+                própria `para` (px exatos de onde FichaVoando parou) —
+                reusa o MESMO ponto pra não sobrar nenhum pulo trocando de
+                voando pra estática. */}
+            <div className="mesa-exp-aposta-canto" ref={cantoFichasRef}>
+                {fichasNoCanto.map((ficha) => (
+                    <div
+                        key={ficha.id}
+                        className="mesa-exp-aposta-ficha-canto"
+                        style={{ left: `${ficha.para.x}px`, top: `${ficha.para.y}px` }}
+                    >
+                        <Ficha />
+                    </div>
+                ))}
+                {apostaConfirmada != null && (() => {
+                    // Acompanha o LEQUE: quanto mais fichas, mais elas se
+                    // espalham pros dois lados (ver `meio`/FICHA_LEQUE_
+                    // ESPACAMENTO_PX em confirmarAposta) — sem isso a
+                    // legenda ficava numa distância FIXA do centro e a
+                    // última ficha (com aposta alta) cobria o texto.
+                    // Math.max(0, ...): aposta 0 ou 1 não tem leque nenhum
+                    // pra desviar, a legenda cola perto do centro mesmo.
+                    const raioLeque = Math.max(0, (apostaConfirmada - 1) / 2) * FICHA_LEQUE_ESPACAMENTO_PX;
+                    const metadeFicha = (FICHA_TAMANHO_PX * ESCALA_FICHA_CANTO) / 2;
+                    return (
+                        <span
+                            className="mesa-exp-aposta-canto-legenda"
+                            style={{ marginLeft: `${raioLeque + metadeFicha + 14}px` }}
+                        >
+                            Sua aposta: {apostaConfirmada}
+                        </span>
+                    );
+                })()}
+            </div>
+
+            {/* Cartas que já venceram uma vaza, "no colo" de quem ganhou
+                (ver cartasVazaGanhas/finalizarVaza) — ATRÁS da pilha de
+                fichas de aposta dele (z-index menor que o das fichas, ver
+                CSS), só as pontas/bordas espiando. Permanente: fica ali
+                pro resto da partida, não é hover nem anima mais (já
+                chegou). */}
+            {cartasVazaGanhas.map((carta) => (
+                <div
+                    key={carta.id}
+                    className="mesa-exp-carta-vaza-ganha"
+                    style={{ left: `${carta.x}px`, top: `${carta.y}px` }}
+                >
+                    <Carta rank={carta.rank} naipe={carta.naipe} />
+                </div>
+            ))}
+
+            {/* Revelação de fim de vaza (ver finalizarVaza/vazaRevelando/
+                faseRevelacaoVaza) — escurece a TELA INTEIRA na fase
+                'crescendo' (não só a mesa), desescurece sozinho a partir
+                do 'impacto'. A carta vencedora (CartaRevelando) nasce
+                EXATAMENTE onde ela estava na mesa (origem: px capturados
+                no clique), cresce pro centro por cima do escurecido
+                (z-index maior, "atravessa" o escuro), "bate" (cai um
+                pouco + encolhe rápido) e por fim viaja até o colo de quem
+                ganhou — a carta pequena original já saiu de cartasNaMesa
+                assim que a revelação começa (ver finalizarVaza), não tem
+                risco de aparecer duplicada quando o escurecido sumir. */}
+            {vazaRevelando && (
+                <div className={`mesa-exp-vaza-overlay${faseRevelacaoVaza === 'crescendo' ? ' mesa-exp-vaza-overlay-escuro' : ''}`} />
+            )}
+            {vazaRevelando && faseRevelacaoVaza === 'crescendo' && (
+                <div className="mesa-exp-vaza-texto">
+                    <strong>Fim de Vaza: {vazaRevelando.jogador}</strong>
+                    <span>{vazaRevelando.rank} de {vazaRevelando.naipe}</span>
+                </div>
+            )}
+            {/* Onda de choque no instante do impacto — key={choqueVaza}
+                força remontar (e reiniciar a animação do zero) mesmo se
+                clicasse "Finalizar vaza" de novo rapidinho depois. Fica
+                montada da fase 'impacto' em diante (a keyframe já "segura"
+                o estado final sozinha via forwards, não precisa desmontar
+                na hora certa). */}
+            {vazaRevelando && faseRevelacaoVaza && faseRevelacaoVaza !== 'crescendo' && (
+                <div
+                    key={choqueVaza}
+                    className="mesa-exp-vaza-onda-choque"
+                    style={{
+                        left: `${window.innerWidth * VAZA_REVELACAO_X_FRACAO}px`,
+                        top: `${window.innerHeight * VAZA_REVELACAO_Y_FRACAO + VAZA_IMPACTO_QUEDA_PX}px`,
+                    }}
+                />
+            )}
+            {vazaRevelando && faseRevelacaoVaza && (
+                <CartaRevelando
+                    key={vazaRevelando.cartaId}
+                    origem={vazaRevelando.origem}
+                    destino={vazaRevelando.destino}
+                    fase={faseRevelacaoVaza}
+                    carta={{ rank: vazaRevelando.rank, naipe: vazaRevelando.naipe }}
+                />
+            )}
         </div>
     );
 }

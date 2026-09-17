@@ -453,30 +453,130 @@ button.secundario {
     justify-content: center;
 }
 
-.mesa-exp-fechar {
+/* Cabeçalho da sala (item 1 do checklist em MesaExperimento.jsx) — título e
+   botão de sair flutuando cada um no próprio canto (sem barra de fundo
+   ligando os dois), ACIMA dos botões de debug (que começam 56px mais abaixo
+   pra abrir espaço). z-index maior que os 40 dos botões de debug. */
+.mesa-exp-cabecalho-titulo {
+    position: fixed;
+    top: 12px;
+    left: 16px;
+    z-index: 41;
+    font-size: 20px;
+    color: #f1e6d2;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, .6);
+}
+
+.mesa-exp-cabecalho-direita {
     position: fixed;
     top: 16px;
+    right: 16px;
+    z-index: 41;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.mesa-exp-cabecalho-senha {
+    color: #f1e6d2;
+    font-size: 14px;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, .6);
+}
+
+.mesa-exp-fechar {
+    position: fixed;
+    top: 56px;
     left: 16px;
     z-index: 40;
 }
 
 .mesa-exp-fantasma-taca {
     position: fixed;
-    top: 60px;
+    top: 100px;
     left: 16px;
     z-index: 40;
 }
 
 .mesa-exp-fantasma-dano {
     position: fixed;
-    top: 104px;
+    top: 144px;
+    left: 16px;
+    z-index: 40;
+}
+
+.mesa-exp-fantasma-fala {
+    position: fixed;
+    top: 188px;
+    left: 16px;
+    z-index: 40;
+}
+
+.mesa-exp-fantasma-bot {
+    position: fixed;
+    top: 232px;
+    left: 16px;
+    z-index: 40;
+}
+
+.mesa-exp-fantasma-aposta {
+    position: fixed;
+    top: 276px;
+    left: 16px;
+    z-index: 40;
+}
+
+.mesa-exp-avancar-turno {
+    position: fixed;
+    top: 320px;
+    left: 16px;
+    z-index: 40;
+}
+
+.mesa-exp-finalizar-vaza {
+    position: fixed;
+    top: 364px;
+    left: 16px;
+    z-index: 40;
+}
+
+.mesa-exp-alternar-monitor-bot {
+    position: fixed;
+    top: 408px;
+    left: 16px;
+    z-index: 40;
+}
+
+.mesa-exp-alternar-iniciada {
+    position: fixed;
+    top: 452px;
+    left: 16px;
+    z-index: 40;
+}
+
+.mesa-exp-alternar-chat-aberto {
+    position: fixed;
+    top: 496px;
+    left: 16px;
+    z-index: 40;
+}
+
+.mesa-exp-alternar-aposta-vez {
+    position: fixed;
+    top: 540px;
+    left: 16px;
+    z-index: 40;
+}
+
+.mesa-exp-resetar-aposta {
+    position: fixed;
+    top: 584px;
     left: 16px;
     z-index: 40;
 }
 
 .mesa-exp-controle {
     position: fixed;
-    top: 16px;
+    top: 56px;
     right: 16px;
     z-index: 40;
     display: flex;
@@ -496,12 +596,12 @@ button.secundario {
 }
 
 .mesa-exp-controle-cartas-teste {
-    top: 62px; /* logo abaixo do .mesa-exp-controle de quantidade, mesmo canto */
+    top: 102px; /* logo abaixo do .mesa-exp-controle de quantidade, mesmo canto */
 }
 
 .mesa-exp-rolar-chapeus {
     position: fixed;
-    top: 16px;
+    top: 56px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 40;
@@ -509,7 +609,7 @@ button.secundario {
 
 .mesa-exp-dar-cartas {
     position: fixed;
-    top: 60px;
+    top: 100px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 40;
@@ -517,7 +617,7 @@ button.secundario {
 
 .mesa-exp-ver-ranks {
     position: fixed;
-    top: 104px;
+    top: 144px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 40;
@@ -525,10 +625,494 @@ button.secundario {
 
 .mesa-exp-virar-carta {
     position: fixed;
-    top: 148px;
+    top: 188px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 40;
+}
+
+/* Chat (item do checklist) — botão circular fixo no canto inferior
+   esquerdo; column-reverse pra a linha painel+histórico (2º filho no JSX)
+   desenhar ACIMA do botão (1º filho), crescendo pra cima conforme o feed
+   cresceria num chat de verdade, sem empurrar o botão de lugar. */
+.mesa-exp-chat {
+    position: fixed;
+    bottom: 16px;
+    left: 16px;
+    z-index: 42;
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.mesa-exp-chat-botao {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    padding: 0;
+    font-size: 22px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .45);
+}
+
+/* Painel + histórico lado a lado — só existem no DOM enquanto `chatClicado`
+   (ver JSX). Histórico é o módulo À DIREITA do painel, não embaixo. */
+.mesa-exp-chat-linha {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+/* Painel: hover NÃO abre/fecha, só o clique, de propósito (senão fechava
+   sozinho ao mover o mouse pra digitar no campo livre). Dimensões 1.1x
+   maiores que o primeiro rascunho (era 240px/12px/10px/13px). */
+.mesa-exp-chat-painel {
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    width: 264px;
+    background: rgba(0, 0, 0, .55);
+    border: 1px solid var(--borda);
+    border-radius: 10px;
+    padding: 13px;
+    backdrop-filter: blur(2px);
+}
+
+.mesa-exp-chat-prontas {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.mesa-exp-chat-prontas button {
+    text-align: left;
+    font-size: 14px;
+    padding: 7px 11px;
+}
+
+.mesa-exp-chat-form {
+    display: flex;
+    gap: 6px;
+}
+
+.mesa-exp-chat-form input {
+    flex: 1;
+    min-width: 0;
+}
+
+.mesa-exp-chat-cooldown {
+    font-size: 12px;
+    color: var(--texto-fraco);
+}
+
+/* Histórico: mesmo tipo de superfície do painel ao lado, com o feed rolável
+   (mesma ideia de .chat-feed no Partida.jsx antigo) — mensagem de sistema
+   (entrar/sair, ver aumentarJogadores/diminuirJogadores) em itálico e mais
+   apagada, igual ao .chat-msg-sistema de lá. */
+.mesa-exp-chat-historico {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 220px;
+    background: rgba(0, 0, 0, .55);
+    border: 1px solid var(--borda);
+    border-radius: 10px;
+    padding: 13px;
+    backdrop-filter: blur(2px);
+    color: #f1e6d2;
+}
+
+.mesa-exp-chat-historico h3 {
+    margin: 0;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--texto-fraco);
+}
+
+.mesa-exp-chat-historico-feed {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    height: 200px;
+    overflow-y: auto;
+    font-size: 13px;
+}
+
+.mesa-exp-chat-msg {
+    word-break: break-word;
+}
+
+.mesa-exp-chat-msg-sistema {
+    opacity: .65;
+    font-size: .9em;
+    text-align: center;
+}
+
+.mesa-exp-chat-vazio {
+    color: var(--texto-fraco);
+    font-size: 13px;
+}
+
+/* Aposta (ver botão "Apostar"/popup/fichas em MesaExperimento.jsx). Botão
+   de baixo: do LADO do botão de chat (ver .mesa-exp-chat, left:16px
+   bottom:16px, 48px de diâmetro) — não mais em cima da mesa. */
+.mesa-exp-aposta-botao {
+    position: fixed;
+    left: 130px;
+    bottom: 20px;
+    z-index: 43;
+    padding: 12px 28px;
+    font-size: 16px;
+    border-radius: 10px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .45);
+}
+
+/* Fundo escurecido — clicar NELE (não no popup, ver stopPropagation no
+   JSX) fecha sem confirmar. */
+.mesa-exp-aposta-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: rgba(0, 0, 0, .6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: mesa-exp-aposta-overlay-entrada .18s ease-out;
+}
+
+@keyframes mesa-exp-aposta-overlay-entrada {
+    from { background: rgba(0, 0, 0, 0); }
+    to   { background: rgba(0, 0, 0, .6); }
+}
+
+.mesa-exp-aposta-popup {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    width: 300px;
+    padding: 24px;
+    background: #1c1d24;
+    border: 1px solid var(--borda);
+    border-radius: 14px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, .6);
+    animation: mesa-exp-aposta-popup-entrada .22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes mesa-exp-aposta-popup-entrada {
+    from { opacity: 0; transform: scale(.85) translateY(12px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.mesa-exp-aposta-popup h3 {
+    margin: 0;
+    text-align: center;
+    font-size: 15px;
+    color: var(--texto);
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+/* Pilha flutuante — cresce PRA CIMA (empilha uma ficha em cima da outra,
+   ver --indice-pilha inline no JSX), FICHA_EMPILHA_POPUP_PX por ficha.
+   Altura fixa (não cresce o popup junto): cabe o valor máximo
+   (APOSTA_VALOR_MAX) de fichas empilhadas sem cortar nenhuma. */
+.mesa-exp-aposta-pilha {
+    position: relative;
+    width: 90px;
+    height: 110px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.mesa-exp-aposta-pilha-vazia {
+    color: var(--texto-fraco);
+    font-size: 12px;
+    text-align: center;
+    align-self: center;
+}
+
+/* Tamanho da ficha AQUI = FICHA_TAMANHO_PX (64px, ver MesaExperimento.jsx)
+   — a mesma ficha, no mesmo tamanho "grande", que depois voa de verdade
+   (ver .mesa-exp-ficha-voando, mesmo 64px) — só o pouso no canto encolhe. */
+.mesa-exp-aposta-ficha-pilha {
+    position: absolute;
+    bottom: calc(var(--indice-pilha) * 10px);
+    width: 64px;
+    height: 64px;
+    /* Entrada: nasce de baixo/pequena e "salta" pro lugar — cada ficha
+       nova (índice mais alto, empilhada por último) recebe um atrasinho
+       proporcional ao próprio índice, então elas entram em cascata, uma
+       depois da outra, não todas de uma vez. */
+    animation: mesa-exp-aposta-ficha-pilha-entrada .3s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+    animation-delay: calc(var(--indice-pilha) * 40ms);
+}
+
+@keyframes mesa-exp-aposta-ficha-pilha-entrada {
+    from { opacity: 0; transform: translateY(14px) scale(.5); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.mesa-exp-aposta-campo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mesa-exp-aposta-campo input {
+    width: 60px;
+    text-align: center;
+    font-size: 18px;
+    font-weight: 700;
+    /* Esconde as setinhas nativas do <input type=number> — o par de
+       botões −/+ ao lado já cobre isso, com o MESMO visual dos outros
+       controles +/- do sandbox (ver .mesa-exp-controle .botoes). */
+    -moz-appearance: textfield;
+}
+
+.mesa-exp-aposta-campo input::-webkit-outer-spin-button,
+.mesa-exp-aposta-campo input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.mesa-exp-aposta-confirmar {
+    width: 100%;
+    padding: 10px;
+    font-size: 15px;
+}
+
+/* Camada de tela inteira só pras fichas EM VOO (ver FichaVoando) — mesmo
+   espírito do #ficha-perspectiva do experimento arquivado
+   (public/_intro/index.html): pointer-events:none, não pode atrapalhar
+   clique em nada por baixo. */
+.mesa-exp-ficha-camada {
+    position: fixed;
+    inset: 0;
+    z-index: 44;
+    pointer-events: none;
+}
+
+/* left/top REAIS vêm inline a cada frame (JS, em px de viewport — ver
+   FichaVoando), width/height fixos = FICHA_TAMANHO_PX. */
+.mesa-exp-ficha-voando {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 64px;
+    height: 64px;
+}
+
+/* Só liga depois que a ficha CHEGA (t=1 do arremesso, ver FichaVoando) —
+   durante o voo quem controla left/top/transform quadro a quadro é o
+   próprio rAF, uma transition rodando junto ia brigar com ele. Ativa só
+   pra a MUDANÇA de escala do pouso (1 -> ESCALA_FICHA_CANTO), bouncy de
+   propósito ("dá uma caprichada", pediu o Henrique) — dura
+   FICHA_ASSENTAMENTO_MS, o mesmo tempo que MesaExperimento.jsx espera
+   antes de trocar esta ficha voando pela estática no canto. */
+.mesa-exp-ficha-pousada {
+    transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mesa-exp-ficha-sombra {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 60px;
+    height: 18px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(0, 0, 0, .5), rgba(0, 0, 0, 0) 72%);
+    pointer-events: none;
+}
+
+/* Canto onde a aposta confirmada pousa em leque (ver fichasNoCanto) —
+   width/height FIXOS (não some com 0 fichas dentro): é o alvo que
+   confirmarAposta lê (getBoundingClientRect, o CENTRO deste retângulo) pra
+   saber onde fica o meio do leque. `left` = mesma posição do botão
+   "Apostar" (ver .mesa-exp-aposta-botao) — ele já sumiu quando as fichas
+   chegam, dá pra pousar onde ele estava. `bottom` calculado pro CENTRO
+   verticial bater com o centro do botão de chat (.mesa-exp-chat-botao:
+   bottom 16px + metade dos 48px = 40px; aqui 64px de altura, então
+   bottom = 40 - 32 = 8px) — pedido do Henrique, "tudo alinhadinho". */
+.mesa-exp-aposta-canto {
+    position: fixed;
+    left: 130px;
+    bottom: 8px;
+    width: 64px;
+    height: 64px;
+    z-index: 43;
+    pointer-events: none;
+}
+
+/* left/top vêm da MESMA `para` (px) que a ficha voando terminou nela —
+   width/height/escala aqui só precisam bater com o estado final de
+   .mesa-exp-ficha-voando.mesa-exp-ficha-pousada pra não sobrar nenhum
+   pulo trocando de uma pra outra (64px * scale = ESCALA_FICHA_CANTO, ver
+   MesaExperimento.jsx — mudou os dois juntos, mantém batendo). */
+.mesa-exp-aposta-ficha-canto {
+    position: fixed;
+    width: 64px;
+    height: 64px;
+    transform: translate(-50%, -50%) scale(.62);
+}
+
+/* `left`/`margin-left` juntos: 50% (centro do retângulo-alvo, mesmo ponto
+   que o leque usa como meio) + a margem DINÂMICA que vem inline do JSX
+   (acompanha quantas fichas têm — ver o cálculo de raioLeque ali), não um
+   valor fixo. Um valor fixo cortava a legenda quando a aposta era alta
+   (leque mais largo, ficha da ponta cobria o texto). */
+.mesa-exp-aposta-canto-legenda {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translateY(-50%);
+    white-space: nowrap;
+    color: #f1e6d2;
+    font-family: system-ui, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, .6);
+}
+
+/* Revelação de fim de vaza (ver finalizarVaza/vazaRevelando/
+   faseRevelacaoVaza/CartaRevelando em MesaExperimento.jsx). Overlay
+   escurece a TELA INTEIRA (não só a mesa) — z-index ACIMA de todo o resto
+   do sandbox (debug/chat/cabeçalho, z 40-44), mas ABAIXO da carta
+   revelando (ver .mesa-exp-carta-revelando, z ainda maior) — é assim que
+   ela "atravessa" o escurecido por cima. Fica montado (background
+   transparente) por TODA a coreografia, não só na fase 'crescendo' — só
+   assim a transition de volta pra transparente (ver -escuro abaixo) tem
+   como animar; sem isso desmontar na hora certa cortaria seco. */
+.mesa-exp-vaza-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 46;
+    background: rgba(0, 0, 0, 0);
+    transition: background .35s ease;
+    pointer-events: auto;
+}
+
+.mesa-exp-vaza-overlay-escuro {
+    background: rgba(0, 0, 0, .7);
+    animation: mesa-exp-aposta-overlay-entrada .25s ease-out;
+}
+
+/* Texto do OUTRO lado da carta (ver VAZA_REVELACAO_TEXTO_X_FRACAO), no
+   espaço que sobrou — % da JANELA (não da mesa oval, que é bem menor). */
+.mesa-exp-vaza-texto {
+    position: fixed;
+    left: 66%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    color: #f1e6d2;
+    font-family: system-ui, sans-serif;
+    text-align: center;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, .7);
+    animation: mesa-exp-vaza-texto-entrada .35s ease-out .15s backwards;
+}
+
+.mesa-exp-vaza-texto strong {
+    font-size: 26px;
+}
+
+.mesa-exp-vaza-texto span {
+    font-size: 20px;
+    color: #ffd75e;
+}
+
+@keyframes mesa-exp-vaza-texto-entrada {
+    from { opacity: 0; transform: translate(-50%, -50%) translateY(10px); }
+    to   { opacity: 1; transform: translate(-50%, -50%) translateY(0); }
+}
+
+/* A carta em si — POR CIMA do overlay (z-index maior), left/top em PX DE
+   TELA (não % da mesa) vêm inline a cada frame (ver CartaRevelando).
+   `transition-duration` vem inline TAMBÉM (muda por fase, ver
+   duracaoFaseRevelacaoVaza) — aqui só a propriedade/curva, sem duração
+   fixa nenhuma. */
+.mesa-exp-carta-revelando {
+    position: fixed;
+    z-index: 47;
+    top: 0;
+    left: 0;
+    transition-property: left, top, transform;
+    transition-timing-function: ease;
+    filter: drop-shadow(0 20px 40px rgba(0, 0, 0, .6));
+}
+
+/* Tremor de tela no instante do impacto (ver faseRevelacaoVaza === 'impacto'
+   em MesaExperimento.jsx) — jitter pequeno e curto, some sozinho (a
+   classe só fica ligada enquanto a fase 'impacto' durar, que já é curta
+   por natureza). */
+.mesa-exp-tela-tremendo {
+    animation: mesa-exp-tela-tremer 220ms ease-out;
+}
+
+@keyframes mesa-exp-tela-tremer {
+    0%   { transform: translate(0, 0); }
+    15%  { transform: translate(-6px, 3px); }
+    30%  { transform: translate(5px, -4px); }
+    45%  { transform: translate(-4px, -3px); }
+    60%  { transform: translate(4px, 3px); }
+    75%  { transform: translate(-2px, 2px); }
+    100% { transform: translate(0, 0); }
+}
+
+/* Onda de choque (ver choqueVaza) — um anel que nasce pequeno e opaco bem
+   em cima do ponto de impacto e estoura rápido, crescendo e sumindo. Só
+   um <div> com borda, sem imagem nenhuma. */
+.mesa-exp-vaza-onda-choque {
+    position: fixed;
+    z-index: 45; /* abaixo da carta (47) e do overlay (46, já quase transparente aqui), acima do resto */
+    width: 40px;
+    height: 40px;
+    margin: -20px 0 0 -20px;
+    border-radius: 50%;
+    border: 6px solid #ffd75e;
+    pointer-events: none;
+    animation: mesa-exp-vaza-onda-choque-estourar 480ms ease-out forwards;
+}
+
+@keyframes mesa-exp-vaza-onda-choque-estourar {
+    0%   { transform: scale(.3); opacity: .9; border-width: 8px; }
+    100% { transform: scale(9); opacity: 0; border-width: 1px; }
+}
+
+/* Cartas perdedoras "explodindo" pra fora no impacto (ver
+   cartasExplodindo/finalizarVaza) — transition mais curta e mais seca
+   (ease-out puro, sem o ease padrão de .3s de .mesa-exp-carta-jogada) que
+   o resto da mesa, e a opacidade só começa a cair nos ÚLTIMOS 30% do
+   percurso (transition-delay na propriedade opacity) — assim ela ainda
+   "voa" visível a maior parte do caminho, só desaparece perto do fim. */
+.mesa-exp-carta-jogada-explodindo {
+    transition:
+        left 480ms cubic-bezier(0.16, 1, 0.3, 1),
+        top 480ms cubic-bezier(0.16, 1, 0.3, 1),
+        transform 480ms cubic-bezier(0.16, 1, 0.3, 1),
+        opacity 144ms ease-in 336ms;
+    opacity: 0;
+}
+
+/* Carta que já venceu uma vaza, pousada permanentemente no colo de quem
+   ganhou (ver cartasVazaGanhas) — bem menor que o tamanho normal de
+   mesa (é só uma "ponta espiando" atrás da pilha de fichas, não uma carta
+   de leitura), z-index MENOR que o das fichas de aposta (ver
+   .mesa-exp-aposta-ficha-canto, 43) de propósito — é isso que faz ela
+   ficar "embaixo" de uma ficha, não do lado. */
+.mesa-exp-carta-vaza-ganha {
+    position: fixed;
+    z-index: 39;
+    transform: translate(-50%, -50%) rotate(-12deg) scale(0.62);
+    pointer-events: none;
 }
 
 /* Galeria de revisão (ver GaleriaRanks em MesaExperimento.jsx) — troca a
@@ -620,8 +1204,109 @@ button.secundario {
     z-index: 16;
 }
 
+/* Cor mais clara e fonte um pouco maior que o resto do `.mesa-exp-assento`
+   (que herdava #cfcfcf/14px apagado, opacity .85 por cima ainda dava mais
+   fade) — só o NOME precisa se destacar, o resto do hitbox (tracejado)
+   continua discreto igual antes. */
 .mesa-exp-assento-legenda {
-    opacity: .85;
+    color: #f1e6d2;
+    font-size: 15px;
+}
+
+/* Marcador de bot (ver botPorAssento/alternarBotFantasma em
+   MesaExperimento.jsx) — mesma cor de acento que .status-jogador-bot usa
+   no Partida.jsx antigo, pra já nascer consistente com aquele front. */
+.mesa-exp-assento-bot-tag {
+    color: var(--acento);
+    font-weight: 700;
+}
+
+/* Legenda da aposta do fantasminha (ver apostaPorAssento/assentoEmHover
+   Index em MesaExperimento.jsx) — só existe no DOM com o mouse em cima do
+   assento (as FICHAS em si, ver .mesa-exp-aposta-ficha-canto, ficam
+   visíveis sempre; só este texto é hover-only). `.mesa-exp-assento` já é
+   position:absolute, então isto ancora nele — CENTRALIZADA dentro do
+   próprio retângulo (não mais do lado de fora), um pouco ABAIXO do centro
+   vertical (onde normalmente fica o corpo do fantasminha, ver
+   .fantasminha-flutuante) — 50% seria bem em cima dele, 62% desce um
+   pouco sem sair do retângulo (190px de altura). */
+.mesa-exp-assento-aposta-legenda {
+    position: absolute;
+    left: 50%;
+    top: 62%;
+    transform: translate(-50%, -50%);
+    white-space: nowrap;
+    /* Amarelo forte (mesmo tom do hover de carta/vira, #ffcc00) — pediu
+       "mais chamativa" que o #f1e6d2 apagado que usava antes. Fonte maior
+       também (13px -> 17px, pediu "a legenda deve ser maior"). */
+    color: #ffcc00;
+    font-size: 17px;
+    font-weight: 700;
+    background: rgba(0, 0, 0, .6);
+    padding: 5px 10px;
+    border-radius: 6px;
+    pointer-events: none;
+}
+
+/* "Vez de {jogador}" (ver `naVez`/turnoAssentoIndex) — mesmo lugar/tamanho
+   da legenda de aposta, só troca a cor pro MESMO azul claro do contorno
+   do fantasminha (ver stroke em Fantasminha.jsx, #7dd3fc) — as duas coisas
+   (contorno + legenda) precisam ler como um par, não como dois avisos
+   soltos. */
+.mesa-exp-assento-turno-legenda {
+    color: #7dd3fc;
+}
+
+/* Balão de fala (ver mostrarBolhaFala/bolhasFala em MesaExperimento.jsx) —
+   filho do .mesa-exp-assento (que já é position:absolute), ancorado em cima
+   da própria hitbox: funciona igual pra assento no topo ou embaixo da mesa,
+   sempre "acima da cabeça". `--duracao-bolha` vem inline (mesmo valor de
+   DURACAO_BOLHA_MS) pra a animação CSS bater exatamente com o tempo que o
+   JS espera antes de tirar a bolha do array — sem isso os dois podiam
+   dessincronizar se um dia um dos dois mudasse sozinho. */
+/* Dimensões 1.2x maiores que o primeiro rascunho (era margin-bottom 12px,
+   max-width 200px, padding 8px 12px, radius 12px, font-size 13px). */
+.mesa-exp-bolha-fala {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    margin-bottom: 14px;
+    max-width: 240px;
+    background: #f7f1e3; /* mesma cor de fundo da face da carta (.carta-exp) */
+    color: #241a0f;
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-family: system-ui, sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.3;
+    text-align: center;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, .45);
+    z-index: 20;
+    pointer-events: none;
+    animation: mesa-exp-bolha-vida linear forwards;
+    animation-duration: var(--duracao-bolha);
+}
+
+/* Rabicho apontando pro fantasminha/"Você" logo abaixo. */
+.mesa-exp-bolha-fala::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 8px solid transparent;
+    border-top-color: #f7f1e3;
+}
+
+/* Entra rápido, segura a maior parte do tempo, sai rápido no fim — os
+   percentuais (não ms fixos) que deixam isso funcionar com qualquer
+   `--duracao-bolha`. */
+@keyframes mesa-exp-bolha-vida {
+    0%   { opacity: 0; transform: translateX(-50%) translateY(6px) scale(.92); }
+    8%   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+    88%  { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-4px) scale(.96); }
 }
 
 /* Corpo do fantasminha (ver components/novo/Fantasminha.jsx) — só o
@@ -699,7 +1384,23 @@ button.secundario {
     background: #3b0764;
     transform: translate(-50%, -50%);
     border-radius: 60% 40% 30% 70% / 70% 60% 40% 30%;
-    transition: transform .15s ease;
+    transition: transform .15s ease, border-radius .15s ease, width .15s ease, height .15s ease;
+}
+
+/* Bot (ver `bot`/botPorAssento em Fantasminha.jsx/MesaExperimento.jsx) —
+   olho/boca orgânicos (círculo girado / blob) viram formas de quina reta
+   (raio bem pequeno, não zero: "não exatamente quadrado", só o suficiente
+   pra ler como digital/pixelado em vez de arredondado). Mesmas
+   posição/rotação/tamanho de base — só border-radius (e a boca, que também
+   alarga/achata) mudam, então continua encaixando no mesmo rosto. */
+.fantasminha-rosto-bot .fantasminha-olho {
+    border-radius: 2px;
+}
+
+.fantasminha-rosto-bot .fantasminha-boca {
+    width: 16%;
+    height: 6%;
+    border-radius: 2px;
 }
 
 /* Dano (ver `machucado`/danoVersao em Fantasminha.jsx) — olhos "apertam"
@@ -801,6 +1502,43 @@ button.secundario {
     100% { transform: translate(-50%, -55%); }
 }
 
+/* Engrenagens (ver Engrenagem/`bot` em Fantasminha.jsx) — giram sozinhas,
+   sentidos OPOSTOS (como duas engrenagens de verdade se encaixando), a
+   grande mais devagar que a pequena (mesma proporção que engrenagens reais
+   de tamanhos diferentes, presas uma na outra, teriam). */
+.fantasminha-engrenagem {
+    position: absolute;
+    pointer-events: none;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .45));
+}
+
+.fantasminha-engrenagem-pequena {
+    top: 9%;
+    right: 7%;
+    width: 34%;
+    height: 34%;
+    animation: fantasminha-engrenagem-girar 5s linear infinite;
+}
+
+.fantasminha-engrenagem-grande {
+    left: 2%;
+    top: 50%;
+    width: 58%;
+    height: 58%;
+    transform: translateY(-50%);
+    animation: fantasminha-engrenagem-girar-reverso 9s linear infinite;
+}
+
+@keyframes fantasminha-engrenagem-girar {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+@keyframes fantasminha-engrenagem-girar-reverso {
+    from { transform: translateY(-50%) rotate(360deg); }
+    to   { transform: translateY(-50%) rotate(0deg); }
+}
+
 /* Carta (ver components/novo/Carta.jsx) — bege claro clássico de baralho
    de verdade (não o fundo escuro do .carta de Partida.jsx), com nome
    prefixado "carta-exp-" pra não colidir com aquele. position:relative pra
@@ -886,6 +1624,83 @@ button.secundario {
     background:
         repeating-linear-gradient(45deg, #7a1f2b, #7a1f2b 6px, #5c1620 6px, #5c1620 12px);
     border-color: #2a2a2a;
+}
+
+/* Ficha (ver components/novo/Ficha.jsx) — borda preta e branca clássica de
+   ficha de cassino (era dourado/dorado/vinho antes), portada do
+   experimento arquivado (public/_intro/index.html, .ficha) mas
+   "caprichada": anel externo de tracinhos alternados (repeating-conic-
+   gradient, o detalhe que o rascunho original não tinha, só cor sólida),
+   brilho glacê no canto superior esquerdo da face e um anel interno
+   pontilhado, tudo puramente decorativo — dá profundidade sem precisar de
+   imagem nenhuma. Tamanho vem de fora (ver .mesa-exp-ficha-* no JSX/CSS
+   mais abaixo) — este componente só desenha, não define width/height. */
+.ficha-exp {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .5));
+}
+
+.ficha-exp-borda {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: repeating-conic-gradient(#f4f4f4 0deg 16deg, #16161a 16deg 32deg);
+}
+
+/* Face (miolo): dourada por padrão (SUA ficha, que não tem fantasminha
+   pra "puxar" cor nenhuma) — a variante -colorida (ver `hue` em
+   Ficha.jsx) troca só o background pelas 3 variáveis --ficha-face-*, o
+   resto (anel escuro + sombra interna) continua igual pras duas. */
+.ficha-exp-face {
+    position: absolute;
+    inset: 11%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #ffe08a, #d79b1e 55%, #8a5c10 100%);
+    box-shadow: 0 0 0 3px #16161a inset, inset 0 -7px 12px rgba(0, 0, 0, .35);
+    overflow: hidden;
+}
+
+.ficha-exp-face-colorida {
+    background: radial-gradient(
+        circle at 35% 30%,
+        var(--ficha-face-clara),
+        var(--ficha-face-media) 55%,
+        var(--ficha-face-escura) 100%
+    );
+}
+
+.ficha-exp-brilho {
+    position: absolute;
+    top: -22%;
+    left: -12%;
+    width: 70%;
+    height: 70%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 255, 255, .85), rgba(255, 255, 255, 0) 72%);
+    pointer-events: none;
+}
+
+.ficha-exp-anel-interno {
+    position: absolute;
+    inset: 26%;
+    border-radius: 50%;
+    border: 2px dashed rgba(22, 22, 26, .55);
+}
+
+/* Pulso curto quando a ficha acaba de pousar no canto (ver `pousada` em
+   FichaVoando, MesaExperimento.jsx) — reforça o "toc" do pouso além do
+   próprio bounce de posição/escala, que já é feito via transition ali. */
+.ficha-exp-destacada {
+    animation: ficha-exp-pulso .4s ease-out;
+}
+
+@keyframes ficha-exp-pulso {
+    0%   { filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .5)) brightness(1); }
+    30%  { filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .5)) brightness(1.5); }
+    100% { filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .5)) brightness(1); }
 }
 
 /* Baralho: pilha de versos no centro da mesa (ver CARTAS_DO_BARALHO em
@@ -1244,7 +2059,7 @@ button.secundario {
    vem calculada inline no JSX (ver MELADA_CANTO_X/Y) — aqui é só a cor. */
 .mesa-exp-carta-jogada-melada .carta-exp {
     border-color: #0a0a0a;
-    box-shadow: 0 0 0 2px #0a0a0a;
+    box-shadow: 0 0 0 3.5px #0a0a0a;
 }
 
 /* Legenda ao lado da carta em hover (ver cartaEmHover em
