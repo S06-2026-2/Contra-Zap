@@ -1,5 +1,4 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { sortearChapeu } from '../../chapeus.js';
 
 // Corpo do "fantasminha da bola" — não a versão que já estava na branch
 // atual, mas a de public/experimento (branch experimentando-front, commit
@@ -62,6 +61,12 @@ const CORTE_LENTE = `M-${CORTE_METADE_COMPRIMENTO},0 Q0,${CORTE_CURVATURA - CORT
 const CORTE_CENTRO = { x: 50, y: 47 };
 const CORTE_ANGULO_GRAUS = 38;
 const DURACAO_DANO_MS = 1500;
+// Bate com MORTE_DESINTEGRAR_MS em MesaExperimento.jsx (900ms) — os dois
+// têm que ficar iguais: é o tempo que o PAI espera antes de trocar esta
+// fase por 'morto' (que troca o fantasminha por um "💀 Eliminado" fixo,
+// ver JSX de lá), então a animação de desmanchar precisa acabar de
+// verdade dentro desse tempo, não sobrar cortada.
+const DURACAO_DESINTEGRAR_MS = 900;
 
 // Impacto do chapéu (ver chapeuImpacto abaixo): sobe uma quantia
 // aleatória por pancada (nunca a mesma, pra não ficar mecânico igual toda
@@ -130,6 +135,16 @@ function gerarOndaQuadrada(passos, largura, altura, margemV) {
     return pontos;
 }
 
+// Partículas da desintegração (ver `estadoMorte` mais abaixo) — um punhado
+// de quadradinhos que voam pra fora em direções/distâncias aleatórias
+// (sorteadas uma vez só, ver useMemo no componente) enquanto o corpo
+// inteiro desmancha (ver .fantasminha-flutuante-desintegrando no CSS).
+// Nada de física de verdade — só CSS puro, mesmo espírito pragmático do
+// resto deste arquivo (Engrenagem, monitor).
+const PARTICULAS_QTD = 12;
+const PARTICULA_DISTANCIA_MIN = 40;
+const PARTICULA_DISTANCIA_MAX = 90;
+
 // Engrenagem decorativa (ver `bot` mais abaixo) — dentes como retângulos
 // arredondados distribuídos em volta de um corpo circular (mais simples de
 // desenhar/ler que um <path> de engrenagem de verdade, e já solto no
@@ -157,25 +172,25 @@ function Engrenagem({ className, dentes = 8, corBase = '#cbd1d6', corSombra = '#
     );
 }
 
-// `versaoChapeu` é só um contador: subir ele (ver botão "🎩 Novos chapéus"
-// em MesaExperimento.jsx) sorteia um chapéu novo sem mexer em mais nada
-// (cor, timing da cauda/flutuar continuam os mesmos) — se fosse um `key`
-// remontando o componente inteiro, tudo sortearia de novo junto.
+// `chapeu` e `hue` vêm de FORA agora (ver MesaExperimento.jsx:
+// chapeusPorAssento/huesPorAssento) — não são mais sorteados aqui dentro.
+// Precisa disso por DOIS motivos: (1) a ficha de aposta de cada
+// fantasminha (ver Ficha.jsx/fantasmaAposta) tem que saber a MESMA cor do
+// corpo dele; (2) a tela de vitória (jogoVencedorIndice em
+// MesaExperimento.jsx) cria um <Fantasminha> NOVO só pra aquele momento —
+// se cor/chapéu nascessem e morressem dentro deste componente, cada
+// instância nova sortearia os PRÓPRIOS valores, diferentes do fantasminha
+// que já existia na mesa (era o bug: cor batia por coincidência não bate
+// mais aqui, chapéu não batia nunca).
 // `bot` (ver botPorAssento/alternarBotFantasma em MesaExperimento.jsx):
 // vira o avatar temporário de quem está jogando no automático — duas
 // engrenagens por cima do corpo + olhos/boca quadrados em vez de
 // redondos (ver .fantasminha-rosto-bot no CSS), sem mexer em cor, chapéu
 // nem no balançar/flutuar, que continuam os mesmos de sempre.
-// `hue` vem de FORA agora (ver MesaExperimento.jsx: huesPorAssento) — não é
-// mais sorteado aqui dentro. Precisa disso porque a ficha de aposta de cada
-// fantasminha (ver Ficha.jsx/fantasmaAposta) tem que saber a MESMA cor do
-// corpo dele, e antes esse hue nascia e morria dentro deste componente, sem
-// ninguém de fora conseguir ler.
-export default function Fantasminha({ versaoChapeu, children, destacado, danoVersao, bot, monitor = true, hue, naVez }) {
+export default function Fantasminha({ children, destacado, danoVersao, bot, monitor = true, hue, naVez, chapeu, estadoMorte }) {
     const idGradiente = useId();
     const idCorteClip = useId();
     const idTelaClip = useId();
-    const chapeu = useMemo(sortearChapeu, [versaoChapeu]);
     const { duracao, atraso, duracaoCauda, atrasoCauda } = useMemo(() => ({
         duracao: DURACAO_MIN_S + Math.random() * (DURACAO_MAX_S - DURACAO_MIN_S),
         // Atraso NEGATIVO adianta o relógio da animação em vez de esperar
@@ -224,6 +239,29 @@ export default function Fantasminha({ versaoChapeu, children, destacado, danoVer
         // eslint-disable-next-line react-hooks/exhaustive-deps -- só sorteia no mount, mesmo padrão do `hue`/chapéu
     }, []);
 
+    // Sorteadas uma vez só (nunca muda de novo — "morrer" só acontece uma
+    // vez na vida de um fantasminha) — direção/distância/atraso de cada
+    // partícula da desintegração (ver estadoMorte mais abaixo).
+    const particulas = useMemo(() => Array.from({ length: PARTICULAS_QTD }, () => {
+        const angulo = Math.random() * Math.PI * 2;
+        const distancia = PARTICULA_DISTANCIA_MIN + Math.random() * (PARTICULA_DISTANCIA_MAX - PARTICULA_DISTANCIA_MIN);
+        return {
+            dx: Math.cos(angulo) * distancia,
+            dy: Math.sin(angulo) * distancia,
+            rot: Math.random() * 360,
+            atraso: Math.random() * 150,
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- só sorteia no mount, mesmo padrão do `hue`/chapéu/onda
+    }), []);
+
+    // `estadoMorte` (ver MesaExperimento.jsx: matarFantasma/estadoMorte
+    // PorAssento) — 'impacto' ou 'desintegrando' força o rosto a ficar
+    // "machucado" (olhos fechados) PERMANENTEMENTE, não só durante
+    // `machucado` (que é transitório, volta sozinho). 'desintegrando'
+    // ainda liga a animação de desmanchar + as partículas.
+    const morrendo = estadoMorte != null;
+    const desintegrando = estadoMorte === 'desintegrando';
+
     return (
         <div
             // Modificador "atacado" (ver machucado acima) vive AQUI, no
@@ -233,8 +271,19 @@ export default function Fantasminha({ versaoChapeu, children, destacado, danoVer
             // index.css) sem precisar passar `machucado` como prop pra
             // dentro de `children` (MaoEmLeque, que nem sabe que existe
             // dano — só o CSS liga os dois via seletor descendente).
-            className={`fantasminha-flutuante${machucado ? ' fantasminha-flutuante-atacado' : ''}`}
-            style={{ animationDuration: `${duracao.toFixed(2)}s`, animationDelay: `-${atraso.toFixed(2)}s` }}
+            // `-desintegrando` (ver estadoMorte) troca a PRÓPRIA animação
+            // de flutuar pela de desmanchar — não fica bobeando enquanto
+            // morre.
+            className={`fantasminha-flutuante${machucado ? ' fantasminha-flutuante-atacado' : ''}${desintegrando ? ' fantasminha-flutuante-desintegrando' : ''}`}
+            // Duração/atraso do FLUTUAR vêm sorteados por instância — mas
+            // durante a desintegração precisam virar os da PRÓPRIA
+            // animação de desmanchar (ver DURACAO_DESINTEGRAR_MS), senão o
+            // navegador aplicaria a duração/atraso do flutuar (inline
+            // sempre vence classe) na animação errada, cortando ou
+            // esticando ela sem querer.
+            style={desintegrando
+                ? { animationDuration: `${DURACAO_DESINTEGRAR_MS}ms`, animationDelay: '0ms' }
+                : { animationDuration: `${duracao.toFixed(2)}s`, animationDelay: `-${atraso.toFixed(2)}s` }}
         >
             {/* ANTES do <svg> do corpo de propósito — sem z-index nem
                 position própria pra nenhum dos dois, quem vem primeiro no
@@ -391,11 +440,35 @@ export default function Fantasminha({ versaoChapeu, children, destacado, danoVer
                     </g>
                 )}
             </svg>
-            <div className={`fantasminha-rosto${machucado ? ' fantasminha-machucado' : ''}${bot ? ' fantasminha-rosto-bot' : ''}`}>
+            {/* `morrendo` reusa a MESMA classe -machucado do dano normal
+                (olhos "apertam"/fecham, boca aumenta, ver .fantasminha-
+                machucado no CSS) — só que aqui fica PRA SEMPRE, não volta
+                sozinho: "toma a animação de dano e fica naquele estado". */}
+            <div className={`fantasminha-rosto${(machucado || morrendo) ? ' fantasminha-machucado' : ''}${bot ? ' fantasminha-rosto-bot' : ''}`}>
                 <div className="fantasminha-olho fantasminha-olho-esq" />
                 <div className="fantasminha-olho fantasminha-olho-dir" />
                 <div className="fantasminha-boca" />
             </div>
+            {/* Partículas da desintegração (ver particulas/desintegrando
+                lá em cima) — só existem no DOM na fase 'desintegrando',
+                cada uma some sozinha no fim da própria animação. */}
+            {desintegrando && (
+                <div className="fantasminha-particulas">
+                    {particulas.map((p, i) => (
+                        <span
+                            key={i}
+                            className="fantasminha-particula"
+                            style={{
+                                background: `hsl(${hue}, 75%, 78%)`,
+                                animationDelay: `${p.atraso.toFixed(0)}ms`,
+                                '--particula-dx': `${p.dx.toFixed(1)}px`,
+                                '--particula-dy': `${p.dy.toFixed(1)}px`,
+                                '--particula-rot': `${p.rot.toFixed(0)}deg`,
+                            }}
+                        />
+                    ))}
+                </div>
+            )}
             {/* Sorteado uma vez por fantasminha (ver chapeus.js) — nasce
                 fixo em cima da cabeça, não acompanha a cauda nem o rosto.
                 Durante `machucado`, ganha a classe -impacto (ver

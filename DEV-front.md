@@ -56,9 +56,19 @@ toda vez que a gente retomar.
       Componente `CartaRevelando` reaproveita o truque de "nasce sem
       transition, pula com transition um quadro depois" de
       `CartaVoando`/`FichaVoando`, só que com VÁRIOS alvos (um por fase),
-      não um só. Botão de debug `🏆 Finalizar vaza` lê a MESMA carta que
-      já é `analiseMesa.idVencedora` (não sorteia de novo). Falta plugar
-      em `vazaFinalizada` de verdade.
+      não um só. Fase `crescendo` segura uma pausa (`VAZA_REVELACAO_
+      PAUSA_MS`) parada grande/centralizada antes do impacto, dá tempo de
+      ler a legenda. Botão de debug `🏆 Finalizar vaza` lê a MESMA carta
+      que já é `analiseMesa.idVencedora` (não sorteia de novo). Falta
+      plugar em `vazaFinalizada` de verdade.
+      **A SUA pilha de fichas** (não a dos fantasminhas, essa continua em
+      px) virou uma fileira `flex` de verdade (`.mesa-exp-aposta-fichas-
+      linha`/`-ficha-slot`) em vez de leque calculado em px — cada ficha
+      mora num slot que cresce sozinho (`slotIndice` em
+      `cartasVazaGanhas`) quando uma vaza ganha "escolhe" ele, empurrando
+      os slots seguintes pra direita via flexbox, sem cálculo de x na
+      mão. Cartas pousadas ficaram bem menores (`VAZA_POUSO_ESCALA`
+      0.62→0.28, "mais pequenininhas").
 - [x] Reação de dano do fantasminha (flash + chapéu) — só um botão de teste
       solto (`💥 Fantasma leva dano`), ainda não ligado a nenhuma regra real
       do jogo (não existe "dano" no Contra ZAP — foi decoração pro
@@ -135,21 +145,77 @@ toda vez que a gente retomar.
       — não vale redesenhar algo tão simples; ao plugar no back de
       verdade, portar a tela de espera existente como está, sem passar
       pelo sandbox visual novo.
-- [ ] **💀 Morreu / quanto já apostou** (resto do "status por jogador" —
-      🤖 bot já está feito, ver acima). Precisa aparecer vinculado ao
-      fantasminha/assento (que hoje nem tem nome de verdade, só
-      "Player N").
-- [ ] **Indicação de turno — quem VENCEU o jogo** (a parte de fantasminha
-      já está feita, ver acima). Falta a tela/mensagem de fim de jogo.
-- [ ] **Pós-vitória** — botão "jogar de novo" (só o dono da sala) + convite
-      de revanche (aceitar/recusar) pros demais.
-- [ ] **Rodada cega ("testa", 1 carta)** — mostrar a mão dos OUTROS
-      revelada e esconder a própria. Hoje é sempre o contrário (mão dos
-      outros sempre virada, a sua sempre visível).
+- [x] **Vida (coraçõezinhos)** — `Coracoes`: emoji puro (❤️ cheio / 🖤
+      perdido), `VIDA_MAXIMA = 3` bate com `this.hp = 3` em
+      `game/PlayerGame.js`. A SUA fica fixa no canto inferior direito,
+      sempre visível; a dos fantasminhas só aparece com o mouse em cima
+      (mesmo `assentoEmHoverIndex` da legenda de aposta/vez), ou
+      MOMENTANEAMENTE sem hover nenhum: logo depois de tomar dano de vida
+      de verdade (`assentosVidaTemporaria`, 1.5s, sincronizado com a
+      animação de dano) OU no **fim de RODADA** (`finalizarRodada`/
+      `RODADA_FIM_REVELACAO_MS`, 2.8s — bem mais longo, dá tempo de olhar
+      o placar de todo mundo de uma vez, não só um flash). Coração entra
+      sempre com um "pop" (`mesa-exp-assento-vida-entrada`); a sua ganha
+      um pulso de destaque no fim de rodada também, pra reagir junto com
+      o resto. Botões de debug `💔 Perder vida` (cicla por TODOS os
+      assentos, inclusive "Você"), `💚 Restaurar vida` e
+      `🏁 Finalizar rodada` (só revela os corações — não recalcula HP
+      nenhum, isso é `perderVida`).
+- [x] **💀 Morreu (animação de morte)** — coreografia de 3 fases (ver
+      `estadoMortePorAssento`/`matarFantasma`): `'impacto'` reaproveita a
+      MESMA animação de dano de sempre (`danoPorAssento`), só que os olhos
+      ficam fechados **pra sempre** (o rosto "machucado" não volta sozinho
+      — `Fantasminha.jsx` recebe `estadoMorte` e força isso); depois de
+      `MORTE_IMPACTO_MS` (== `DURACAO_DANO_MS`, a animação de dano rolando
+      inteira), `'desintegrando'` — o corpo desmancha (fade + blur +
+      afunda, troca a PRÓPRIA animação de flutuar por uma de desmanchar)
+      e explode num punhado de partículas quadradas na cor dele; depois de
+      `MORTE_DESINTEGRAR_MS` vira `'morto'` — o assento troca de vez pra
+      "💀 Eliminado" (sem fantasminha, sem legenda nenhuma). Botões de
+      debug `💀 Fantasma morre` (pega o primeiro vivo, não cicla — morte é
+      definitiva) e `✨ Reviver fantasmas` (reset manual pra repetir o
+      teste). **Não está ligado à vida** (`vidaPorAssento` chegar a 0)
+      automaticamente ainda — é um gatilho próprio por enquanto. "Quanto
+      já apostou" já resolvido (ver item Aposta).
+- [x] **Fim de jogo (quem venceu)** — reusa o MESMO sistema de tela
+      escurecida da revelação de vaza (`.mesa-exp-vaza-overlay`), só que
+      PERSISTENTE (sem fases, não some sozinho): o vencedor fica grande no
+      centro (`<Fantasminha>` de verdade, escalado via `transform:
+      scale()`) + "{JOGADOR} VENCEU!" + botão "Jogar de novo" (só fecha o
+      overlay no sandbox, não cria sala nova de verdade). Se "Você" (índice
+      0) ganhar, é a ÚNICA situação em que chega a existir um
+      `<Fantasminha>` desenhado pra você — o resto do sandbox só mostra o
+      texto "Você" nesse assento. Botão de debug `🏆 Alguém venceu o jogo`
+      sorteia qualquer assento (inclusive você). Falta plugar em
+      `jogoFinalizado` de verdade e o convite de revanche
+      (aceitar/recusar) pros outros jogadores.
+- [x] **Rodada cega ("testa", 1 carta)** — só a parte VISUAL (ver
+      `conexao/PROTOCOLO.md`, seção "Rodada de 1 carta"): o protocolo real
+      já manda `maosReveladas` com a mão dos outros pra todo mundo e
+      continua mandando a SUA `suaMao` de verdade — esconder a própria
+      carta é decisão só de tela, o servidor nunca deixa de te dizer o que
+      você tem. Toggle `rodadaCegaAtiva`/`alternarRodadaCega` sorteia uma
+      carta aleatória por assento fantasminha (`cartasCegasPorAssento`) e
+      passa pra `<MaoEmLeque>` via prop `cartas` NOVA e opcional (sem
+      `cartas`, comportamento de sempre: leque virado por `quantidade`,
+      nenhum outro chamador foi tocado); `<SuaMaoEmLeque>` ganhou prop
+      `escondida` (também opcional) que troca o render pra `<Carta virada
+      />` sem mexer no `onClick`/`jogarCarta` — a carta continua jogável
+      normalmente, só não aparece. Desliga sozinho ao trocar `quantidade`
+      de assentos (mesmo `useEffect` de reset dos outros estados por
+      assento). Botão de debug `🙈 Rodada cega: ligada/desligada`. Não
+      toca em `distribuirCartas`/`maos`/`suaMao` — funciona plugado ou
+      desplugado do resto do sandbox.
 - [ ] **Placar da última rodada** (hp de cada jogador). Nenhuma UI existe
       ainda.
-- [ ] **Erro de ação** — feedback visual de aposta inválida etc. Hoje só
-      existe como `<p class="erro">` no front antigo.
+- [x] **Erro de ação (aposta inválida)** — campo da aposta virou
+      `type="text"` (não mais `number`, que some sozinho com valor fora de
+      min/max sem deixar nem digitar pra validar); confirmar com texto
+      vazio/não-inteiro/fora de `[0, APOSTA_VALOR_MAX]` mostra mensagem
+      vermelha (`--erro`, mesma cor do resto do app) + a borda do campo
+      treme uma vez. Setinhas continuam sempre produzindo valor válido
+      (não dá pra ficar inválido usando só elas). Resto de "erro de ação"
+      (outras ações fora aposta) ainda não tem UI.
 - [ ] **Nomes reais dos jogadores** ligados aos fantasminhas — hoje é
       decoração com quantidade configurável manualmente (`+`/`−`), sem
       nome de jogador nenhum (só "Player N" fixo pelo índice do assento).

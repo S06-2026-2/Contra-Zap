@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { socket, chamar } from '../../socket.js';
 import { assinarSessaoRetomada } from '../../sessao.js';
+import MesaExperimento from './MesaExperimento.jsx';
 // Catálogo e cooldown vêm direto da fonte única do back — não há mais espelho
 // no front (ver server.fs.allow em vite.config.js).
 import { MENSAGENS_CHAT, CHAT_COOLDOWN_MS } from '../../../../../conexao/chat/mensagensChat.js';
@@ -96,6 +97,12 @@ const MAPA_CURV_X = mapaCurvatura('x');
 const MAPA_CURV_Y = mapaCurvatura('y');
 
 export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, reconexao, chatAberto, senha, meuNome, onSairDaSala, onSairDaPartida, onEntrouNaSala }) {
+    // Alterna pro visual novo (ver components/novo/MesaExperimento.jsx,
+    // hoje um componente de APRESENTAÇÃO — só a camada de socket abaixo
+    // continua alimentando ele via `estado`/`acoes`). Só o botão "🃏 Front
+    // provisório" (ver salaSoVoceEBots mais abaixo) liga; uma vez ligado
+    // fica ligado até essa instância de Partida desmontar (trocar de sala).
+    const [visualNovo, setVisualNovo] = useState(false);
     // Semeado do ack de criarSala/entrarSala (ou de reconectar, no caminho de
     // reconexão — o ack de reconectar não dispara listaJogadores), não do
     // broadcast de listaJogadores — o primeiro broadcast sai antes desta tela
@@ -119,6 +126,10 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
     const [jogadorDaVezAposta, setJogadorDaVezAposta] = useState(reconexao?.jogadorDaVezAposta ?? null);
     const [valorAposta, setValorAposta] = useState('');
     const [cartasRodada, setCartasRodada] = useState(reconexao?.cartasRodada ?? 0);
+    // Só pro visual novo (ver estado.numeroRodada em MesaExperimento.jsx —
+    // é o sinal de "rodada NOVA começou" que dispara o reset/distribuição
+    // de lá); o front de texto nunca precisou disso além do log.
+    const [numeroRodada, setNumeroRodada] = useState(reconexao?.numeroRodada ?? 0);
     const [jogadorDaVez, setJogadorDaVez] = useState(reconexao?.jogadorDaVez ?? null);
     const [mesa, setMesa] = useState(reconexao?.mesa ?? []);
     // Vaza recém-encerrada, segurada na tela por PAUSA_VAZA_MS antes de
@@ -232,6 +243,7 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
                 setVira(null);
                 setJogadorDaVezAposta(null);
                 setCartasRodada(p.cartas);
+                setNumeroRodada(p.numero);
                 setApostas({});
                 setMaosReveladas({});
                 registrar(`Rodada ${p.numero} (${p.cartas} carta(s))`);
@@ -508,6 +520,7 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
                 if (resposta.jogadores) setJogadores(resposta.jogadores);
                 setMao(resposta.mao);
                 setCartasRodada(resposta.cartasRodada);
+                setNumeroRodada(resposta.numeroRodada);
                 setMaosReveladas(Object.fromEntries((resposta.maosReveladas ?? []).map((m) => [m.jogador, m.mao])));
                 setJogadorDaVez(resposta.jogadorDaVez);
                 setJogadorDaVezAposta(resposta.jogadorDaVezAposta);
@@ -686,11 +699,46 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
     const souEuNaVez = iniciada && jogadorDaVez === meuNome && !vencedor;
     const souEuNaVezDaAposta = iniciada && jogadorDaVezAposta === meuNome && !vencedor;
     const souDono = jogadores.find((j) => j.nome === meuNome)?.adm === true;
+    // Atalho de dev pra sala de espera: o roster pré-início não manda flag
+    // `bot` nenhuma (ver criarSala em PROTOCOLO.md — só { nome, adm }), mas
+    // bots/Bot.js sempre nomeia como "Bot N" (nunca customizado por
+    // botNumber), então dá pra reconhecer uma sala de teste solo (você +
+    // só bots) só pelo nome. `every` em lista vazia (sala só com você, sem
+    // bot nenhum ainda) daria true por vacuidade — por isso o `.length > 0`.
+    const outrosJogadores = jogadores.filter((j) => j.nome !== meuNome);
+    const salaSoVoceEBots = outrosJogadores.length > 0
+        && outrosJogadores.every((j) => /^Bot \d+$/.test(j.nome));
     // Rodada de 1 carta: a própria carta fica virada (o servidor manda o
     // valor em suaMao, mas aqui a gente não mostra — a mão continua jogável
     // normalmente por índice). As cartas dos outros vêm em maosReveladas.
     const rodadaCega = iniciada && cartasRodada === 1;
     const outrosNaTesta = Object.entries(maosReveladas);
+
+    // Visual novo (ver visualNovo acima) — SUBSTITUI o resto do render
+    // desta tela inteira, igual o antigo `if (mostrarGaleria)` que o
+    // MesaExperimento.jsx tinha antes de virar componente de apresentação.
+    // `estado` é só uma leitura do que este componente JÁ monta a partir
+    // dos handlers de socket lá em cima — nenhum evento novo é assinado
+    // aqui, nenhuma lógica de jogo é duplicada. `acoes` fica de fora de
+    // propósito nesta primeira fatia (só exibição, ver DEV-front.md): sem
+    // ele, MesaExperimento mostra tudo mas nenhum controle seu (jogar
+    // carta, apostar, chat, sair) faz nada ainda — só "← Voltar" (volta
+    // pra esta MESMA tela, em texto) funciona.
+    if (visualNovo) {
+        return (
+            <MesaExperimento
+                estado={{
+                    salaId, meuNome, senha,
+                    iniciada, jogadores, segundosParaIniciar, chatAberto,
+                    mao, cartasRodada, numeroRodada, maosReveladas,
+                    mesa, vira, jogadorDaVez, jogadorDaVezAposta, apostas,
+                    eliminados, desconectados, ultimoPlacar, vencedor,
+                    vazaResultado, mensagensChat,
+                }}
+                onFechar={() => setVisualNovo(false)}
+            />
+        );
+    }
 
     return (
         <>
@@ -942,6 +990,18 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
                     <ul>
                         {jogadores.map((j) => <li key={j.nome}>{j.nome}</li>)}
                     </ul>
+                    {/* Só aparece numa sala de teste solo (você + só bots, ver
+                        salaSoVoceEBots acima) — troca esta MESMA tela pro
+                        visual novo (components/novo/MesaExperimento.jsx),
+                        agora alimentado pelos eventos de socket de verdade
+                        que este componente já processa (ver `estado`/`acoes`
+                        no early-return mais abaixo), não mais o sandbox
+                        desconectado. "← Voltar" de dentro dele volta pra cá. */}
+                    {salaSoVoceEBots && (
+                        <button type="button" className="secundario" onClick={() => setVisualNovo(true)}>
+                            🃏 Front provisório (debugging)
+                        </button>
+                    )}
                     {segundosParaIniciar != null && (
                         <>
                             <p>Sala cheia — começa sozinha em {segundosParaIniciar}s.</p>

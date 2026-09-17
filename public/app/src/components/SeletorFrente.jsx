@@ -21,7 +21,7 @@ export function salvarFrente(frente) {
     }
 }
 
-export default function SeletorFrente({ onEscolher, onAbrirExperimento }) {
+export default function SeletorFrente({ onEscolher }) {
     function escolher(frente) {
         salvarFrente(frente);
         onEscolher(frente);
@@ -37,17 +37,6 @@ export default function SeletorFrente({ onEscolher, onAbrirExperimento }) {
                     🐞 Debugging
                 </button>
             </div>
-            {/* Não é uma "frente" de verdade (não tem Login/Lobby/Partida, não
-                mexe em sessão/sala) — só um atalho pra ver o sandbox de
-                layout da mesa (ver components/novo/MesaExperimento.jsx)
-                rodando sem precisar editar código. */}
-            {onAbrirExperimento && (
-                <div className="botoes">
-                    <button type="button" className="secundario" onClick={onAbrirExperimento}>
-                        🃏 Experimento: mesa
-                    </button>
-                </div>
-            )}
         </div>
     );
 }

@@ -6,24 +6,18 @@ import LoginNovo from './components/novo/Login.jsx';
 import LobbyNovo from './components/novo/Lobby.jsx';
 import PartidaNovo from './components/novo/Partida.jsx';
 import SeletorFrente, { lerFrenteSalva, salvarFrente } from './components/SeletorFrente.jsx';
-import MesaExperimento from './components/novo/MesaExperimento.jsx';
 import { assinarConexao, chamar, obterConexao, socket } from './socket.js';
 import { avisarSessaoRetomada, lerSessaoSalva, limparSessaoSalva, salvarSessao } from './sessao.js';
 
 // Única "rota" de verdade do app (o resto — frente, login, lobby, sala —
-// é tudo estado em memória/localStorage, nunca a URL). Só o experimento de
-// mesa precisa sobreviver a um F5 (link direto pra mostrar, ver
-// abrirExperimento/fecharExperimento) — dá pra digitar/recarregar esse
-// path sem cair de volta no SeletorFrente. Server.js (prod) e o dev server
-// do Vite (appType 'spa', default) já servem index.html pra qualquer path
-// desconhecido, então recarregar aqui sempre volta pro React.
-const ROTA_EXPERIMENTO = '/experimento';
+// é tudo estado em memória/localStorage, nunca a URL).
 
-// "novo" é hoje um clone de tela por tela do "debugging" (mesmo socket.js/
-// sessao.js dos dois — só a casca visual é duplicada) — ver SeletorFrente.jsx
-// pra como a escolha é lembrada por navegador. Enquanto o front novo não
-// tiver telas próprias de verdade, isto aqui é só uma roupa em cima do
-// debugging pra nenhum endpoint ficar esquecido.
+// "novo" nasceu como clone de tela por tela do "debugging" (mesmo
+// socket.js/sessao.js dos dois — só a casca visual era duplicada) — ver
+// SeletorFrente.jsx pra como a escolha é lembrada por navegador. A Partida
+// dele já diverge um pouco: tem um botão extra (só numa sala de teste solo,
+// você + bots) que troca pro visual novo de verdade (ver `visualNovo` em
+// components/novo/Partida.jsx e components/novo/MesaExperimento.jsx).
 const FRENTES = {
     novo: { Login: LoginNovo, Lobby: LobbyNovo, Partida: PartidaNovo },
     debugging: { Login, Lobby, Partida },
@@ -39,40 +33,6 @@ export default function App() {
     // inclusive antes do Login). Lembrada por navegador via localStorage —
     // ver SeletorFrente.jsx.
     const [frente, setFrente] = useState(lerFrenteSalva);
-    // Atalho pro sandbox de layout da mesa (ver
-    // components/novo/MesaExperimento.jsx) sem entrar no fluxo normal de
-    // Login/Lobby/Partida — não é uma "frente" (não vai pro FRENTES nem é
-    // persistido em localStorage), só uma tela cheia por cima de tudo
-    // enquanto ativa. Estado inicial lido da URL (ver ROTA_EXPERIMENTO)
-    // pra um F5 nessa rota abrir direto nela, não voltar pro SeletorFrente.
-    const [mostrarExperimento, setMostrarExperimento] = useState(
-        () => window.location.pathname === ROTA_EXPERIMENTO,
-    );
-
-    // Mantém a URL em sincronia com o estado (pushState, sem recarregar a
-    // página) — é o que faz um F5 depois de abrir o experimento continuar
-    // nele em vez de cair no SeletorFrente. `history.pushState` puro (sem
-    // router nenhum) porque só existe UMA rota de verdade no app inteiro.
-    function abrirExperimento() {
-        window.history.pushState(null, '', ROTA_EXPERIMENTO);
-        setMostrarExperimento(true);
-    }
-    function fecharExperimento() {
-        window.history.pushState(null, '', '/');
-        setMostrarExperimento(false);
-    }
-
-    // Botão "voltar"/"avançar" do navegador (não só o link "← Voltar" do
-    // próprio experimento, que já passa por fecharExperimento acima) —
-    // sem isto, apertar "voltar" mudaria a URL mas a tela ficaria presa no
-    // experimento até o próximo re-render por outro motivo.
-    useEffect(() => {
-        function aoNavegar() {
-            setMostrarExperimento(window.location.pathname === ROTA_EXPERIMENTO);
-        }
-        window.addEventListener('popstate', aoNavegar);
-        return () => window.removeEventListener('popstate', aoNavegar);
-    }, []);
     const [player, setPlayer] = useState(null); // { nome, token }
     const [sala, setSala] = useState(null); // { salaId, jogadoresIniciais } ou { salaId, reconexao }
     // salaId de uma partida em andamento em que ainda temos assento mas cujo
@@ -201,12 +161,8 @@ export default function App() {
         setFrente(null);
     }
 
-    if (mostrarExperimento) {
-        return <MesaExperimento onFechar={fecharExperimento} />;
-    }
-
     if (!frente) {
-        return <SeletorFrente onEscolher={setFrente} onAbrirExperimento={abrirExperimento} />;
+        return <SeletorFrente onEscolher={setFrente} />;
     }
 
     if (restaurandoSessao) {
