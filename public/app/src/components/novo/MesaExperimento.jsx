@@ -540,6 +540,16 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     // mudando, não por um botão.
     const [alvoIndex, setAlvoIndex] = useState(null);
     const [distribuindo, setDistribuindo] = useState(false);
+    // Espelha `distribuindo`, mas gravado NA HORA (ref, não state) sempre
+    // que `setDistribuindo` for chamado — ver os dois sites em
+    // iniciarRodadaNova. Existe porque a vira/vaza chegam do servidor às
+    // vezes no MESMO commit que `numeroRodada`/`mao` (que dispara
+    // iniciarRodadaNova): um efeito lendo o STATE `distribuindo` ainda veria
+    // o valor de ANTES desse commit (state só atualiza no PRÓXIMO render),
+    // mesmo que `iniciarRodadaNova` já tenha rodado sua parte síncrona
+    // (setDistribuindo(true) incluso) alguns instantes antes NO MESMO
+    // commit — o ref não tem esse atraso.
+    const distribuindoRef = useRef(false);
     const [cartasVoando, setCartasVoando] = useState([]);
     const proximoIdCarta = useRef(0);
 
@@ -585,6 +595,14 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     const [faseVira, setFaseVira] = useState(null);
     const [baralhoEmVira, setBaralhoEmVira] = useState(false);
     const [viraEmHover, setViraEmHover] = useState(false);
+    // Guarda de ordem entre a vira e a revelação de vaza (ver
+    // tentarIniciarRevelacaoVaza): a vaza não pode revelar o vencedor
+    // enquanto a vira ainda estiver animando, senão tocam por cima uma da
+    // outra. Mesmo motivo de `distribuindoRef` acima: `viraAnimandoRef` é
+    // lido NA HORA (ref), `viraAnimando` (state) só existe pra disparar de
+    // novo o efeito de retry da vaza quando a vira terminar.
+    const viraAnimandoRef = useRef(false);
+    const [viraAnimando, setViraAnimando] = useState(false);
 
     const [chatClicado, setChatClicado] = useState(false);
     const [bolhasFala, setBolhasFala] = useState([]);
@@ -626,6 +644,8 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     // cima) — chamada tanto pela vira quanto (indiretamente) por nada mais
     // agora: no jogo de verdade só existe UMA vira por rodada.
     async function tocarVira() {
+        viraAnimandoRef.current = true;
+        setViraAnimando(true);
         setBaralhoEmVira(true);
         await esperar(DURACAO_DECK_MS + FOLGA_APOS_BARALHO_MS);
         setFaseVira('indo');
@@ -635,6 +655,8 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         setFaseVira('pousada');
         setBaralhoEmVira(false);
         await esperar(DURACAO_DECK_MS);
+        viraAnimandoRef.current = false;
+        setViraAnimando(false);
     }
 
     const alvo = alvoIndex != null ? assentos[alvoIndex] : null;
@@ -808,33 +830,25 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- processarJogada fecha sobre estado local (vazaRevelando/assentos/...) que muda a cada render; ler direto no corpo já pega o valor atual
     }, [estado.mesa]);
 
-    // Vira: dispara assim que `estado.vira` chegar, mesmo se a distribuição
-    // ainda estiver voando (na prática é sempre o caso — manilhaVirada
-    // chega do servidor quase junto com suaMao, bem antes da coreografia
-    // de dar carta terminar de rodar no cliente). `viraProcessadaRef` (não
-    // outro `useState`) guarda qual `estado.vira` já foi animado — comparar
-    // direto contra um ref evita o antigo esquema de "guardar pendente,
-    // esperar outro efeito notar que já pode processar", que dependia de
-    // dois efeitos separados concordarem sobre QUANDO reprocessar.
-    const viraProcessadaRef = useRef(null);
-    useEffect(() => {
-        if (!estado.vira || viraProcessadaRef.current === estado.vira) return;
-        viraProcessadaRef.current = estado.vira;
-        const carta = lerCarta(estado.vira.carta);
-        if (!carta) return;
-        setViraEmHover(false);
-        setVira({ id: ++proximoIdVira.current, rank: carta.rank, naipe: carta.naipe, valorInt: estado.vira.valor });
-        setFaseVira('subindo');
-        tocarVira();
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- tocarVira é estável (não depende de props/estado que mudem o comportamento entre chamadas)
-    }, [estado.vira]);
-
     // Rodada nova: `estado.mao` (sua mão de verdade) é o sinal de que já dá
     // pra montar a coreografia de distribuir — novaRodadaIniciada chega
     // ANTES de suaMao (ver PROTOCOLO.md), então só reage quando as DUAS
     // coisas já bateram (numeroRodada mudou E a mão já tem conteúdo —
     // `mao.length === 0` sozinho não serve de sinal porque também é o
     // estado normal de "já joguei todas as cartas desta rodada").
+    // DECLARADO ANTES do efeito da vira logo abaixo de propósito: quando o
+    // servidor manda mao/numeroRodada E vira no mesmo evento (o caso comum,
+    // ver comentário da vira), os dois efeitos rodam no MESMO commit, na
+    // ORDEM em que aparecem no arquivo. Precisa que `iniciarRodadaNova`
+    // (que zera `viraProcessadaRef` e marca `distribuindoRef` como true)
+    // já tenha rodado sua parte síncrona ANTES do efeito da vira ler
+    // `distribuindoRef`. Sem essa ordem, a vira de uma rodada nova achava a
+    // distribuição "livre" (ref ainda com o valor da rodada anterior) e
+    // disparava na hora, pra logo em seguida o reset de `iniciarRodadaNova`
+    // (que roda no mesmo commit) apagar ela do nada — sem nunca mais
+    // reprocessar, porque `viraProcessadaRef` já tinha marcado aquele
+    // `estado.vira` como visto. Era exatamente o bug "a vira só funciona da
+    // primeira vez" que o Henrique reportou.
     useEffect(() => {
         if (estado.numeroRodada === rodadaProcessadaRef.current) return;
         if (estado.cartasRodada > 0 && estado.mao.length === 0) return;
@@ -843,8 +857,33 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- iniciarRodadaNova fecha sobre ordemAssentos/assentos atuais, recriada a cada render — não precisa entrar nas deps porque só disparamos pela mudança de numeroRodada/mao
     }, [estado.numeroRodada, estado.mao, estado.cartasRodada]);
 
+    // Vira: dispara assim que `estado.vira` chegar E a distribuição já
+    // tiver terminado — se `distribuindoRef` ainda estiver true, este MESMO
+    // efeito roda de novo quando `distribuindo` (state, ver dependências)
+    // virar false, com `viraProcessadaRef` ainda não marcado (só marca
+    // depois de decidir disparar). `distribuindoRef` em vez do state
+    // `distribuindo` direto é o que evita a corrida de mesmo commit descrita
+    // no efeito de "Rodada nova" acima.
+    function dispararVira(viraDoServidor) {
+        const carta = lerCarta(viraDoServidor.carta);
+        if (!carta) return;
+        setViraEmHover(false);
+        setVira({ id: ++proximoIdVira.current, rank: carta.rank, naipe: carta.naipe, valorInt: viraDoServidor.valor });
+        setFaseVira('subindo');
+        tocarVira();
+    }
+
+    const viraProcessadaRef = useRef(null);
+    useEffect(() => {
+        if (!estado.vira || viraProcessadaRef.current === estado.vira || distribuindoRef.current) return;
+        viraProcessadaRef.current = estado.vira;
+        dispararVira(estado.vira);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- `distribuindo` só está nas deps pra reavaliar quando ele mudar (a leitura de verdade é distribuindoRef.current); dispararVira é recriada a cada render mas estável o bastante pra não precisar entrar
+    }, [estado.vira, distribuindo]);
+
     async function iniciarRodadaNova() {
         setDistribuindo(true);
+        distribuindoRef.current = true;
         setCartasNaMesa([]);
         setCartaEmHoverId(null);
         setCartaSaindoId(null);
@@ -857,6 +896,8 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         // objeto `estado.vira` da rodada anterior, que só é substituído
         // pelo próximo manilhaVirada de verdade, ainda por vir).
         viraProcessadaRef.current = null;
+        viraAnimandoRef.current = false;
+        setViraAnimando(false);
         setVazaRevelando(null);
         setFaseRevelacaoVaza(null);
         setCartasExplodindo({});
@@ -915,6 +956,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
 
         setAlvoIndex(null);
         await esperar(DURACAO_DECK_MS);
+        distribuindoRef.current = false;
         setDistribuindo(false);
     }
 
@@ -984,7 +1026,16 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
 
     function tentarIniciarRevelacaoVaza(resultado) {
         const { vencedor, carta: cartaTexto } = resultado;
-        if (distribuindo) {
+        // Mesma trava de `distribuindoRef`, agora somada à vira (ver
+        // viraAnimandoRef lá em cima): a vaza só revela o vencedor depois
+        // das DUAS coreografias anteriores acabarem, senão tocam por cima
+        // uma da outra. Lê os REFS (não os states `distribuindo`/
+        // `viraAnimando`) pelo mesmo motivo do efeito da vira — esta função
+        // também pode ser chamada no mesmo commit em que outro efeito
+        // acabou de settar um desses states, e o state só reflete no
+        // PRÓXIMO render. O efeito de baixo tenta de novo quando
+        // `distribuindo`/`viraAnimando` (states) mudarem.
+        if (distribuindoRef.current || viraAnimandoRef.current) {
             vazaAguardandoRef.current = resultado;
             return;
         }
@@ -1015,12 +1066,12 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     }
 
     // Reavalia um resultado pendente sempre que uma carta nova pousa em
-    // cartasNaMesa OU quando a distribuição termina (ver comentário de
-    // vazaAguardandoRef acima).
+    // cartasNaMesa, quando a distribuição termina, OU quando a vira termina
+    // de animar (ver comentário de vazaAguardandoRef acima).
     useEffect(() => {
         if (vazaAguardandoRef.current) tentarIniciarRevelacaoVaza(vazaAguardandoRef.current);
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- só reage a cartasNaMesa ganhar entrada nova ou distribuindo mudar; tentarIniciarRevelacaoVaza lê o resto fresco
-    }, [cartasNaMesa, distribuindo]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- só reage a cartasNaMesa/distribuindo/viraAnimando mudarem; tentarIniciarRevelacaoVaza lê o resto fresco
+    }, [cartasNaMesa, distribuindo, viraAnimando]);
 
     async function iniciarRevelacaoVazaMelada() {
         // Melada: ninguém pontuou — sem carta crescendo/viajando, só o
