@@ -187,7 +187,12 @@ function Engrenagem({ className, dentes = 8, corBase = '#cbd1d6', corSombra = '#
 // engrenagens por cima do corpo + olhos/boca quadrados em vez de
 // redondos (ver .fantasminha-rosto-bot no CSS), sem mexer em cor, chapéu
 // nem no balançar/flutuar, que continuam os mesmos de sempre.
-export default function Fantasminha({ children, destacado, danoVersao, bot, monitor = true, hue, naVez, chapeu, estadoMorte }) {
+// `ajusteChapeuPct` (default 0): desloca o chapéu verticalmente em cima do
+// `top` fixo do CSS (ver --chapeu-ajuste/.fantasminha-chapeu em index.css)
+// — cada chapéu tem o seu próprio nudge calibrado à mão (ver `ajuste` em
+// chapeus.js/assets/chapeus/calibracao-chapeus.csv), já que a maioria não
+// nasceu desenhada pro mesmo lugar em cima do fantasminha.
+export default function Fantasminha({ children, destacado, danoVersao, bot, monitor = true, hue, naVez, chapeu, estadoMorte, ajusteChapeuPct = 0 }) {
     const idGradiente = useId();
     const idCorteClip = useId();
     const idTelaClip = useId();
@@ -486,6 +491,7 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
                     '--chapeu-impacto-x': `${chapeuImpacto.x.toFixed(1)}px`,
                     '--chapeu-impacto-y': `${chapeuImpacto.y.toFixed(1)}px`,
                     '--chapeu-impacto-rot': `${chapeuImpacto.rot.toFixed(1)}deg`,
+                    '--chapeu-ajuste': `${ajusteChapeuPct}%`,
                 }}
             />
             {/* Filho de .fantasminha-flutuante de propósito (não um

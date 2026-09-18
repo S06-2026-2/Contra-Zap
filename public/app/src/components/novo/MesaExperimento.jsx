@@ -520,6 +520,11 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         () => Array.from({ length: ordemAssentos.length }, () => Math.random() * 360),
         [ordemAssentos.length]
     );
+    // Cada entrada é { id, src, ajuste } (ver sortearChapeu/CHAPEUS_COM_ID em
+    // chapeus.js) — `ajuste` é o nudge vertical calibrado pra ESSE chapéu
+    // específico (a maioria não nasceu desenhada pro mesmo lugar, ver
+    // assets/chapeus/calibracao-chapeus.csv), repassado pro Fantasminha via
+    // ajusteChapeuPct nos dois usos abaixo.
     const chapeusPorAssento = useMemo(
         () => Array.from({ length: ordemAssentos.length }, () => sortearChapeu()),
         [ordemAssentos.length]
@@ -1501,7 +1506,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                                 <span className="mesa-exp-assento-eliminado">💀<br />Eliminado</span>
                             ) : (
                                 <>
-                                    <Fantasminha destacado={destacado} danoVersao={danoPorAssento[i] ?? 0} bot={ehBot} monitor hue={huesPorAssento[i]} chapeu={chapeusPorAssento[i]} naVez={naVez} estadoMorte={estadoMorte}>
+                                    <Fantasminha destacado={destacado} danoVersao={danoPorAssento[i] ?? 0} bot={ehBot} monitor hue={huesPorAssento[i]} chapeu={chapeusPorAssento[i].src} ajusteChapeuPct={chapeusPorAssento[i].ajuste} naVez={naVez} estadoMorte={estadoMorte}>
                                         {/* `maos[i] > 0` é o que já chegou de VERDADE (via
                                             CartaVoando/aoChegarCarta) — sem essa trava a carta
                                             revelada (estado.maosReveladas) aparecia na hora que o
@@ -1791,7 +1796,8 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                         <div className="mesa-exp-vitoria-fantasminha-escala">
                             <Fantasminha
                                 hue={huesPorAssento[jogoVencedorIndice]}
-                                chapeu={chapeusPorAssento[jogoVencedorIndice]}
+                                chapeu={chapeusPorAssento[jogoVencedorIndice].src}
+                                ajusteChapeuPct={chapeusPorAssento[jogoVencedorIndice].ajuste}
                                 bot={jogoVencedorIndice === 0 ? false : (estado.desconectados ?? []).includes(ordemAssentos[jogoVencedorIndice]?.nome)}
                                 monitor
                             />

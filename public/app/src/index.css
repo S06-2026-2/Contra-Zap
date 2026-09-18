@@ -1849,7 +1849,10 @@ button.secundario {
    ligeiramente acima de y=0 no viewBox do SVG — daí o top negativo). */
 .fantasminha-chapeu {
     position: absolute;
-    top: 4%;
+    /* --chapeu-ajuste vem inline (ver ajusteChapeuPct em Fantasminha.jsx),
+       sempre presente (default "0%") — não muda nada pra quem não passa a
+       prop, só dá um gancho pra nudge fino por chapéu individual. */
+    top: calc(4% + var(--chapeu-ajuste, 0%));
     left: 50%;
     width: 168px;
     height: 168px;
