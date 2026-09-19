@@ -1072,6 +1072,12 @@ button.secundario {
     position: fixed;
     width: 64px;
     height: 64px;
+    /* Maior que os 39 de .mesa-exp-carta-vaza-ganha — sem isso a ficha
+       (z-index:auto, efetivamente 0) sempre pintava ATRÁS da carta,
+       mesmo a intenção (ver comentário lá) sendo o contrário: a carta
+       "embaixo" da ficha, só uma pontinha espiando, não por cima
+       escondendo se teve ficha pra aquela vaza ou não. */
+    z-index: 40;
     transform: translate(-50%, -50%) scale(.62);
 }
 
@@ -1297,6 +1303,26 @@ button.secundario {
     font-size: 16px;
 }
 
+/* Convite de revanche (ver conviteRevanche em MesaExperimento.jsx) — texto
+   menor/mais discreto que o "VENCEU!" (esse já grita sozinho via -strong
+   acima), centralizado igual ao resto de .mesa-exp-vitoria-texto (que é
+   flex column, mas este bloco é um <div> comum por dentro). */
+.mesa-exp-vitoria-convite {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.mesa-exp-vitoria-convite p {
+    margin: 0;
+    color: var(--texto);
+    font-family: system-ui, sans-serif;
+    font-size: 15px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, .6);
+    text-align: center;
+}
+
 /* Tremor de tela no instante do impacto (ver faseRevelacaoVaza === 'impacto'
    em MesaExperimento.jsx) — jitter pequeno e curto, some sozinho (a
    classe só fica ligada enquanto a fase 'impacto' durar, que já é curta
@@ -1357,11 +1383,14 @@ button.secundario {
    bater), só uma pontinha espiando atrás da pilha de fichas dele,
    z-index MENOR que o das fichas de aposta (ver .mesa-exp-aposta-ficha-
    canto, 43) de propósito — é isso que faz ela ficar "embaixo" de uma
-   ficha, não do lado. */
+   ficha, não do lado. Rotação em 90° (não os -12deg de antes) — pedido do
+   Henrique: virada de lado, a carta ocupa menos espaço na DIREÇÃO em que
+   a pilha empilha (ver offset por slotIndice em MesaExperimento.jsx),
+   então cabem mais cartas visíveis na mesma pilha sem cobrir uma à outra. */
 .mesa-exp-carta-vaza-ganha {
     position: fixed;
     z-index: 39;
-    transform: translate(-50%, -50%) rotate(-12deg) scale(0.34);
+    transform: translate(-50%, -50%) rotate(90deg) scale(0.34);
     pointer-events: none;
 }
 

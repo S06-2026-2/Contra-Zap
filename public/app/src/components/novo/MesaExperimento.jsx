@@ -582,6 +582,23 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     const [cartasVazaGanhas, setCartasVazaGanhas] = useState([]);
     const [cartasExplodindo, setCartasExplodindo] = useState({});
     const vazaProcessadaRef = useRef(null);
+    // Guarda de ordem: a vaza que FECHA um round (última da rodada) tem que
+    // terminar de revelar o vencedor ANTES da próxima rodada começar a
+    // distribuir — sem isso `iniciarRodadaNova` (disparado por
+    // numeroRodada/mao da rodada seguinte, que o servidor manda quase junto
+    // com o resultado dessa última vaza) reseta `vazaRevelando`/
+    // `faseRevelacaoVaza` no meio da coreografia, pulando a animação (era o
+    // "carta vitoriosa cortada" que o Henrique via especificamente na vaza
+    // que fecha o round). `revelacaoVazaAtivaRef` fica true desde que um
+    // `estado.vazaResultado` novo chega até a coreografia de revelação
+    // (melada ou com vencedora) terminar de verdade — ver
+    // tentarIniciarRevelacaoVaza/iniciarRevelacaoVazaMelada/
+    // iniciarRevelacaoVazaComVencedora. Mesmo padrão ref+state de
+    // distribuindoRef/viraAnimandoRef: o ref é lido na hora (sem esperar
+    // re-render), o state só existe pra reavaliar o efeito de "rodada nova"
+    // quando a revelação acabar.
+    const revelacaoVazaAtivaRef = useRef(false);
+    const [revelacaoVazaAtiva, setRevelacaoVazaAtiva] = useState(false);
     // Jogadas de cartaJogada que chegaram ENQUANTO uma revelação de vaza já
     // estava em andamento — sem servidor isso nunca acontecia (os botões de
     // debug tinham guarda pra não sobrepor); com bot de verdade jogando por
@@ -830,12 +847,38 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- processarJogada fecha sobre estado local (vazaRevelando/assentos/...) que muda a cada render; ler direto no corpo já pega o valor atual
     }, [estado.mesa]);
 
+    // Fim de vaza — mesma coreografia de 4 fases de sempre (crescendo /
+    // impacto / viajando / pousada), só que agora o vencedor e a carta vêm
+    // do SERVIDOR (estado.vazaResultado), não de analiseMesa local. Vaza
+    // melada (vencedor null) cai num caminho mais simples: mensagem +
+    // explode tudo, sem carta viajando pra pilha de ninguém.
+    // DECLARADO ANTES do efeito de "Rodada nova" logo abaixo de propósito:
+    // quando essa vaza é a que FECHA o round, o servidor manda o resultado
+    // dela e a mão/numeroRodada da rodada seguinte quase juntos — os dois
+    // efeitos rodam no MESMO commit, na ordem em que aparecem no arquivo.
+    // Precisa que `tentarIniciarRevelacaoVaza` já tenha marcado
+    // `revelacaoVazaAtivaRef` como true ANTES do efeito de "Rodada nova"
+    // ler esse ref, senão a rodada nova começava a distribuir na hora — pra
+    // logo em seguida `iniciarRodadaNova` (que reseta vazaRevelando/
+    // faseRevelacaoVaza) apagar a revelação que nem tinha começado a
+    // animar. Era o "pula a animação de carta vitoriosa na vaza que fecha o
+    // round" que o Henrique reportou — mesma família do bug da vira.
+    useEffect(() => {
+        if (!estado.vazaResultado || estado.vazaResultado === vazaProcessadaRef.current) return;
+        vazaProcessadaRef.current = estado.vazaResultado;
+        tentarIniciarRevelacaoVaza(estado.vazaResultado);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- tentarIniciarRevelacaoVaza fecha sobre cartasNaMesa/assentos atuais
+    }, [estado.vazaResultado]);
+
     // Rodada nova: `estado.mao` (sua mão de verdade) é o sinal de que já dá
     // pra montar a coreografia de distribuir — novaRodadaIniciada chega
     // ANTES de suaMao (ver PROTOCOLO.md), então só reage quando as DUAS
     // coisas já bateram (numeroRodada mudou E a mão já tem conteúdo —
     // `mao.length === 0` sozinho não serve de sinal porque também é o
-    // estado normal de "já joguei todas as cartas desta rodada").
+    // estado normal de "já joguei todas as cartas desta rodada"). Também
+    // espera `revelacaoVazaAtivaRef` (ver efeito de vaza acima) ficar
+    // false — a última vaza do round precisa terminar de revelar o
+    // vencedor antes da próxima rodada começar a distribuir.
     // DECLARADO ANTES do efeito da vira logo abaixo de propósito: quando o
     // servidor manda mao/numeroRodada E vira no mesmo evento (o caso comum,
     // ver comentário da vira), os dois efeitos rodam no MESMO commit, na
@@ -852,10 +895,11 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     useEffect(() => {
         if (estado.numeroRodada === rodadaProcessadaRef.current) return;
         if (estado.cartasRodada > 0 && estado.mao.length === 0) return;
+        if (revelacaoVazaAtivaRef.current) return;
         rodadaProcessadaRef.current = estado.numeroRodada;
         iniciarRodadaNova();
         // eslint-disable-next-line react-hooks/exhaustive-deps -- iniciarRodadaNova fecha sobre ordemAssentos/assentos atuais, recriada a cada render — não precisa entrar nas deps porque só disparamos pela mudança de numeroRodada/mao
-    }, [estado.numeroRodada, estado.mao, estado.cartasRodada]);
+    }, [estado.numeroRodada, estado.mao, estado.cartasRodada, revelacaoVazaAtiva]);
 
     // Vira: dispara assim que `estado.vira` chegar E a distribuição já
     // tiver terminado — se `distribuindoRef` ainda estiver true, este MESMO
@@ -898,6 +942,11 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         viraProcessadaRef.current = null;
         viraAnimandoRef.current = false;
         setViraAnimando(false);
+        // Já devia estar false a essa altura (é precondição do efeito de
+        // "Rodada nova" pra sequer chamar iniciarRodadaNova) — reset aqui
+        // é só defensivo, mesmo padrão dos outros refs de coreografia.
+        revelacaoVazaAtivaRef.current = false;
+        setRevelacaoVazaAtiva(false);
         setVazaRevelando(null);
         setFaseRevelacaoVaza(null);
         setCartasExplodindo({});
@@ -960,18 +1009,6 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         setDistribuindo(false);
     }
 
-    // Fim de vaza — mesma coreografia de 4 fases de sempre (crescendo /
-    // impacto / viajando / pousada), só que agora o vencedor e a carta vêm
-    // do SERVIDOR (estado.vazaResultado), não de analiseMesa local. Vaza
-    // melada (vencedor null) cai num caminho mais simples: mensagem +
-    // explode tudo, sem carta viajando pra pilha de ninguém.
-    useEffect(() => {
-        if (!estado.vazaResultado || estado.vazaResultado === vazaProcessadaRef.current) return;
-        vazaProcessadaRef.current = estado.vazaResultado;
-        tentarIniciarRevelacaoVaza(estado.vazaResultado);
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- tentarIniciarRevelacaoVaza fecha sobre cartasNaMesa/assentos atuais
-    }, [estado.vazaResultado]);
-
     function explodirCartasDaMesa() {
         setCartasExplodindo(() => {
             const explosoes = {};
@@ -1026,6 +1063,13 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
 
     function tentarIniciarRevelacaoVaza(resultado) {
         const { vencedor, carta: cartaTexto } = resultado;
+        // Marca ATIVO assim que um resultado chega (mesmo que ainda não dê
+        // pra animar — ver guardas abaixo) e só desliga quando a revelação
+        // termina de verdade (fim de iniciarRevelacaoVazaMelada/
+        // ComVencedora) — é o que impede a PRÓXIMA rodada de começar a
+        // distribuir por cima (ver efeito de "Rodada nova").
+        revelacaoVazaAtivaRef.current = true;
+        setRevelacaoVazaAtiva(true);
         // Mesma trava de `distribuindoRef`, agora somada à vira (ver
         // viraAnimandoRef lá em cima): a vaza só revela o vencedor depois
         // das DUAS coreografias anteriores acabarem, senão tocam por cima
@@ -1085,6 +1129,8 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         setCartasExplodindo({});
         setCartaEmHoverId(null);
         setFaseRevelacaoVaza(null);
+        revelacaoVazaAtivaRef.current = false;
+        setRevelacaoVazaAtiva(false);
         drenarFilaJogadas();
     }
 
@@ -1093,7 +1139,15 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
 
         const assentoIndice = indiceDoNome(vencedor);
         const destino = calcularAncoraFichaAssento(assentoIndice);
-        if (!destino) return;
+        if (!destino) {
+            // Não devia acontecer (o assento já está montado a essa altura
+            // do jogo), mas se acontecer não pode deixar `revelacaoVazaAtivaRef`
+            // preso em true pra sempre — isso travaria a rodada seguinte de
+            // vez (ver guarda no efeito de "Rodada nova").
+            revelacaoVazaAtivaRef.current = false;
+            setRevelacaoVazaAtiva(false);
+            return;
+        }
 
         const origem = {
             x: rect.left + rect.width / 2,
@@ -1136,6 +1190,8 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         ]);
         setVazaRevelando(null);
         setFaseRevelacaoVaza(null);
+        revelacaoVazaAtivaRef.current = false;
+        setRevelacaoVazaAtiva(false);
         drenarFilaJogadas();
     }
 
@@ -1312,13 +1368,25 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         setEstadoMortePorAssento((atual) => atual.map((v, i) => (i === indice ? 'morto' : v)));
     }
 
-    // Fim de jogo (ver estado.vencedor).
+    // Fim de jogo (ver estado.vencedor) — mesma família dos bugs de
+    // "animação cortada" já caçados nesta mesa (vira/vaza/rodada nova):
+    // .mesa-exp-vitoria é z-index:47, EXATAMENTE igual ao da carta de
+    // revelação de vaza (.mesa-exp-carta-revelando) — empate de z-index
+    // decide pela ordem no DOM, e a tela de vitória vem DEPOIS no JSX, logo
+    // cobre a carta inteira (+ o fundo escurecido, +47 o fantasminha
+    // gigante). Quando a última vaza da PARTIDA fecha o placar e elimina
+    // todo mundo menos um de uma vez (o caso mais comum de "perder vida" e
+    // a animação sumir junto, ver relato do Henrique), `estado.vencedor`
+    // chega enquanto a revelação daquela vaza ainda está tocando —
+    // `revelacaoVazaAtivaRef` (ver tentarIniciarRevelacaoVaza lá em cima)
+    // segura a tela de VENCEU até a revelação acabar de verdade, mesma
+    // guarda que já usamos pra não deixar a rodada nova começar em cima.
     useEffect(() => {
-        if (!estado.vencedor || jogoVencedorIndice != null) return;
+        if (!estado.vencedor || jogoVencedorIndice != null || revelacaoVazaAtivaRef.current) return;
         const indice = indiceDoNome(estado.vencedor);
         if (indice !== -1) setJogoVencedorIndice(indice);
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- indiceDoNome lido fresco
-    }, [estado.vencedor]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- indiceDoNome lido fresco; revelacaoVazaAtiva só pra reavaliar quando a revelação acabar (leitura de verdade é o ref)
+    }, [estado.vencedor, revelacaoVazaAtiva]);
 
     // Balão de fala em cima de um assento — some sozinho depois de
     // DURACAO_BOLHA_MS.
@@ -1362,7 +1430,14 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                         ))}
                     </ul>
                     {estado.segundosParaIniciar != null && (
-                        <p>Sala cheia — começa sozinha em {estado.segundosParaIniciar}s.</p>
+                        <>
+                            <p>Sala cheia — começa sozinha em {estado.segundosParaIniciar}s.</p>
+                            {/* Mesmo evento forcarInicio de sempre (ver botão
+                                equivalente em novo/Partida.jsx, e forcarInicio
+                                em `acoes` lá) — só essa tela (front
+                                provisório) ainda não tinha o botão. */}
+                            <button type="button" onClick={acoes.forcarInicio}>Forçar início agora</button>
+                        </>
                     )}
                 </div>
             </div>
@@ -1764,7 +1839,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
 
             <div className="mesa-exp-aposta-canto" ref={cantoFichasRef} />
 
-            {fichasNoCanto.length > 0 && (
+            {(fichasNoCanto.length > 0 || cartasVazaGanhas.some((c) => c.assentoIndice === 0)) && (
                 <div className="mesa-exp-aposta-fichas-linha">
                     {fichasNoCanto.map((ficha, i) => {
                         const cartaAqui = cartasVazaGanhas.find((c) => c.assentoIndice === 0 && c.slotIndice === i);
@@ -1784,21 +1859,53 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                             </div>
                         );
                     })}
+                    {/* Vazas feitas sem ficha pra "abraçar" — apostou 0, ou fez
+                        mais vazas do que apostou (slotIndice não acha ficha
+                        nenhuma com esse índice no map acima). Sem este bloco a
+                        carta simplesmente nunca aparecia em lugar nenhum:
+                        mesmo slot de sempre (mesma largura/animação), só que
+                        sem <Ficha/> dentro. */}
+                    {cartasVazaGanhas
+                        .filter((c) => c.assentoIndice === 0 && c.slotIndice >= fichasNoCanto.length)
+                        .map((carta) => (
+                            <div key={carta.id} className="mesa-exp-aposta-ficha-slot mesa-exp-aposta-ficha-slot-com-carta">
+                                <div className="mesa-exp-carta-vaza-ganha-slot">
+                                    <Carta rank={carta.rank} naipe={carta.naipe} />
+                                </div>
+                            </div>
+                        ))}
                     {estado.apostas?.[estado.meuNome] != null && (
                         <span className="mesa-exp-aposta-linha-legenda">Sua aposta: {estado.apostas[estado.meuNome]}</span>
                     )}
                 </div>
             )}
 
-            {cartasVazaGanhas.filter((c) => c.assentoIndice !== 0).map((carta) => (
-                <div
-                    key={carta.id}
-                    className="mesa-exp-carta-vaza-ganha"
-                    style={{ left: `${carta.x}px`, top: `${carta.y}px` }}
-                >
-                    <Carta rank={carta.rank} naipe={carta.naipe} />
-                </div>
-            ))}
+            {cartasVazaGanhas.filter((c) => c.assentoIndice !== 0).map((carta) => {
+                // Mesmo sistema de slot que já funciona pra VOCÊ (ver fileira
+                // de fichas acima), adaptado pro layout empilhado (vertical,
+                // não em fileira) dos fantasminhas: cada carta usa o MESMO
+                // offset vertical que a ficha de mesmo número (`slotIndice`)
+                // já usa ao redor do `ancora.y` (ver FICHA_EMPILHA_FANTASMA_PX/
+                // animarAposta) — sem isso todas as cartas de um fantasminha
+                // pousavam no MESMO pixel, cobrindo umas às outras (e a
+                // pilha de fichas inteira). Aposta 0 (ou mais vazas que
+                // apostou) não precisa de caso especial nenhum aqui — é só
+                // uma fórmula contínua, a carta extra extrapola na mesma
+                // direção, além de onde a última ficha pararia.
+                const nomeAssento = ordemAssentos[carta.assentoIndice]?.nome;
+                const apostaAssento = estado.apostas?.[nomeAssento] ?? 0;
+                const meio = (apostaAssento - 1) / 2;
+                const y = carta.y - (carta.slotIndice - meio) * FICHA_EMPILHA_FANTASMA_PX;
+                return (
+                    <div
+                        key={carta.id}
+                        className="mesa-exp-carta-vaza-ganha"
+                        style={{ left: `${carta.x}px`, top: `${y}px` }}
+                    >
+                        <Carta rank={carta.rank} naipe={carta.naipe} />
+                    </div>
+                );
+            })}
 
             {vazaRevelando && (
                 <div className={`mesa-exp-vaza-overlay${faseRevelacaoVaza === 'crescendo' ? ' mesa-exp-vaza-overlay-escuro' : ''}`} />
@@ -1860,6 +1967,25 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                         </strong>
                         {acoes?.jogarDeNovo && (
                             <button type="button" onClick={acoes.jogarDeNovo}>Jogar de novo</button>
+                        )}
+                        {/* Convite de revanche (ver conviteRevanche em
+                            novo/Partida.jsx) — chega só pra quem NÃO é o
+                            adm, quando o adm já chamou "Jogar de novo" logo
+                            acima. "Não" reaproveita o mesmo acoes.sair de
+                            sempre: recusar É só sair da sala, sem chamada de
+                            servidor própria. */}
+                        {estado.conviteRevanche && (
+                            <div className="mesa-exp-vitoria-convite">
+                                <p>{estado.conviteRevanche.jogador} está te chamando pra outra partida.</p>
+                                <div className="botoes">
+                                    <button type="button" onClick={() => acoes?.aceitarConviteRevanche?.()} disabled={!acoes?.aceitarConviteRevanche}>
+                                        Sim
+                                    </button>
+                                    <button type="button" onClick={() => acoes?.sair?.()} disabled={!acoes?.sair} className="secundario">
+                                        Não
+                                    </button>
+                                </div>
+                            </div>
                         )}
                     </div>
                 </div>

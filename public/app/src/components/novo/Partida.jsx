@@ -750,8 +750,9 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
     // dos handlers de socket lá em cima — nenhum evento novo é assinado
     // aqui, nenhuma lógica de jogo é duplicada. `acoes.jogar`/`acoes.apostar`
     // reaproveitam `jogar`/`apostarValor` de cima (mesma chamada de
-    // verdade pro servidor) — chat/sair/jogar de novo ainda não estão
-    // plugados aqui, só exibição por enquanto nesses.
+    // verdade pro servidor) — jogar de novo/chat livre ainda não estão
+    // plugados aqui (a tela de lá não tem form de texto livre, só as
+    // mensagens prontas via acoes.enviarChatPronta).
     if (visualNovo) {
         return (
             <MesaExperimento
@@ -761,11 +762,22 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
                     mao, cartasRodada, numeroRodada, maosReveladas,
                     mesa, vira, jogadorDaVez, jogadorDaVezAposta, apostas,
                     eliminados, desconectados, ultimoPlacar, vencedor,
-                    vazaResultado, mensagensChat,
+                    vazaResultado, mensagensChat, conviteRevanche,
                 }}
                 acoes={{
                     jogar: jogarCartaClicada,
                     apostar: apostarValor,
+                    forcarInicio,
+                    enviarChatPronta,
+                    sair,
+                    aceitarConviteRevanche,
+                    // Mesma regra da tela antiga (ver botão condicionado a
+                    // `souDono` lá embaixo, linha ~1075): só o adm pode
+                    // chamar jogarDeNovo de verdade (o servidor recusa quem
+                    // não é), então só passa a ação quando é o caso — sem
+                    // isso todo mundo veria o botão na tela de vitória e
+                    // levaria NAO_AUTORIZADO ao clicar.
+                    jogarDeNovo: souDono ? jogarDeNovo : undefined,
                 }}
                 onFechar={() => setVisualNovo(false)}
             />
