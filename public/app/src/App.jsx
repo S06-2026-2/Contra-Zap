@@ -9,11 +9,15 @@ import SeletorFrente, { lerFrenteSalva, salvarFrente } from './components/Seleto
 import { assinarConexao, chamar, obterConexao, socket } from './socket.js';
 import { avisarSessaoRetomada, lerSessaoSalva, limparSessaoSalva, salvarSessao } from './sessao.js';
 
-// "novo" é hoje um clone de tela por tela do "debugging" (mesmo socket.js/
-// sessao.js dos dois — só a casca visual é duplicada) — ver SeletorFrente.jsx
-// pra como a escolha é lembrada por navegador. Enquanto o front novo não
-// tiver telas próprias de verdade, isto aqui é só uma roupa em cima do
-// debugging pra nenhum endpoint ficar esquecido.
+// Única "rota" de verdade do app (o resto — frente, login, lobby, sala —
+// é tudo estado em memória/localStorage, nunca a URL).
+
+// "novo" nasceu como clone de tela por tela do "debugging" (mesmo
+// socket.js/sessao.js dos dois — só a casca visual era duplicada) — ver
+// SeletorFrente.jsx pra como a escolha é lembrada por navegador. A Partida
+// dele já diverge um pouco: tem um botão extra (só numa sala de teste solo,
+// você + bots) que troca pro visual novo de verdade (ver `visualNovo` em
+// components/novo/Partida.jsx e components/novo/MesaExperimento.jsx).
 const FRENTES = {
     novo: { Login: LoginNovo, Lobby: LobbyNovo, Partida: PartidaNovo },
     debugging: { Login, Lobby, Partida },
@@ -151,11 +155,10 @@ export default function App() {
 
     // Trocar de front na Lobby (ver botão "🔄" nela) não mexe em player/sala
     // — só qual casca visual monta a partir daqui, a sessão e a vaga
-    // continuam as mesmas.
+    // continuam as mesmas. Volta pro SeletorFrente (em vez de alternar
+    // direto entre duas opções) porque agora tem uma terceira frente.
     function trocarFrente() {
-        const novaFrente = frente === 'novo' ? 'debugging' : 'novo';
-        salvarFrente(novaFrente);
-        setFrente(novaFrente);
+        setFrente(null);
     }
 
     if (!frente) {
@@ -185,7 +188,6 @@ export default function App() {
                     setSalaParaReconectar(null);
                     setSala({ salaId, reconexao });
                 }}
-                frente={frente}
                 onTrocarFrente={trocarFrente}
             />
         );

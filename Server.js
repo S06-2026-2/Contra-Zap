@@ -73,7 +73,13 @@ export function criarServidor({ salaManager, limitesDeTaxa } = {}) {
         });
     });
 
-    app.get('/', (req, res) => {
+    // Fallback de SPA: '/*splat' (não só '/') pra rotas próprias do front que
+    // não existem como arquivo nenhum (ver ROTA_EXPERIMENTO em App.jsx) —
+    // sem isto, um F5 em /experimento em produção caía em 404 do Express
+    // em vez de abrir o React de novo já naquela tela. Só chega aqui o que
+    // nem express.static nem /health responderam antes. Express 5 (path-to-
+    // regexp v8) não aceita mais '*' sozinho como wildcard, exige nome.
+    app.get('/*splat', (req, res) => {
         res.sendFile(path.join(__dirname, 'public/dist/index.html'));
     });
 

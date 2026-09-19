@@ -725,8 +725,8 @@ adicionado:
 | `apostaFeita` | `{ jogador, aposta }` — só depois que a aposta foi de fato registrada (real ou timeout) |
 | `turnoJogador` | `{ id, jogador }` — `id` é de quem tem que mandar `jogarCarta` |
 | `cartaJogada` | `{ jogador, carta, status }` |
-| `vazaFinalizada` | `{ vencedor, carta }` |
-| `rodadaFinalizada` | `{ numero, resultado }` |
+| `vazaFinalizada` | `{ vencedor, carta }` — se ainda vem outra vaza na mesma rodada, o servidor segura `pausaVazaMs` (`GameController`, 1.6s por padrão, pareado com `PAUSA_VAZA_MS` do front) antes de emitir o próximo `turnoJogador`/`cartaJogada`, pra não pisar na animação de "quem levou". Se essa vaza FECHA a rodada, quem segura o próximo evento (`rodadaFinalizada`) é `pausaVazaMs` normalmente (o servidor só sabe que é a última DEPOIS de fechar a vaza) — e `rodadaFinalizada` abaixo tem sua própria pausa antes da rodada seguinte |
+| `rodadaFinalizada` | `{ numero, resultado }` — resultado é `[{ nome, aposta, steak, diferenca, hp }]`. Antes de emitir `manilhaVirada`/`cartasDistribuidas` da rodada seguinte (ou `jogoFinalizado`, se a partida acabou aqui), o servidor segura `pausaRodadaMs` (`GameController`, 2s por padrão) — dá folga pro front terminar a revelação da carta vencedora da última vaza + a animação de dano do placar (ver `danoRodadaAtivoRef` em `MesaExperimento.jsx`) antes da rodada nova começar a distribuir por cima |
 | `jogadoresEliminados` | `{ eliminados: [{ nome, hp }] }` |
 | `jogoFinalizado` | `{ vencedor }` |
 | `partidaAbortada` | `{ motivo, erro }` — erro interno inesperado no motor (invariante quebrada, ex.: baralho vazio por conta errada de baralhos). A partida parou e **não recupera**; `GameController.finalizada` vira `true` (igual `jogoFinalizado`), mas **não há vencedor**. A sala não é desmontada sozinha — ver "Limpeza de sala após o fim da partida" abaixo. Cliente deve mostrar erro e deixar sair. |

@@ -165,7 +165,7 @@ class Sala {
 }
 
 export class SalaManager {
-    constructor({ tempoEsperaInicioMs = TEMPO_ESPERA_INICIO_MS_PADRAO, tempoTurnoMs, limiteInatividadeMs, atrasoBotMs, tempoReservaMs, chatCooldownMs = CHAT_COOLDOWN_MS, maxSalasPorJogador = MAX_SALAS_POR_JOGADOR } = {}) {
+    constructor({ tempoEsperaInicioMs = TEMPO_ESPERA_INICIO_MS_PADRAO, tempoTurnoMs, limiteInatividadeMs, atrasoBotMs, tempoReservaMs, pausaVazaMs, pausaRodadaMs, chatCooldownMs = CHAT_COOLDOWN_MS, maxSalasPorJogador = MAX_SALAS_POR_JOGADOR } = {}) {
         this.salas = new Map();
         this.tempoEsperaInicioMs = tempoEsperaInicioMs;
         // Teto de salas vivas não finalizadas que um mesmo jogador pode ter
@@ -186,6 +186,12 @@ export class SalaManager {
         // undefined = deixa o GameController usar o próprio default (150s).
         // Mesmo motivo do tempoTurnoMs acima.
         this.tempoReservaMs = tempoReservaMs;
+        // undefined = deixa o GameController usar o próprio default (1.6s).
+        // Mesmo motivo do tempoTurnoMs acima.
+        this.pausaVazaMs = pausaVazaMs;
+        // undefined = deixa o GameController usar o próprio default (2s).
+        // Mesmo motivo do tempoTurnoMs acima.
+        this.pausaRodadaMs = pausaRodadaMs;
         // Cooldown entre envios de chat aceitos (qualquer sala, qualquer
         // tipo) — ver enviarChat. Diferente dos tempos acima, tem default
         // aqui mesmo (não delegado ao GameController): chat é da camada de
@@ -257,6 +263,8 @@ export class SalaManager {
             limiteInatividadeMs: this.limiteInatividadeMs,
             atrasoBotMs: this.atrasoBotMs,
             tempoReservaMs: this.tempoReservaMs,
+            pausaVazaMs: this.pausaVazaMs,
+            pausaRodadaMs: this.pausaRodadaMs,
         });
 
         this.salas.set(salaId, sala);

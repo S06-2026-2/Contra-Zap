@@ -55,6 +55,8 @@
 </head>
 <body>
 
+<!-- Barra de carregamento do topo — desativada, só o experimento de
+     ficha/retângulo fica ativo nesta página por enquanto.
 <div id="barra-topo-container">
     <div id="barra-topo-preenchimento"></div>
 </div>
@@ -65,23 +67,26 @@
         top: 0;
         left: 0;
         width: 100vw;
-        height: 32px; /* Altura da barra */
-        background-color: rgba(255, 255, 255, 0); /* Fundo quase invisível */
+        height: 32px;
+        background-color: rgba(255, 255, 255, 0);
         z-index: 100;
     }
 
     #barra-topo-preenchimento {
         width: 0%;
         height: 100%;
-        background-color: #1F1F1F; /* Mesma cor cinza clara que você usou no texto */
+        background-color: #1F1F1F;
     }
 </style>
+-->
 
+<!-- Tela de trás (canvas de partículas) — desativada.
 <canvas id='c'></canvas>
+-->
 
+<!-- SVG com o texto "FODINHA" e a barra de progresso do mouse — desativado.
 <svg id="svg-container" viewBox="0 0 1200 300">
     <defs>
-        <!-- Máscara original dos naipes -->
         <mask id="mask-naipes">
             <rect width="1200" height="300" fill="white" />
             <g fill="black">
@@ -92,13 +97,11 @@
             </g>
         </mask>
 
-        <!-- NOVO: Caminho de recorte para o progresso do mouse -->
         <clipPath id="clip-progresso-mouse">
             <rect id="barra-mouse" x="0" y="0" width="0" height="300" />
         </clipPath>
     </defs>
 
-    <!-- CAMADA DE FUNDO: Cor cinza escuro original -->
     <g id="texto-progresso-fundo" fill="#1a1a1a" mask="url(#mask-naipes)">
         <rect cx="320" cy="150" rx="35" ry="100" />
         <ellipse cx="340" cy="150" rx="35" ry="65" />
@@ -115,7 +118,6 @@
         </text>
     </g>
 
-    <!-- CAMADA DA FRENTE: Cor cinza mais clara com a máscara de recorte aplicada -->
     <g id="texto-progresso-frente" fill="#1F1F1F" mask="url(#mask-naipes)" clip-path="url(#clip-progresso-mouse)">
         <rect cx="320" cy="150" rx="35" ry="100" />
         <ellipse cx="340" cy="150" rx="35" ry="65" />
@@ -132,57 +134,474 @@
         </text>
     </g>
 </svg>
+-->
 
+<!-- Tracker de debug do canvas de partículas — desativado junto com ele.
 <div id="tracker"></div>
+-->
 
+<div class="mesa-retangulo" style="left: 40%">
+    <div class="player-label">Player 1</div>
+    <div class="aposta-texto"></div>
+</div>
+<div class="mesa-retangulo" style="left: 60%">
+    <div class="player-label">Player 2</div>
+    <div class="aposta-texto"></div>
+</div>
+<div id="ficha-perspectiva"></div>
+<div id="revelacao">
+    <div class="revelacao-carta"></div>
+    <div class="revelacao-texto"></div>
+</div>
+
+<style>
+    .mesa-retangulo {
+        position: fixed;
+        top: 18%;
+        transform: translate(-50%, -50%);
+        width: min(20vw, 220px);
+        height: 140px;
+        background: #242424;
+        border: 2px solid #3a3a3a;
+        border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, .5);
+        z-index: 15;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .player-label {
+        position: absolute;
+        top: -32px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #cfcfcf;
+        font-family: system-ui, sans-serif;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: .03em;
+        white-space: nowrap;
+    }
+
+    .aposta-texto {
+        color: #ffd75e;
+        font-family: system-ui, sans-serif;
+        font-size: 20px;
+        font-weight: 700;
+        opacity: 0;
+        transition: opacity .3s ease;
+    }
+
+    .mesa-retangulo:hover .aposta-texto {
+        opacity: 1;
+    }
+
+    /* perspective precisa estar no PAI do elemento que gira em 3D — é o que
+       dá profundidade ao rotateX das .ficha (senão elas só espremeriam em 2D).
+       z-index ABAIXO do .mesa-retangulo (15) de propósito: é isso que deixa
+       a carta em repouso (posicionada bem em cima do retângulo) escondida
+       atrás dele — só "aparece" quando sai de baixo dele de verdade. */
+    #ficha-perspectiva {
+        position: fixed;
+        inset: 0;
+        perspective: 900px;
+        pointer-events: none; /* deixa o hover/clique passar direto pro retângulo embaixo */
+        z-index: 12;
+    }
+
+    .ficha {
+        position: absolute;
+        width: 90px;
+        height: 90px;
+        margin: -45px 0 0 -45px; /* left/top do JS viram o CENTRO da ficha, não o canto */
+        border-radius: 50%;
+        background: radial-gradient(circle at 35% 32%, #ffd75e, #b8860b 55%, #6e4a06);
+        box-shadow: 0 0 0 6px #7a1f1f inset, 0 10px 25px rgba(0, 0, 0, .6);
+    }
+
+    /* Só entra depois que a ficha pousa — durante o arremesso quem controla
+       posição/giro quadro a quadro é o requestAnimationFrame, uma transition
+       CSS rodando junto ia brigar com ele. */
+    .ficha.pousada {
+        transition: left .45s ease, top .45s ease, transform .45s ease;
+    }
+
+    .carta {
+        position: absolute;
+        width: 56px;
+        height: 80px;
+        margin: -40px 0 0 -28px; /* left/top do JS viram o CENTRO da carta */
+        border-radius: 6px;
+        background: linear-gradient(135deg, #f5f0e6, #cfc6b0);
+        border: 2px solid #8a8060;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, .55);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: system-ui, sans-serif;
+        font-size: 28px;
+        font-weight: 800;
+        color: #4a4128;
+    }
+
+    /* Mesma lógica do .ficha.pousada: só liga a transition fora do
+       arremesso, que quem controla quadro a quadro é o rAF de jogarCarta(). */
+    .carta.pousada {
+        transition: left .4s ease, top .4s ease, transform .4s ease;
+    }
+
+    .carta.escondida {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .4s ease;
+    }
+
+    #revelacao {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background: rgba(0, 0, 0, 0);
+        pointer-events: none;
+        z-index: 30;
+        opacity: 0;
+        transition: opacity .3s ease, background .3s ease;
+    }
+
+    #revelacao.visivel {
+        opacity: 1;
+        background: rgba(0, 0, 0, .55);
+    }
+
+    #revelacao .revelacao-carta {
+        width: 150px;
+        height: 214px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #f5f0e6, #cfc6b0);
+        border: 3px solid #8a8060;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, .6);
+        transform: scale(.6);
+        transition: transform .4s ease;
+    }
+
+    #revelacao.visivel .revelacao-carta {
+        transform: scale(1);
+    }
+
+    #revelacao .revelacao-texto {
+        color: #ffd75e;
+        font-family: system-ui, sans-serif;
+        font-size: 26px;
+        font-weight: 700;
+    }
+</style>
+
+<!-- Partículas de fundo (tela.js) e a barra de progresso do mouse — desativadas.
 <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
 <script src="tela.js"></script>
 
-<!-- NOVO: Script para mapear o mouse para o SVG -->
-<!-- NOVO: Script para incrementar o progresso com o movimento do mouse -->
 <script>
     const barra = document.getElementById('barra-mouse');
     const larguraSVG = 1200;
 
-    // Variáveis para guardar nosso progresso e a última posição do mouse
     let progressoTotal = 0;
     let ultimoX = null;
     let ultimoY = null;
 
-    // Fator de velocidade do preenchimento.
-    // Aumente para encher mais rápido, diminua para encher mais devagar.
     const sensibilidade = 0.3;
 
     document.addEventListener('mousemove', (event) => {
-        // Se for o primeiro movimento, apenas gravamos a posição inicial e saímos
         if (ultimoX === null || ultimoY === null) {
             ultimoX = event.clientX;
             ultimoY = event.clientY;
             return;
         }
 
-        // Calcula quantos pixels o mouse moveu desde a última vez
         const deltaX = event.clientX - ultimoX;
         const deltaY = event.clientY - ultimoY;
 
-        // Teorema de Pitágoras para saber a distância real percorrida
         const distanciaPercorrida = Math.sqrt((deltaX * deltaX) + (deltaY * deltaY));
 
-        // Atualiza a última posição para o próximo cálculo
         ultimoX = event.clientX;
         ultimoY = event.clientY;
 
-        // Soma a distância ao nosso contador de progresso
         progressoTotal += (distanciaPercorrida * sensibilidade);
 
-        // Garante que a barra não passe do limite de 1200 do SVG
         if (progressoTotal > larguraSVG) {
             progressoTotal = larguraSVG;
-            // Aqui você poderia adicionar alguma função para quando chegar em 100%
         }
 
-        // Aplica a nova largura no retângulo do clipPath
         barra.setAttribute('width', progressoTotal);
+    });
+</script>
+-->
+
+<script>
+    const perspectiva = document.getElementById('ficha-perspectiva');
+    const revelacao = document.getElementById('revelacao');
+
+    const QUANTIDADE_FICHAS = 3;
+    const QUANTIDADE_CARTAS = 2;
+
+    function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+    function easeInCubic(t) { return t * t * t; }
+
+    function posicionar(ficha, x, y, escala, rotX, rotZ = 0) {
+        ficha.style.left = `${x}px`;
+        ficha.style.top = `${y}px`;
+        ficha.style.transform = `scale(${escala}) rotateX(${rotX}deg) rotateZ(${rotZ}deg)`;
+    }
+
+    // Uma ficha inteira: cria o elemento e sorteia o arremesso dela a partir
+    // de (origemX, origemY) — o ponto de saída/pouso de cada jogador, não
+    // mais o centro fixo da tela. Devolve um objeto com a origem pousada
+    // (preenchida só quando `quadro` chegar em t=1).
+    function criarFicha(indice, origemX, origemY) {
+        const el = document.createElement('div');
+        el.className = 'ficha';
+        el.style.filter = `hue-rotate(${indice * 35}deg)`; // só pra distinguir uma da outra no teste
+        perspectiva.appendChild(el);
+
+        const pousoX = origemX + (Math.random() * 2 - 1) * 200;
+        // Pouso final pode ficar tanto acima quanto abaixo da origem, não só
+        // pra baixo — daí o sorteio ir pro negativo também.
+        const pousoY = origemY + (Math.random() * 2 - 1) * 100;
+        const forcaSubida = 30 + Math.random() * 140;
+        const escalaPico = 1.4 + Math.random() * 0.4;
+        // Múltiplo de meia-volta (180°) — senão ela pousa de lado, mostrando
+        // a "quina" da ficha em vez da face virada pra câmera.
+        const voltasNoAr = Math.round((3 + Math.random() * 2) * 2) / 2;
+        const duracaoMs = 900 + Math.random() * 400;
+
+        const ficha = { el, origem: null };
+
+        function quadro(inicio, agora) {
+            const t = Math.min((agora - inicio) / duracaoMs, 1);
+            // Metade subindo (em direção à câmera), metade caindo na mesa —
+            // as duas fases usam a MESMA curva de ease, só espelhada.
+            const naSubida = t < 0.5;
+            const fase = naSubida ? t / 0.5 : (t - 0.5) / 0.5;
+
+            const alturaExtra = naSubida
+                ? -forcaSubida * easeOutCubic(fase)
+                : -forcaSubida * (1 - easeInCubic(fase));
+            const escala = naSubida
+                ? 1 + (escalaPico - 1) * easeOutCubic(fase)
+                : escalaPico - (escalaPico - 1) * easeInCubic(fase);
+            const x = origemX + (pousoX - origemX) * t;
+            const y = origemY + (pousoY - origemY) * t + alturaExtra;
+            const rotX = voltasNoAr * 360 * t;
+
+            posicionar(el, x, y, escala, rotX);
+
+            if (t < 1) {
+                requestAnimationFrame((prox) => quadro(inicio, prox));
+            } else {
+                // Pousou: trava giro e posição, e só a partir daqui o hover
+                // do retângulo pode tirar a ficha do lugar.
+                ficha.origem = { x, y, escala, rotX };
+                el.classList.add('pousada');
+            }
+        }
+
+        requestAnimationFrame((inicio) => quadro(inicio, inicio));
+        return ficha;
+    }
+
+    function posicionarCarta(el, x, y, rotZ, escala = 1) {
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        el.style.transform = `scale(${escala}) rotateZ(${rotZ}deg)`;
+    }
+
+    // Uma rodada = o par de cartas de mesmo índice (a 1ª de cada jogador,
+    // depois a 2ª...). `rodadas[i]` enche conforme cada jogador joga a
+    // carta i; quando os dois já jogaram, sorteia e revela.
+    const rodadas = Array.from({ length: QUANTIDADE_CARTAS }, () => []);
+    let revelando = false;
+
+    function registrarJogada(indiceRodada, jogadorNome, carta) {
+        rodadas[indiceRodada].push({ jogadorNome, carta });
+        if (rodadas[indiceRodada].length === 2) {
+            revelando = true;
+            setTimeout(() => resolverRodada(indiceRodada), 10_000);
+        }
+    }
+
+    function resolverRodada(indiceRodada) {
+        const jogadas = rodadas[indiceRodada];
+        // "Completamente aleatória" — não olha carta nem regra nenhuma,
+        // só sorteia quem ganhou esta rodada.
+        const vencedora = jogadas[Math.floor(Math.random() * jogadas.length)];
+
+        revelacao.querySelector('.revelacao-texto').textContent = `${vencedora.jogadorNome} jogou:`;
+        revelacao.classList.add('visivel');
+
+        setTimeout(() => {
+            revelacao.classList.remove('visivel');
+            jogadas.forEach(({ carta }) => carta.el.classList.add('escondida'));
+            revelando = false;
+        }, 2500);
+    }
+
+    // Uma carta: fica parada bem em cima do próprio retângulo (escondida
+    // atrás dele, ver z-index do #ficha-perspectiva) e não se mexe até ser
+    // jogada — quem joga é o clique no RETÂNGULO (ver criarJogador), não um
+    // clique na própria carta.
+    function criarCarta(repousoX, repousoY) {
+        const el = document.createElement('div');
+        el.className = 'carta pousada';
+        el.textContent = String(Math.floor(Math.random() * 10)); // só pra não ficar um retângulo em branco
+        perspectiva.appendChild(el);
+
+        const carta = { el, jogada: false };
+        posicionarCarta(el, repousoX, repousoY, 0, 1);
+
+        // Sai numa direção e velocidade inicial aleatórias (ângulo e
+        // distância sorteados, sempre na metade de baixo — ver ângulo), mas
+        // pousa relativamente perto: fica do lado do jogador que jogou, não
+        // espalhada pela mesa inteira.
+        carta.jogar = (jogadorNome, indiceRodada) => {
+            carta.jogada = true;
+            el.classList.remove('pousada'); // rAF assume o controle da posição
+
+            // 45° a 135° — metade de baixo do círculo, mas mais fechada em
+            // volta do "reto pra baixo" (90°): ainda varia de lado, mas sem
+            // cair quase reto (perto de 0°/180°), que descia pouco.
+            const angulo = Math.PI * 0.25 + Math.random() * Math.PI * 0.5;
+            const distancia = 220 + Math.random() * 260;
+            const alvoX = repousoX + Math.cos(angulo) * distancia;
+            const alvoY = repousoY + Math.sin(angulo) * distancia;
+            const giroInicial = 360 + Math.random() * 360;
+            // Ângulo final aleatório — não precisa parar sempre esquadrada
+            // (0°), pode sobrar uma inclinação qualquer quando parar.
+            const rotFinal = Math.random() * 360;
+            const escalaJogada = 1.2; // fica maior que o repouso (1), pra dar pra ver que foi jogada
+            const duracaoMs = 500 + Math.random() * 300;
+
+            function quadro(inicio, agora) {
+                const t = Math.min((agora - inicio) / duracaoMs, 1);
+                const suave = easeOutCubic(t); // rápido no começo, freando até parar
+                const x = repousoX + (alvoX - repousoX) * suave;
+                const y = repousoY + (alvoY - repousoY) * suave;
+                const rot = rotFinal + giroInicial * (1 - suave);
+                const escala = 1 + (escalaJogada - 1) * suave;
+
+                posicionarCarta(el, x, y, rot, escala);
+
+                if (t < 1) {
+                    requestAnimationFrame((prox) => quadro(inicio, prox));
+                } else {
+                    el.classList.add('pousada');
+                    // Guardado pro hover do retângulo (ver criarJogador): é
+                    // pra cá que ela volta ao tirar o mouse de cima.
+                    carta.origem = { x, y, rot, escala };
+                    registrarJogada(indiceRodada, jogadorNome, carta);
+                }
+            }
+
+            requestAnimationFrame((inicio) => quadro(inicio, inicio));
+        };
+
+        return carta;
+    }
+
+    // Cada jogador tem seu PRÓPRIO retângulo e seu PRÓPRIO conjunto de
+    // fichas (fechado no escopo desta função) — as de um nunca aparecem
+    // empilhadas nem contadas no aposta-texto do outro.
+    function criarJogador(mesaEl, direcao) {
+        // Abaixo do próprio retângulo do jogador — é daqui que as fichas
+        // dele saem e é aqui perto que elas pousam, não mais no centro fixo
+        // da tela.
+        const posInicial = mesaEl.getBoundingClientRect();
+        const origemX = posInicial.left + posInicial.width / 2;
+        const origemY = posInicial.bottom + 120;
+
+        const fichas = Array.from({ length: QUANTIDADE_FICHAS }, (_, i) => criarFicha(i, origemX, origemY));
+        const apostaTexto = mesaEl.querySelector('.aposta-texto');
+        const nomeJogador = mesaEl.querySelector('.player-label').textContent;
+
+        // Escondidas bem em cima do próprio retângulo — mesmo x/y do centro
+        // dele, atrás dele (ver z-index do #ficha-perspectiva). As duas
+        // ficam exatamente sobrepostas aí, PARADAS, até serem jogadas — sem
+        // espiada no hover, só o clique no retângulo mexe nelas.
+        const cartaCentroY = posInicial.top + posInicial.height / 2;
+        const cartas = Array.from({ length: QUANTIDADE_CARTAS }, () => criarCarta(origemX, cartaCentroY));
+        let proximaCarta = 0;
+
+        // Ao lado do retângulo elas empilham quase uma sobre a outra, tipo
+        // carta na mão: um offset pequeno por índice, não um leque bem
+        // aberto. `direcao` decide se o empilhamento sai pra direita ou pra
+        // esquerda do retângulo, pra não jogar a ficha pra fora da tela nos
+        // jogadores mais perto da borda.
+        mesaEl.addEventListener('mouseenter', () => {
+            const alvo = mesaEl.getBoundingClientRect();
+            const ladoX = direcao > 0 ? alvo.right + 70 : alvo.left - 70;
+            let pousadas = 0;
+            fichas.forEach(({ el, origem }, i) => {
+                if (!origem) return; // ainda no ar, ignora até pousar
+                pousadas++;
+                posicionar(
+                    el,
+                    ladoX + direcao * i * 14,
+                    alvo.top + alvo.height / 2 + i * 10,
+                    origem.escala * 1.15,
+                    origem.rotX + 180,
+                    (i - (fichas.length - 1) / 2) * 4
+                );
+            });
+            apostaTexto.textContent = `apostou: ${pousadas}`;
+
+            // Cartas JÁ jogadas ficam em destaque do lado do retângulo
+            // enquanto o mouse tá em cima — mesma ideia da ficha, numa
+            // fileira própria (acima da das fichas), um pouco maiores e
+            // "endireitadas" (0°, sem a inclinação aleatória do pouso) pra
+            // dar pra ler; a inclinação original só volta no mouseleave.
+            let destacadas = 0;
+            cartas.forEach((carta) => {
+                if (!carta.jogada || carta.el.classList.contains('escondida')) return;
+                posicionarCarta(
+                    carta.el,
+                    ladoX + direcao * destacadas * 20,
+                    alvo.top + alvo.height / 2 - 70 + destacadas * 14,
+                    0,
+                    carta.origem.escala * 1.15
+                );
+                destacadas++;
+            });
+        });
+
+        mesaEl.addEventListener('mouseleave', () => {
+            fichas.forEach(({ el, origem }) => {
+                if (!origem) return;
+                posicionar(el, origem.x, origem.y, origem.escala, origem.rotX);
+            });
+            apostaTexto.textContent = '';
+
+            // Volta cada carta jogada pro lugar exato onde tinha pousado.
+            cartas.forEach((carta) => {
+                if (!carta.jogada || carta.el.classList.contains('escondida')) return;
+                posicionarCarta(carta.el, carta.origem.x, carta.origem.y, carta.origem.rot, carta.origem.escala);
+            });
+        });
+
+        // É o clique no RETÂNGULO que joga a carta da vez, não mais um
+        // clique na própria carta (que fica parada, escondida atrás dele).
+        mesaEl.addEventListener('click', () => {
+            if (revelando) return;
+            const carta = cartas[proximaCarta];
+            if (!carta) return; // já jogou as duas
+            carta.jogar(nomeJogador, proximaCarta);
+            proximaCarta++;
+        });
+    }
+
+    document.querySelectorAll('.mesa-retangulo').forEach((mesaEl, i) => {
+        criarJogador(mesaEl, i === 0 ? 1 : -1);
     });
 </script>
 </body>

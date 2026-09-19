@@ -227,6 +227,9 @@ async function jogarEpisodio(numeroEpisodio) {
         seed: EVAL_SEED === undefined ? undefined : EVAL_SEED + numeroEpisodio,
         tempoTurnoMs: TEMPO_TURNO_MS,
         atrasoBotMs: 0,
+        // Sem UI pra animar aqui — mesmo motivo do atrasoBotMs acima.
+        pausaVazaMs: 0,
+        pausaRodadaMs: 0,
     });
 
     // Reward acumulado desde a última mensagem enviada pra cada assento —

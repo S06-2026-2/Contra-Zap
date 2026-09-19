@@ -19,7 +19,7 @@ import { escolherCarta, escolherAposta } from '../bots/BotBrain.js';
 const ATRASO_BOT_MS_SALA_ABANDONADA = 50;
 
 export class GameController extends EventEmitter {
-    constructor({ numberPlayers, roundStart, randomShuffle, maxDeck, seed, tempoTurnoMs, limiteInatividadeMs, atrasoBotMs, tempoReservaMs } = {}) {
+    constructor({ numberPlayers, roundStart, randomShuffle, maxDeck, seed, tempoTurnoMs, limiteInatividadeMs, atrasoBotMs, tempoReservaMs, pausaVazaMs, pausaRodadaMs } = {}) {
         super();
         this.numberPlayers = numberPlayers || 4;
         this.roundStart = roundStart || 1;
@@ -51,6 +51,32 @@ export class GameController extends EventEmitter {
         // _iniciarContadorReserva/_expirarVaga. Depois disso, reconectar não
         // funciona mais pra esse jogador (CodigosErro.VAGA_EXPIRADA).
         this.tempoReservaMs = tempoReservaMs ?? 150_000;
+        // Pausa depois de finalizarVaza() (antes de começar a próxima vaza da
+        // mesma rodada) pra dar tempo do front terminar a animação de "quem
+        // levou" antes da próxima carta cair — mesmo problema do atrasoBotMs
+        // acima, mas do lado do front em vez do de bots resolvendo rápido
+        // demais. Valor pareado com PAUSA_VAZA_MS em
+        // public/app/src/components/novo/Partida.jsx; mudou um lado, muda o
+        // outro. Só entra ANTES de uma próxima vaza de verdade dentro da
+        // MESMA rodada (ver _jogarUmaRodada) — a última vaza de uma rodada
+        // usa pausaRodadaMs logo abaixo em vez desta (a suposição antiga de
+        // que apostas/distribuição da rodada seguinte já dava folga sozinha
+        // se provou errada: nada segura isso, ver pausaRodadaMs).
+        this.pausaVazaMs = pausaVazaMs ?? 1_600;
+        // Pausa depois de emitir rodadaFinalizada, antes de começar a
+        // distribuir a rodada seguinte (ver _jogarUmaRodada) — cobre a
+        // MESMA lacuna do pausaVazaMs acima, só que na borda entre rodadas:
+        // sem isso, cartasDistribuidas/manilhaVirada da rodada nova saíam
+        // colados em rodadaFinalizada, e o front (revelação da carta
+        // vencedora da última vaza + cartas de dano do placar, ver
+        // danoRodadaAtivoRef em MesaExperimento.jsx) tinha que segurar TUDO
+        // isso sozinho só na base de refs — funciona no papel, mas dá zero
+        // folga de verdade pra absorver qualquer corrida que escape daquela
+        // trava. Não precisa cobrir a animação inteira (isso já é
+        // responsabilidade do front) — só evitar o "murro" de eventos
+        // colados que o Henrique via especificamente na vaza final da
+        // rodada.
+        this.pausaRodadaMs = pausaRodadaMs ?? 2_000;
         this.jogadores = [];
         this.game = null;
         this.rodada = null;
@@ -413,6 +439,24 @@ export class GameController extends EventEmitter {
     _atrasoBot() {
         return new Promise((resolve) => {
             const timer = setTimeout(resolve, this.atrasoBotMs);
+            timer.unref?.();
+        });
+    }
+
+    // Mesma ideia de _atrasoBot, mas pra segurar o back depois de uma vaza
+    // (ver pausaVazaMs no construtor).
+    _pausaVaza() {
+        return new Promise((resolve) => {
+            const timer = setTimeout(resolve, this.pausaVazaMs);
+            timer.unref?.();
+        });
+    }
+
+    // Mesma ideia, mas pra segurar o back depois de fechar uma rodada
+    // inteira (ver pausaRodadaMs no construtor).
+    _pausaRodada() {
+        return new Promise((resolve) => {
+            const timer = setTimeout(resolve, this.pausaRodadaMs);
             timer.unref?.();
         });
     }
@@ -823,6 +867,14 @@ export class GameController extends EventEmitter {
                 vencedor: vencedor ? vencedor.nome : null,
                 carta: vencedor ? rodada.mesaAtiva.melhorJogada.carta.toString() : null
             });
+
+            // Só espera se AINDA vem outra vaza nesta rodada — a última
+            // emenda em apostas/distribuição da próxima rodada, que já
+            // segura o próximo lance por conta própria (ver pausaVazaMs).
+            if (v < rodada.round - 1) {
+                await this._pausaVaza();
+                if (this._encerrado) return;
+            }
         }
 
         const apostas = new Map(rodada.gameOrder.map(j => [j, j.aposta]));
@@ -839,6 +891,12 @@ export class GameController extends EventEmitter {
             numero: this.numeroRodada,
             resultado: this._ultimoPlacar
         });
+
+        // Ver pausaRodadaMs no construtor — dá folga antes que _rodarPartida
+        // (fora daqui) sequer tenha a chance de montar a rodada seguinte ou
+        // de emitir jogoFinalizado, os dois igualmente rápidos demais em
+        // cima da revelação/dano da última vaza sem isso.
+        await this._pausaRodada();
     }
 
     // Fim de jogo? Devolve true (e emite jogoFinalizado) quando só sobra um
