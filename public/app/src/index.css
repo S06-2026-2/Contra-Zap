@@ -1033,6 +1033,18 @@ button.secundario {
     transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* Carta de dano do fim de rodada (ver CartaDanoVoando/dispararCartasDeDano
+   em MesaExperimento.jsx) — mesma camada fixa das fichas, left/top/transform
+   também vêm do rAF quadro a quadro. Sem width/height fixo de propósito:
+   herda o tamanho intrínseco de .carta-exp (a própria carta), só encolhe
+   via a `scale` que já vem no transform inline — mesmo espírito de
+   .mesa-exp-carta-vaza-ganha (também sem width/height próprio). */
+.mesa-exp-carta-dano-voando {
+    position: fixed;
+    top: 0;
+    left: 0;
+}
+
 .mesa-exp-ficha-sombra {
     position: fixed;
     top: 0;
@@ -1562,6 +1574,23 @@ button.secundario {
     font-size: 22px;
     line-height: 1;
     filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .55));
+}
+
+/* Flash de impacto (ver aoChegarCartaDano/CORACAO_IMPACTO_DURACAO_MS em
+   MesaExperimento.jsx) — liga só no coração que ACABOU de ser atingido por
+   uma carta de dano, nunca nos vizinhos. `transform-origin: center` porque
+   o emoji já nasce alinhado por `line-height: 1`, sem isso o "pulo" saltava
+   pro canto em vez de crescer no próprio lugar. */
+.mesa-exp-coracao-impacto {
+    transform-origin: center;
+    animation: mesa-exp-coracao-impacto 380ms ease-out;
+}
+
+@keyframes mesa-exp-coracao-impacto {
+    0%   { transform: scale(1) rotate(0deg); filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .55)); }
+    30%  { transform: scale(1.6) rotate(-10deg); filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .55)) brightness(1.7); }
+    60%  { transform: scale(0.82) rotate(8deg); filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .55)); }
+    100% { transform: scale(1) rotate(0deg); filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .55)); }
 }
 
 /* A SUA — 1.6x o tamanho base (22px * 1.6 ≈ 35px). */

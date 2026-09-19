@@ -26,6 +26,8 @@ export const TEMPOS_DE_TESTE = {
     atrasoBotMs: 5,
     limiteInatividadeMs: 90_000,
     tempoReservaMs: 150_000,
+    pausaVazaMs: 5,
+    pausaRodadaMs: 5,
     chatCooldownMs: 3_000,
 };
 

@@ -75,6 +75,11 @@ const RODADA_FIM_REVELACAO_MS = 2800;
 
 const MORTE_IMPACTO_MS = 1500;
 const MORTE_DESINTEGRAR_MS = 900;
+// Segura a morte por esse tanto DEPOIS que a revelação da vaza/o dano do
+// placar (ver danoRodadaAtivoRef) já tiverem liberado — só pra dar aquele
+// último respiro depois do coração apagar de vez, antes do fantasminha cair
+// (pedido do Henrique: "uns 1s depois que a animação de dano tocar").
+const PAUSA_MORTE_APOS_DANO_MS = 1000;
 
 const FICHA_TAMANHO_PX = 64;
 const ESCALA_FICHA_CANTO = 0.62;
@@ -94,6 +99,11 @@ const FICHA_DESVIO_LATERAL_PX = 26;
 const FICHA_ATRASO_ENTRE_MS = 90;
 const FICHA_ASSENTAMENTO_MS = 320;
 
+// Segura a mesa parada (as cartas já jogadas, sem destaque nenhum) antes de
+// começar a revelação em si — sem isso a carta vencedora começava a
+// crescer/voar na hora EXATA que a última carta da vaza pousava, rápido
+// demais pra dar tempo de ver a vaza fechada (pedido do Henrique).
+const VAZA_SEGURAR_ULTIMA_CARTA_MS = 1500;
 const VAZA_REVELACAO_X_FRACAO = 0.42;
 const VAZA_REVELACAO_TEXTO_X_FRACAO = 0.66;
 const VAZA_REVELACAO_Y_FRACAO = 0.5;
@@ -116,6 +126,23 @@ const VAZA_EXPLOSAO_DURACAO_MS = 480;
 // null): mesma pausa/overlay da revelação normal, só que sem carta nenhuma
 // crescendo/viajando — todo mundo que estava na mesa "explode" junto.
 const VAZA_MELADA_PAUSA_MS = 1400;
+
+// "Sisteminha" de dano do fim de rodada (ver dispararCartasDeDano): sempre
+// `diferenca` cartas (MESMA conta de `hp -= diferenca` em game/Rodada.js),
+// uma por coração perdido. Se `steak > aposta`, são as ÚLTIMAS
+// `steak - aposta` cartas que esse assento tinha empilhado como vaza ganha
+// nesta rodada — voltam voando, fez vaza DEMAIS. Se `aposta > steak`, não
+// existe carta de verdade pra essas (nunca foram ganhas) — voam viradas pra
+// baixo, saindo do mesmo canto onde as fichas da aposta nasceram (a aposta
+// que não se cumpriu "vira" o dano). Física em arco igual FichaVoando
+// (sobe/gira/desce), só que o alvo é um coração específico, não um canto
+// fixo — ver CartaDanoVoando/obterCentroCoracao.
+const DANO_CARTA_VOO_DURACAO_MS = 640;
+const DANO_CARTA_ATRASO_ENTRE_MS = 260;
+const DANO_CARTA_FORCA_SUBIDA_PX = 90;
+const DANO_CARTA_ESCALA_PICO = 1.1;
+const DANO_CARTA_ESCALA_POUSO = 0.4;
+const CORACAO_IMPACTO_DURACAO_MS = 380;
 
 const SLOT_FICHA_LARGURA_PX = FICHA_TAMANHO_PX * ESCALA_FICHA_CANTO;
 const SLOT_FICHA_LARGURA_COM_CARTA_PX = SLOT_FICHA_LARGURA_PX + 34;
@@ -337,6 +364,77 @@ function FichaVoando({ de, para, atrasoMs, onChegou, hue }) {
     );
 }
 
+// Carta de dano em voo (ver dispararCartasDeDano) — mesmo arco de
+// sobe/desce por easing de FichaVoando acima, só que o alvo NÃO vem pronto
+// em `para`: é medido NA HORA (`obterDestino`, chamado só depois de
+// `atrasoMs`, nunca antes de disparar o rAF) porque o coração-alvo só existe
+// garantidamente montado no DOM depois que `mostrarVidaTemporaria`/o estado
+// "sempre visível" (Você) já comitou — pedir o rect ANTES (junto com o
+// resto dos dados da carta, ainda dentro do efeito de fim de rodada) podia
+// pegar `coracaoRefs` com a entrada antiga (ou nenhuma, no primeiro round).
+// Sem coração encontrado mesmo assim (não devia acontecer), cai pro centro
+// do próprio assento.
+function CartaDanoVoando({ de, obterDestino, atrasoMs, carta, onChegou }) {
+    const [posBase, setPosBase] = useState(de);
+    const [alturaExtra, setAlturaExtra] = useState(0);
+    const [escala, setEscala] = useState(1);
+    const [rotY, setRotY] = useState(0);
+
+    useEffect(() => {
+        let raf;
+        let cancelado = false;
+
+        const quadro = (para, inicio, agora) => {
+            if (cancelado) return;
+            const t = Math.min((agora - inicio) / DANO_CARTA_VOO_DURACAO_MS, 1);
+            const naSubida = t < 0.5;
+            const fase = naSubida ? t / 0.5 : (t - 0.5) / 0.5;
+            const altura = naSubida
+                ? -DANO_CARTA_FORCA_SUBIDA_PX * easeOutCubic(fase)
+                : -DANO_CARTA_FORCA_SUBIDA_PX * (1 - easeInCubic(fase));
+            const escalaAtual = naSubida
+                ? 1 + (DANO_CARTA_ESCALA_PICO - 1) * easeOutCubic(fase)
+                : DANO_CARTA_ESCALA_PICO - (DANO_CARTA_ESCALA_PICO - DANO_CARTA_ESCALA_POUSO) * easeInCubic(fase);
+
+            setPosBase({ x: de.x + (para.x - de.x) * t, y: de.y + (para.y - de.y) * t });
+            setAlturaExtra(altura);
+            setEscala(escalaAtual);
+            setRotY(720 * t);
+
+            if (t < 1) {
+                raf = requestAnimationFrame((prox) => quadro(para, inicio, prox));
+            } else {
+                onChegou();
+            }
+        };
+
+        const inicioTimer = setTimeout(() => {
+            const para = obterDestino() ?? de;
+            raf = requestAnimationFrame((inicio) => quadro(para, inicio, inicio));
+        }, atrasoMs);
+
+        return () => {
+            cancelado = true;
+            clearTimeout(inicioTimer);
+            cancelAnimationFrame(raf);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- de/obterDestino/atrasoMs/carta/onChegou são fixos por instância (cada carta voa uma vez só)
+    }, []);
+
+    return (
+        <div
+            className="mesa-exp-carta-dano-voando"
+            style={{
+                left: `${posBase.x}px`,
+                top: `${posBase.y + alturaExtra}px`,
+                transform: `translate(-50%, -50%) scale(${escala}) rotateY(${rotY}deg)`,
+            }}
+        >
+            {carta ? <Carta rank={carta.rank} naipe={carta.naipe} /> : <Carta virada />}
+        </div>
+    );
+}
+
 function calcularEstadoRevelacaoVaza(fase, destino) {
     if (fase === 'impacto') {
         return {
@@ -396,11 +494,23 @@ function CartaRevelando({ origem, destino, fase, carta }) {
     );
 }
 
-function Coracoes({ vida }) {
+// `registrarRef`/`assentoIndice` (ver coracaoRefs em MesaExperimento):
+// registra o <span> de CADA coração — é o que dispararCartasDeDano usa pra
+// medir onde cada carta de dano tem que pousar (getBoundingClientRect NA
+// HORA, não um cálculo de layout feito à mão). `coracaoImpactado` (índice
+// do coração que acabou de ser atingido, ou null) liga um flash rápido nele
+// só — os outros corações da fileira ficam de fora da classe.
+function Coracoes({ vida, assentoIndice, registrarRef, coracaoImpactado }) {
     return (
         <div className="mesa-exp-coracoes">
             {Array.from({ length: VIDA_MAXIMA }, (_, i) => (
-                <span key={i} className="mesa-exp-coracao">{i < vida ? '❤️' : '🖤'}</span>
+                <span
+                    key={i}
+                    ref={registrarRef ? (el) => registrarRef(assentoIndice, i, el) : undefined}
+                    className={`mesa-exp-coracao${coracaoImpactado === i ? ' mesa-exp-coracao-impacto' : ''}`}
+                >
+                    {i < vida ? '❤️' : '🖤'}
+                </span>
             ))}
         </div>
     );
@@ -551,6 +661,18 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     // commit — o ref não tem esse atraso.
     const distribuindoRef = useRef(false);
     const [cartasVoando, setCartasVoando] = useState([]);
+    // Espelha `cartasVoando`, atualizado NA HORA (ver comentário de
+    // distribuindoRef acima, mesmo motivo) — tentarIniciarRevelacaoVaza lê
+    // este ref, não o state, pra saber se alguma carta de "jogar" ainda tá
+    // no ar mesmo quando ela acabou de entrar/sair nESTE MESMO commit.
+    const cartasVoandoRef = useRef([]);
+    function atualizarCartasVoando(atualizador) {
+        setCartasVoando((atuais) => {
+            const novo = atualizador(atuais);
+            cartasVoandoRef.current = novo;
+            return novo;
+        });
+    }
     const proximoIdCarta = useRef(0);
 
     // Quantas cartas cada assento (que não seja "Você") tem na mão agora —
@@ -568,6 +690,14 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     const [jogoVencedorIndice, setJogoVencedorIndice] = useState(null);
     const [estadoMortePorAssento, setEstadoMortePorAssento] = useState(() => Array(ordemAssentos.length).fill(null));
     const mortesEmAndamentoRef = useRef(new Set());
+    // Contador (não bool — mais de uma morte pode se sobrepor num empate) de
+    // quantas coreografias de morte estão tocando AGORA — mesmo padrão
+    // ref+state de danoRodadaAtivoRef/revelacaoVazaAtivaRef: trava
+    // `iniciarRodadaNova`/a vira até TODAS as mortes em andamento
+    // terminarem, senão a rodada nova começa a distribuir carta pro assento
+    // que ainda tá desintegrando.
+    const mortesAtivasRef = useRef(0);
+    const [mortesAtivas, setMortesAtivas] = useState(0);
 
     const [suaMao, setSuaMao] = useState([]);
     const proximoIdSuaCarta = useRef(0);
@@ -635,6 +765,23 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     const cantoFichasRef = useRef(null);
     const assentoRefs = useRef([]);
     const apostasProcessadasRef = useRef(new Set());
+
+    // Cartas de dano do fim de rodada (ver dispararCartasDeDano/Coracoes) —
+    // `coracaoRefs.current[assentoIndice][heartIndice]` é o <span> de cada
+    // coração, registrado por Coracoes via `registrarRefCoracao`;
+    // `coracoesImpactados[assentoIndice]` é o índice do coração com o flash
+    // de impacto ligado NAQUELE assento agora (ou null/ausente). Mesma
+    // trava de ordem que revelacaoVazaAtivaRef/viraAnimandoRef acima
+    // (ref+state): danoRodadaAtivoRef trava `iniciarRodadaNova`/a vira até a
+    // sequência inteira de cartas voando + impacto terminar de verdade,
+    // senão a rodada nova começa a distribuir (ou a vira gira) por cima das
+    // cartas ainda voando pros corações.
+    const coracaoRefs = useRef({});
+    const [cartasDanoVoando, setCartasDanoVoando] = useState([]);
+    const [coracoesImpactados, setCoracoesImpactados] = useState({});
+    const proximoIdCartaDano = useRef(0);
+    const danoRodadaAtivoRef = useRef(false);
+    const [danoRodadaAtivo, setDanoRodadaAtivo] = useState(false);
 
     // Popup de aposta (ver Fatia 2 — suas ações): só o input/validação; o
     // arremesso de fichas em si já é 100% reativo (ver o efeito de
@@ -737,7 +884,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     }
 
     function aoChegarCarta(voo) {
-        setCartasVoando((atuais) => atuais.filter((c) => c.id !== voo.id));
+        atualizarCartasVoando((atuais) => atuais.filter((c) => c.id !== voo.id));
         if (voo.tipo === 'jogar') {
             setCartasNaMesa((atual) => [
                 ...atual,
@@ -798,7 +945,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
             const giroInicial = 360 + Math.random() * 360;
             const rotFinal = Math.random() * 360;
             const id = ++proximoIdCarta.current;
-            setCartasVoando((atuais) => [
+            atualizarCartasVoando((atuais) => [
                 ...atuais,
                 {
                     id,
@@ -870,6 +1017,155 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- tentarIniciarRevelacaoVaza fecha sobre cartasNaMesa/assentos atuais
     }, [estado.vazaResultado]);
 
+    // Fim de rodada (ver estado.ultimoPlacar) — revela o coração de todos
+    // com o HP REAL vindo do servidor (não recalculado aqui) e dispara a
+    // reação de dano (danoPorAssento) em quem perdeu vida desde o placar
+    // anterior. Quem tem `diferenca > 0` (aposta != vazas feitas, ver
+    // game/Rodada.js) NÃO tem a vida travada em `linha.hp` direto aqui — ver
+    // dispararCartasDeDano, que decrementa coração por coração conforme as
+    // cartas de dano pousam. Só quem bateu a aposta em cheio (`diferenca ===
+    // 0`, sem carta nenhuma pra voar) atualiza a vida na hora, como sempre.
+    //
+    // Espera `revelacaoVazaAtivaRef` (mesma trava do efeito de vaza acima)
+    // ficar false ANTES de disparar qualquer coisa — sem isso, a vaza que
+    // fecha a rodada e `estado.ultimoPlacar` chegam quase juntos (o servidor
+    // não segura nada entre `vazaFinalizada` da última vaza e
+    // `rodadaFinalizada`, ver pausaVazaMs em GameController), e as cartas de
+    // dano saíam voando ANTES da carta vencedora dessa última vaza terminar
+    // de pousar do lado do fantasminha — era o "dano antes da última carta
+    // vitoriosa" que o Henrique reportou, mesma família dos bugs da vira/
+    // rodada nova. Em vez de marcar `placarProcessadoRef` na hora, sai sem
+    // marcar nada enquanto a revelação ainda tá ativa — o efeito roda de
+    // novo (mesmo `estado.ultimoPlacar`, ainda não marcado como processado)
+    // quando `revelacaoVazaAtiva` (state, ver deps) virar false de verdade.
+    //
+    // DECLARADO ANTES do efeito de "Rodada nova" (e da vira) logo abaixo de
+    // propósito, MESMA razão do efeito de vaza acima: quando a revelação da
+    // última vaza termina, os efeitos de vaza/fim de rodada/rodada nova/vira
+    // TODOS reavaliam no MESMO commit (todos têm `revelacaoVazaAtiva` nas
+    // deps) — precisa que este efeito já tenha rodado sua parte síncrona
+    // (`dispararCartasDeDano`, que liga `danoRodadaAtivoRef`) ANTES do
+    // efeito de "Rodada nova" ler esse ref. Se este efeito ficasse DEPOIS no
+    // arquivo, "Rodada nova" via `danoRodadaAtivoRef` ainda false (as cartas
+    // de dano nem tinham sido despachadas ainda) e começava a distribuir por
+    // cima delas mesmo assim.
+    useEffect(() => {
+        if (!estado.ultimoPlacar || estado.ultimoPlacar.length === 0) return;
+        if (estado.ultimoPlacar === placarProcessadoRef.current) return;
+        if (revelacaoVazaAtivaRef.current) return;
+        placarProcessadoRef.current = estado.ultimoPlacar;
+
+        let duracaoRevelacao = RODADA_FIM_REVELACAO_MS;
+        let temCartasDeDano = false;
+        const atualizacoesImediatas = [];
+
+        for (const linha of estado.ultimoPlacar) {
+            const indice = indiceDoNome(linha.nome);
+            if (indice === -1) continue;
+            const antes = vidaAnteriorRef.current[linha.nome] ?? VIDA_MAXIMA;
+            if (linha.hp < antes && indice !== 0) {
+                setDanoPorAssento((v) => v.map((d, i) => (i === indice ? d + 1 : d)));
+            }
+            vidaAnteriorRef.current[linha.nome] = linha.hp;
+
+            if (linha.diferenca > 0) {
+                temCartasDeDano = true;
+                dispararCartasDeDano(indice, linha, antes);
+                duracaoRevelacao = Math.max(
+                    duracaoRevelacao,
+                    linha.diferenca * DANO_CARTA_ATRASO_ENTRE_MS + DANO_CARTA_VOO_DURACAO_MS + CORACAO_IMPACTO_DURACAO_MS + 400
+                );
+            } else {
+                atualizacoesImediatas.push([indice, linha.hp]);
+            }
+        }
+
+        if (atualizacoesImediatas.length > 0) {
+            setVidaPorAssento((atual) => {
+                const novo = [...atual];
+                for (const [indice, hp] of atualizacoesImediatas) novo[indice] = hp;
+                return novo;
+            });
+        }
+
+        if (temCartasDeDano) {
+            danoRodadaAtivoRef.current = true;
+            setDanoRodadaAtivo(true);
+            setTimeout(() => {
+                danoRodadaAtivoRef.current = false;
+                setDanoRodadaAtivo(false);
+            }, duracaoRevelacao);
+        }
+
+        assentos.forEach((assento, i) => {
+            if (!assento.eVoce) mostrarVidaTemporaria(i, duracaoRevelacao);
+        });
+        setSuaVidaEmDestaque(true);
+        setTimeout(() => setSuaVidaEmDestaque(false), duracaoRevelacao);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- `revelacaoVazaAtiva` só nas deps pra reavaliar quando a trava soltar (a leitura de verdade é revelacaoVazaAtivaRef); indiceDoNome/assentos/dispararCartasDeDano são lidos frescos a cada chamada
+    }, [estado.ultimoPlacar, revelacaoVazaAtiva]);
+
+    // Eliminados (ver estado.eliminados — só cresce, nunca esquece quem já
+    // morreu): qualquer nome NOVO nesta lista dispara a coreografia de
+    // morte pro assento dele. Pode disparar VÁRIAS de uma vez (um empate no
+    // fim da partida elimina mais de um jogador no mesmo instante).
+    //
+    // Espera `revelacaoVazaAtivaRef`/`danoRodadaAtivoRef` (mesmas travas do
+    // efeito de "Rodada nova"/vira/fim de rodada acima) — `jogadoresEliminados`
+    // chega de `_avancarParaProximaRodada`, JÁ depois de `pausaRodadaMs`,
+    // mas sem esperar a revelação da última vaza (que pode ainda estar
+    // tocando: eliminação só é possível com `diferenca > 0`, ou seja,
+    // sempre que alguém morre TEM carta de dano voando pra ele). Sem essa
+    // trava, o fantasminha caía duro no meio da própria carta vitoriosa ou
+    // das próprias cartas de dano — era o "morte tocando durante a carta
+    // ganha/o dano" que o Henrique reportou, mesma família dos outros bugs
+    // de ordem. Marca `mortesEmAndamentoRef`/`mortesAtivasRef` NA HORA mesmo
+    // assim (fora do gate) — é só pra não reagendar a mesma morte de novo a
+    // cada re-render enquanto ainda tá esperando, não precisa reavaliar
+    // sozinho depois: esperar `revelacaoVazaAtiva`/`danoRodadaAtivo` nas
+    // deps já cobre isso.
+    //
+    // DECLARADO ANTES do efeito de "Rodada nova" (e da vira) logo abaixo,
+    // MESMA razão do efeito de fim de rodada acima: quando as travas de vaza/
+    // dano soltam, este efeito e "Rodada nova" reavaliam no MESMO commit —
+    // precisa que `mortesAtivasRef` já esteja incrementado (se alguém
+    // morreu) ANTES do efeito de "Rodada nova" ler esse ref. Se este efeito
+    // ficasse DEPOIS no arquivo, "Rodada nova" via `mortesAtivasRef` ainda
+    // 0 (a morte nem tinha sido despachada ainda) e começava a distribuir
+    // por cima da desintegração.
+    useEffect(() => {
+        if (revelacaoVazaAtivaRef.current || danoRodadaAtivoRef.current) return;
+        for (const nome of estado.eliminados ?? []) {
+            if (mortesEmAndamentoRef.current.has(nome)) continue;
+            const indice = indiceDoNome(nome);
+            if (indice <= 0) continue; // "Você" nunca é <Fantasminha> aqui, não tem o que desintegrar
+            mortesEmAndamentoRef.current.add(nome);
+            mortesAtivasRef.current += 1;
+            setMortesAtivas((v) => v + 1);
+            animarMorte(indice);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- `revelacaoVazaAtiva`/`danoRodadaAtivo` só nas deps pra reavaliar quando as travas soltarem (a leitura de verdade é sempre pelos refs); animarMorte fecha sobre estado local, indiceDoNome lido fresco
+    }, [estado.eliminados, revelacaoVazaAtiva, danoRodadaAtivo]);
+
+    async function animarMorte(indice) {
+        // Ver PAUSA_MORTE_APOS_DANO_MS lá em cima — o último respiro depois
+        // que o coração já apagou, antes do fantasminha cair de vez.
+        await esperar(PAUSA_MORTE_APOS_DANO_MS);
+        setEstadoMortePorAssento((atual) => atual.map((v, i) => (i === indice ? 'impacto' : v)));
+        setDanoPorAssento((atual) => atual.map((v, i) => (i === indice ? v + 1 : v)));
+
+        await esperar(MORTE_IMPACTO_MS);
+        setEstadoMortePorAssento((atual) => atual.map((v, i) => (i === indice ? 'desintegrando' : v)));
+
+        await esperar(MORTE_DESINTEGRAR_MS);
+        setEstadoMortePorAssento((atual) => atual.map((v, i) => (i === indice ? 'morto' : v)));
+
+        // Solta a trava (ver mortesAtivasRef lá em cima) — só agora que a
+        // coreografia inteira (impacto + desintegrar) terminou de verdade.
+        mortesAtivasRef.current -= 1;
+        setMortesAtivas((v) => v - 1);
+    }
+
     // Rodada nova: `estado.mao` (sua mão de verdade) é o sinal de que já dá
     // pra montar a coreografia de distribuir — novaRodadaIniciada chega
     // ANTES de suaMao (ver PROTOCOLO.md), então só reage quando as DUAS
@@ -878,7 +1174,15 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     // estado normal de "já joguei todas as cartas desta rodada"). Também
     // espera `revelacaoVazaAtivaRef` (ver efeito de vaza acima) ficar
     // false — a última vaza do round precisa terminar de revelar o
-    // vencedor antes da próxima rodada começar a distribuir.
+    // vencedor antes da próxima rodada começar a distribuir. Espera também
+    // `danoRodadaAtivoRef` (ver dispararCartasDeDano/efeito de fim de
+    // rodada acima) pelo MESMO motivo: as cartas de dano do placar ainda
+    // podem estar voando pros corações quando o servidor já manda a mão/
+    // numeroRodada seguinte — sem essa trava a rodada nova começava a
+    // distribuir (e limpar a mesa) por cima delas. `mortesAtivasRef` (ver
+    // efeito de eliminados acima) pelo mesmo motivo: um fantasminha
+    // eliminado nesta rodada pode ainda estar no meio da própria
+    // desintegração.
     // DECLARADO ANTES do efeito da vira logo abaixo de propósito: quando o
     // servidor manda mao/numeroRodada E vira no mesmo evento (o caso comum,
     // ver comentário da vira), os dois efeitos rodam no MESMO commit, na
@@ -895,11 +1199,11 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     useEffect(() => {
         if (estado.numeroRodada === rodadaProcessadaRef.current) return;
         if (estado.cartasRodada > 0 && estado.mao.length === 0) return;
-        if (revelacaoVazaAtivaRef.current) return;
+        if (revelacaoVazaAtivaRef.current || danoRodadaAtivoRef.current || mortesAtivasRef.current > 0) return;
         rodadaProcessadaRef.current = estado.numeroRodada;
         iniciarRodadaNova();
         // eslint-disable-next-line react-hooks/exhaustive-deps -- iniciarRodadaNova fecha sobre ordemAssentos/assentos atuais, recriada a cada render — não precisa entrar nas deps porque só disparamos pela mudança de numeroRodada/mao
-    }, [estado.numeroRodada, estado.mao, estado.cartasRodada, revelacaoVazaAtiva]);
+    }, [estado.numeroRodada, estado.mao, estado.cartasRodada, revelacaoVazaAtiva, danoRodadaAtivo, mortesAtivas]);
 
     // Vira: dispara assim que `estado.vira` chegar E a distribuição já
     // tiver terminado — se `distribuindoRef` ainda estiver true, este MESMO
@@ -908,6 +1212,27 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     // depois de decidir disparar). `distribuindoRef` em vez do state
     // `distribuindo` direto é o que evita a corrida de mesmo commit descrita
     // no efeito de "Rodada nova" acima.
+    //
+    // Também espera `revelacaoVazaAtivaRef` E `danoRodadaAtivoRef` (mesmas
+    // travas do efeito de "Rodada nova") — SEM ISSO, na vaza que fecha o
+    // round, `estado.vira` da rodada seguinte chega enquanto a revelação da
+    // carta vencedora (ou as cartas de dano do placar, ver
+    // dispararCartasDeDano) ainda está tocando (o servidor não segura isso,
+    // ver pausaVazaMs em GameController — só se aplica ENTRE vazas da mesma
+    // rodada, não depois da última). Nesse instante `iniciarRodadaNova`
+    // ainda nem rodou (está bloqueado pelas mesmas travas, ver efeito de
+    // "Rodada nova"), então `distribuindoRef` ainda está false — não porque
+    // a distribuição terminou, mas porque ela nem começou. Sem checar essas
+    // duas travas aqui também, esse efeito lia esse falso "terminou" e
+    // disparava a vira na hora, pulando a revelação da carta vencedora, o
+    // dano do placar E a distribuição — era o "vira não respeita a ordem"
+    // que o Henrique reportou. `revelacaoVazaAtiva`/`danoRodadaAtivo`
+    // (state) entram nas deps pelo mesmo motivo de `distribuindo`: reavaliar
+    // quando cada travar acabar e `iniciarRodadaNova` (chamado pelo efeito
+    // de "Rodada nova", declarado ANTES deste no arquivo — mesma ordem
+    // dentro do commit) já tiver marcado `distribuindoRef` true, pra este
+    // efeito continuar esperando a distribuição de verdade em vez de
+    // disparar direto.
     function dispararVira(viraDoServidor) {
         const carta = lerCarta(viraDoServidor.carta);
         if (!carta) return;
@@ -919,11 +1244,11 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
 
     const viraProcessadaRef = useRef(null);
     useEffect(() => {
-        if (!estado.vira || viraProcessadaRef.current === estado.vira || distribuindoRef.current) return;
+        if (!estado.vira || viraProcessadaRef.current === estado.vira || distribuindoRef.current || revelacaoVazaAtivaRef.current || danoRodadaAtivoRef.current || mortesAtivasRef.current > 0) return;
         viraProcessadaRef.current = estado.vira;
         dispararVira(estado.vira);
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- `distribuindo` só está nas deps pra reavaliar quando ele mudar (a leitura de verdade é distribuindoRef.current); dispararVira é recriada a cada render mas estável o bastante pra não precisar entrar
-    }, [estado.vira, distribuindo]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- `distribuindo`/`revelacaoVazaAtiva`/`danoRodadaAtivo`/`mortesAtivas` só nas deps pra reavaliar quando mudarem (a leitura de verdade é sempre pelos refs); dispararVira é recriada a cada render mas estável o bastante pra não precisar entrar
+    }, [estado.vira, distribuindo, revelacaoVazaAtiva, danoRodadaAtivo, mortesAtivas]);
 
     async function iniciarRodadaNova() {
         setDistribuindo(true);
@@ -951,6 +1276,19 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         setFaseRevelacaoVaza(null);
         setCartasExplodindo({});
         setCartasVazaGanhas([]);
+        // Mesmo padrão defensivo — já devia estar false/vazio a essa altura
+        // (precondição do efeito de "Rodada nova", ver danoRodadaAtivoRef).
+        danoRodadaAtivoRef.current = false;
+        setDanoRodadaAtivo(false);
+        setCartasDanoVoando([]);
+        setCoracoesImpactados({});
+        // MESMO padrão defensivo pra `mortesAtivasRef` — só a CONTAGEM de
+        // mortes em andamento, nunca `estadoMortePorAssento`/
+        // `mortesEmAndamentoRef` (esses são permanentes, ver comentário do
+        // efeito de eliminados: um fantasminha morto continua morto pro
+        // resto da partida, não ressuscita na rodada nova).
+        mortesAtivasRef.current = 0;
+        setMortesAtivas(0);
         setFichasNoCanto([]);
         setFichasFantasmaNoCanto([]);
         setFichasVoando([]);
@@ -978,7 +1316,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
             for (let c = 0; c < cartas; c++) {
                 const id = ++proximoIdCarta.current;
                 const cartaDeVerdade = assento.indice === 0 ? suasCartas[c] : undefined;
-                setCartasVoando((atuais) => [
+                atualizarCartasVoando((atuais) => [
                     ...atuais,
                     {
                         id,
@@ -1039,10 +1377,19 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
 
     // Tenta achar a carta vencedora em `cartasNaMesa` e, se conseguir, já
     // dispara a coreografia inteira. Existe pra cobrir corridas reais:
-    //   - Se a SUA última carta da vaza for a vencedora, o servidor pode
-    //     mandar `vazaFinalizada` antes dela sequer terminar de voar da sua
-    //     mão até a mesa (~550ms de animação client-side, ver
-    //     DURACAO_SAIDA_MAO_MS + DURACAO_JOGADA_MS em animarJogada).
+    //   - QUALQUER carta desta vaza (não só a vencedora) pode ainda estar
+    //     voando da mão até a mesa quando `vazaFinalizada` chega — não só
+    //     quando é a SUA última carta que vence (caso já coberto pelo
+    //     lookup de `vencedora` abaixo), mas também quando você é o
+    //     ÚLTIMO a jogar e NÃO vence: a carta vencedora (de outro
+    //     assento) já estava plantada na mesa há um tempo, então o lookup
+    //     abaixo acha ela na hora — só que a SUA última carta (perdedora)
+    //     ainda está no meio do próprio voo (~550ms, ver
+    //     DURACAO_SAIDA_MAO_MS + DURACAO_JOGADA_MS em animarJogada). Sem
+    //     esperar isso aqui, a revelação (que mexe em z-index/limpa a mesa)
+    //     começava a tocar por cima da sua carta ainda no ar — cortava a
+    //     animação de jogar dela e ia direto pra revelação/dano, o "pulou a
+    //     animação de jogar a carta" que o Henrique reportou.
     //   - `distribuindo` (a distribuição da mão ainda rolando — ver
     //     iniciarRodadaNova) pode muito bem ainda estar de pé quando a
     //     PRIMEIRA vaza da rodada se resolve: o servidor não espera a
@@ -1083,6 +1430,15 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
             vazaAguardandoRef.current = resultado;
             return;
         }
+        // Nenhuma carta de "jogar" pode ainda estar no ar (ver comentário
+        // grande acima) — lê `cartasVoandoRef` (não o state `cartasVoando`
+        // direto) pelo mesmo motivo dos outros refs desta função: pode
+        // rodar no mesmo commit em que `aoChegarCarta` acabou de tirar a
+        // ÚLTIMA carta voando, com o state só refletindo no PRÓXIMO render.
+        if (cartasVoandoRef.current.some((c) => c.tipo === 'jogar')) {
+            vazaAguardandoRef.current = resultado;
+            return;
+        }
         if (!vencedor) {
             vazaAguardandoRef.current = null;
             iniciarRevelacaoVazaMelada();
@@ -1110,12 +1466,14 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     }
 
     // Reavalia um resultado pendente sempre que uma carta nova pousa em
-    // cartasNaMesa, quando a distribuição termina, OU quando a vira termina
-    // de animar (ver comentário de vazaAguardandoRef acima).
+    // cartasNaMesa, quando alguma carta de "jogar" termina de voar
+    // (cartasVoando — ver comentário grande de tentarIniciarRevelacaoVaza),
+    // quando a distribuição termina, OU quando a vira termina de animar
+    // (ver comentário de vazaAguardandoRef acima).
     useEffect(() => {
         if (vazaAguardandoRef.current) tentarIniciarRevelacaoVaza(vazaAguardandoRef.current);
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- só reage a cartasNaMesa/distribuindo/viraAnimando mudarem; tentarIniciarRevelacaoVaza lê o resto fresco
-    }, [cartasNaMesa, distribuindo, viraAnimando]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- só reage a cartasNaMesa/cartasVoando/distribuindo/viraAnimando mudarem; tentarIniciarRevelacaoVaza lê o resto fresco
+    }, [cartasNaMesa, cartasVoando, distribuindo, viraAnimando]);
 
     async function iniciarRevelacaoVazaMelada() {
         // Melada: ninguém pontuou — sem carta crescendo/viajando, só o
@@ -1156,7 +1514,17 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
             escala: vencedora.escala,
         };
 
+        // `vazaRevelando` liga JÁ AQUI (trava jogadas novas em
+        // processarJogada, ver o guard lá) mas `faseRevelacaoVaza` continua
+        // null por VAZA_SEGURAR_ULTIMA_CARTA_MS — a mesa fica exatamente
+        // como o jogador acabou de ver (as 4 cartas jogadas, nenhuma em
+        // destaque) por esse tempo, só DEPOIS é que o resto da coreografia
+        // (crescendo/impacto/viajando) começa de verdade. Sem travar aqui
+        // (antes da pausa), uma jogada rápida da vaza seguinte podia pousar
+        // na mesa no meio da pausa, contaminando o "quadro parado".
         setVazaRevelando({ cartaId: vencedora.id, jogador: vencedor, assentoIndice, rank: vencedora.rank, naipe: vencedora.naipe, origem, destino });
+        await esperar(VAZA_SEGURAR_ULTIMA_CARTA_MS);
+
         setCartasNaMesa((atual) => atual.filter((c) => c.id !== vencedora.id));
         setFaseRevelacaoVaza('crescendo');
 
@@ -1303,38 +1671,6 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         setApostaPopupAberto(false);
     }
 
-    // Fim de rodada (ver estado.ultimoPlacar) — revela o coração de todos
-    // com o HP REAL vindo do servidor (não recalculado aqui) e dispara a
-    // reação de dano (danoPorAssento) em quem perdeu vida desde o placar
-    // anterior.
-    useEffect(() => {
-        if (!estado.ultimoPlacar || estado.ultimoPlacar.length === 0) return;
-        if (estado.ultimoPlacar === placarProcessadoRef.current) return;
-        placarProcessadoRef.current = estado.ultimoPlacar;
-
-        setVidaPorAssento((atual) => {
-            const novo = [...atual];
-            for (const linha of estado.ultimoPlacar) {
-                const indice = indiceDoNome(linha.nome);
-                if (indice === -1) continue;
-                const antes = vidaAnteriorRef.current[linha.nome] ?? VIDA_MAXIMA;
-                if (linha.hp < antes && indice !== 0) {
-                    setDanoPorAssento((v) => v.map((d, i) => (i === indice ? d + 1 : d)));
-                }
-                vidaAnteriorRef.current[linha.nome] = linha.hp;
-                novo[indice] = linha.hp;
-            }
-            return novo;
-        });
-
-        assentos.forEach((assento, i) => {
-            if (!assento.eVoce) mostrarVidaTemporaria(i, RODADA_FIM_REVELACAO_MS);
-        });
-        setSuaVidaEmDestaque(true);
-        setTimeout(() => setSuaVidaEmDestaque(false), RODADA_FIM_REVELACAO_MS);
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- só reage à IDENTIDADE de ultimoPlacar mudando; indiceDoNome/assentos são lidos frescos a cada chamada
-    }, [estado.ultimoPlacar]);
-
     function mostrarVidaTemporaria(indice, duracaoMs = VIDA_TEMPORARIA_MS) {
         setAssentosVidaTemporaria((atual) => (atual.includes(indice) ? atual : [...atual, indice]));
         setTimeout(() => {
@@ -1342,30 +1678,88 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         }, duracaoMs);
     }
 
-    // Eliminados (ver estado.eliminados — só cresce, nunca esquece quem já
-    // morreu): qualquer nome NOVO nesta lista dispara a coreografia de
-    // morte pro assento dele. Pode disparar VÁRIAS de uma vez (um empate no
-    // fim da partida elimina mais de um jogador no mesmo instante).
-    useEffect(() => {
-        for (const nome of estado.eliminados ?? []) {
-            if (mortesEmAndamentoRef.current.has(nome)) continue;
-            const indice = indiceDoNome(nome);
-            if (indice <= 0) continue; // "Você" nunca é <Fantasminha> aqui, não tem o que desintegrar
-            mortesEmAndamentoRef.current.add(nome);
-            animarMorte(indice);
+    // Dispara as cartas de dano de UM assento (ver constantes DANO_CARTA_*
+    // lá em cima) — sempre `linha.diferenca` cartas, uma por coração que
+    // esse assento vai perder nesta rodada. `excesso` (vazas feitas além da
+    // aposta) usa as ÚLTIMAS cartas que esse assento tinha empilhado em
+    // `cartasVazaGanhas` NESTA rodada (slotIndice crescente = ordem que
+    // ganhou — as mais recentes saem primeiro) e as REMOVE da pilha (saem
+    // voando de verdade, não ficam duplicadas). O resto (aposta não
+    // cumprida — nunca existiu carta de verdade) voa virada pra baixo,
+    // saindo do mesmo canto onde a ficha da aposta dele nasceu
+    // (calcularAncoraFichaAssento).
+    function dispararCartasDeDano(indice, linha, vidaAntes) {
+        const diferenca = linha.diferenca;
+        if (!diferenca) return;
+
+        const excesso = Math.max(0, linha.steak - linha.aposta);
+        const cartasDoAssento = cartasVazaGanhas.filter((c) => c.assentoIndice === indice);
+        const cartasExcedentes = excesso > 0 ? cartasDoAssento.slice(Math.max(0, cartasDoAssento.length - excesso)) : [];
+        if (cartasExcedentes.length > 0) {
+            const idsExcedentes = new Set(cartasExcedentes.map((c) => c.id));
+            setCartasVazaGanhas((atual) => atual.filter((c) => !idsExcedentes.has(c.id)));
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- animarMorte fecha sobre estado local, indiceDoNome lido fresco
-    }, [estado.eliminados]);
 
-    async function animarMorte(indice) {
-        setEstadoMortePorAssento((atual) => atual.map((v, i) => (i === indice ? 'impacto' : v)));
-        setDanoPorAssento((atual) => atual.map((v, i) => (i === indice ? v + 1 : v)));
+        const origemFallback = calcularAncoraFichaAssento(indice) ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 
-        await esperar(MORTE_IMPACTO_MS);
-        setEstadoMortePorAssento((atual) => atual.map((v, i) => (i === indice ? 'desintegrando' : v)));
+        const novasCartas = Array.from({ length: diferenca }, (_, i) => {
+            const cartaPilha = cartasExcedentes[i];
+            return {
+                id: ++proximoIdCartaDano.current,
+                de: cartaPilha ? { x: cartaPilha.x, y: cartaPilha.y } : origemFallback,
+                carta: cartaPilha ? { rank: cartaPilha.rank, naipe: cartaPilha.naipe } : null,
+                atrasoMs: i * DANO_CARTA_ATRASO_ENTRE_MS,
+                assentoIndice: indice,
+                heartIndice: vidaAntes - 1 - i,
+            };
+        });
 
-        await esperar(MORTE_DESINTEGRAR_MS);
-        setEstadoMortePorAssento((atual) => atual.map((v, i) => (i === indice ? 'morto' : v)));
+        setCartasDanoVoando((atual) => [...atual, ...novasCartas]);
+    }
+
+    // Mede o coração-alvo NA HORA (ver comentário de CartaDanoVoando) — cai
+    // pro centro do próprio assento se o coração ainda não tiver ref (não
+    // devia acontecer, mas evita a carta sumir sem destino nenhum).
+    function obterCentroCoracao(assentoIndice, heartIndice) {
+        const el = coracaoRefs.current[assentoIndice]?.[heartIndice];
+        if (el) {
+            const rect = el.getBoundingClientRect();
+            return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        }
+        const assentoEl = assentoRefs.current[assentoIndice];
+        if (assentoEl) {
+            const rect = assentoEl.getBoundingClientRect();
+            return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        }
+        return null;
+    }
+
+    function registrarRefCoracao(assentoIndice, heartIndice, el) {
+        if (!coracaoRefs.current[assentoIndice]) coracaoRefs.current[assentoIndice] = [];
+        coracaoRefs.current[assentoIndice][heartIndice] = el;
+    }
+
+    // Carta de dano chegou no coração: some da lista de voo, desliga um
+    // coração a mais (Math.min contra o valor atual — proteção só contra
+    // uma ordem de chegada fora de ordem por jank do navegador, não devia
+    // acontecer no caminho normal) e liga o flash de impacto nele por
+    // CORACAO_IMPACTO_DURACAO_MS.
+    function aoChegarCartaDano(carta) {
+        setCartasDanoVoando((atual) => atual.filter((c) => c.id !== carta.id));
+        setVidaPorAssento((atual) => {
+            if (atual[carta.assentoIndice] <= carta.heartIndice) return atual;
+            const novo = [...atual];
+            novo[carta.assentoIndice] = carta.heartIndice;
+            return novo;
+        });
+        setCoracoesImpactados((atual) => ({ ...atual, [carta.assentoIndice]: carta.heartIndice }));
+        setTimeout(() => {
+            setCoracoesImpactados((atual) => (
+                atual[carta.assentoIndice] === carta.heartIndice
+                    ? { ...atual, [carta.assentoIndice]: null }
+                    : atual
+            ));
+        }, CORACAO_IMPACTO_DURACAO_MS);
     }
 
     // Fim de jogo (ver estado.vencedor) — mesma família dos bugs de
@@ -1593,7 +1987,12 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
             </div>
 
             <div className={`mesa-exp-coracoes-suas${suaVidaEmDestaque ? ' mesa-exp-coracoes-destaque' : ''}`}>
-                <Coracoes vida={vidaPorAssento[0] ?? VIDA_MAXIMA} />
+                <Coracoes
+                    vida={vidaPorAssento[0] ?? VIDA_MAXIMA}
+                    assentoIndice={0}
+                    registrarRef={registrarRefCoracao}
+                    coracaoImpactado={coracoesImpactados[0] ?? null}
+                />
             </div>
 
             <div className="mesa-exp-mesa">
@@ -1660,7 +2059,12 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                                     )}
                                     {(assentoEmHoverIndex === i || assentosVidaTemporaria.includes(i)) && (
                                         <div className={`mesa-exp-assento-vida mesa-exp-assento-vida-${ladoVida}`}>
-                                            <Coracoes vida={vidaPorAssento[i] ?? VIDA_MAXIMA} />
+                                            <Coracoes
+                                                vida={vidaPorAssento[i] ?? VIDA_MAXIMA}
+                                                assentoIndice={i}
+                                                registrarRef={registrarRefCoracao}
+                                                coracaoImpactado={coracoesImpactados[i] ?? null}
+                                            />
                                         </div>
                                     )}
                                 </>
@@ -1823,6 +2227,16 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                         atrasoMs={ficha.atrasoMs}
                         onChegou={() => aoChegarFichaFantasma(ficha)}
                         hue={ficha.hue}
+                    />
+                ))}
+                {cartasDanoVoando.map((carta) => (
+                    <CartaDanoVoando
+                        key={carta.id}
+                        de={carta.de}
+                        obterDestino={() => obterCentroCoracao(carta.assentoIndice, carta.heartIndice)}
+                        atrasoMs={carta.atrasoMs}
+                        carta={carta.carta}
+                        onChegou={() => aoChegarCartaDano(carta)}
                     />
                 ))}
             </div>
