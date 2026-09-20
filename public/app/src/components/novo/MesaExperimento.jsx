@@ -84,7 +84,11 @@ const PAUSA_MORTE_APOS_DANO_MS = 1000;
 const FICHA_TAMANHO_PX = 64;
 const ESCALA_FICHA_CANTO = 0.62;
 const FICHA_EMPILHA_POPUP_PX = 10;
-const FICHA_LEQUE_ESPACAMENTO_PX = 34;
+// Espaçamento entre fichas no seu leque (canto inferior esquerdo) — folgado
+// o bastante pra caber a carta de vaza ganha (110x154 * VAZA_POUSO_ESCALA,
+// rotacionada 90°, ~52px de largura) espiando atrás de UMA ficha sem tocar
+// a ficha VIZINHA (ver render de cartasVazaGanhas mais abaixo).
+const FICHA_LEQUE_ESPACAMENTO_PX = 52;
 const FICHA_EMPILHA_FANTASMA_PX = 30;
 const FICHA_FANTASMA_OFFSET_LADO_PX = 55;
 const FICHA_FORCA_SUBIDA_MIN = 70;
@@ -116,7 +120,13 @@ const VAZA_IMPACTO_DURACAO_MS = 220;
 const VAZA_IMPACTO_PAUSA_MS = 260;
 const VAZA_VIAGEM_DURACAO_MS = 600;
 const VAZA_POUSO_ESCALA = 0.34;
-const VAZA_POUSO_ROT_GRAUS = -12;
+// Sua carta pousa RETA (sem giro nenhum) — só a do fantasminha gira 90°
+// (ver .mesa-exp-carta-vaza-ganha/-voce no CSS, os valores aqui têm que
+// bater com o rotate() fixo de cada uma). A carta já chega VIAJANDO nessa
+// rotação final (ver iniciarRevelacaoVazaComVencedora), senão trocar pro
+// elemento estático da pilha no fim da viagem "gira instantâneo".
+const VAZA_POUSO_ROT_GRAUS = 0;
+const VAZA_POUSO_ROT_FANTASMA_GRAUS = 90;
 const VAZA_EXPLOSAO_FATOR = 2.6;
 const VAZA_EXPLOSAO_ESCALA_MULT = 1.35;
 const VAZA_EXPLOSAO_VOLTAS_MIN = 2;
@@ -143,9 +153,6 @@ const DANO_CARTA_FORCA_SUBIDA_PX = 90;
 const DANO_CARTA_ESCALA_PICO = 1.1;
 const DANO_CARTA_ESCALA_POUSO = 0.4;
 const CORACAO_IMPACTO_DURACAO_MS = 380;
-
-const SLOT_FICHA_LARGURA_PX = FICHA_TAMANHO_PX * ESCALA_FICHA_CANTO;
-const SLOT_FICHA_LARGURA_COM_CARTA_PX = SLOT_FICHA_LARGURA_PX + 34;
 
 function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
 function easeInCubic(t) { return t * t * t; }
@@ -445,7 +452,7 @@ function calcularEstadoRevelacaoVaza(fase, destino) {
         };
     }
     if (fase === 'viajando' || fase === 'pousada') {
-        return { x: destino.x, y: destino.y, rot: VAZA_POUSO_ROT_GRAUS, escala: VAZA_POUSO_ESCALA };
+        return { x: destino.x, y: destino.y, rot: destino.rot ?? VAZA_POUSO_ROT_GRAUS, escala: VAZA_POUSO_ESCALA };
     }
     return {
         x: window.innerWidth * VAZA_REVELACAO_X_FRACAO,
@@ -1507,6 +1514,19 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
             return;
         }
 
+        // `slotIndice` decidido JÁ AQUI (mesma conta de sempre, ver push em
+        // `cartasVazaGanhas` mais abaixo) pra poder mirar a viagem no local
+        // FINAL de verdade (ver calcularPosicaoCartaVazaGanha), não só na
+        // ancora genérica do assento — é o que faz a carta já chegar pousada
+        // certa, sem "tp" de trocar de lugar na hora que troca do componente
+        // viajando pro card estático da pilha.
+        const slotIndice = cartasVazaGanhas.filter((c) => c.assentoIndice === assentoIndice).length;
+        const apostaVencedor = estado.apostas?.[vencedor] ?? 0;
+        const destinoViagem = {
+            ...calcularPosicaoCartaVazaGanha(assentoIndice, slotIndice, destino.x, destino.y, apostaVencedor),
+            rot: destino.rot,
+        };
+
         const origem = {
             x: rect.left + rect.width / 2,
             y: rect.top + rect.height / 2,
@@ -1522,7 +1542,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         // (crescendo/impacto/viajando) começa de verdade. Sem travar aqui
         // (antes da pausa), uma jogada rápida da vaza seguinte podia pousar
         // na mesa no meio da pausa, contaminando o "quadro parado".
-        setVazaRevelando({ cartaId: vencedora.id, jogador: vencedor, assentoIndice, rank: vencedora.rank, naipe: vencedora.naipe, origem, destino });
+        setVazaRevelando({ cartaId: vencedora.id, jogador: vencedor, assentoIndice, rank: vencedora.rank, naipe: vencedora.naipe, origem, destino: destinoViagem });
         await esperar(VAZA_SEGURAR_ULTIMA_CARTA_MS);
 
         setCartasNaMesa((atual) => atual.filter((c) => c.id !== vencedora.id));
@@ -1553,7 +1573,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                 naipe: vencedora.naipe,
                 x: destino.x,
                 y: destino.y,
-                slotIndice: atual.filter((c) => c.assentoIndice === assentoIndice).length,
+                slotIndice,
             },
         ]);
         setVazaRevelando(null);
@@ -1568,7 +1588,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         if (!assento) return null;
         if (assento.eVoce) {
             const rect = cantoFichasRef.current?.getBoundingClientRect();
-            return rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null;
+            return rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, rot: VAZA_POUSO_ROT_GRAUS } : null;
         }
         const el = assentoRefs.current[assentoIndice];
         if (!el) return null;
@@ -1577,7 +1597,28 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         return {
             x: (lado === -1 ? rect.left : rect.right) - lado * FICHA_FANTASMA_OFFSET_LADO_PX,
             y: rect.top + rect.height / 2,
+            rot: VAZA_POUSO_ROT_FANTASMA_GRAUS,
         };
+    }
+
+    // Onde a carta de uma vaza ganha FICA de verdade, em cima da ficha de
+    // mesmo número (`slotIndice`) — mesma fórmula pra você e pro
+    // fantasminha, só o EIXO que muda: sua fileira de fichas é horizontal
+    // (desloca em x, ver FICHA_LEQUE_ESPACAMENTO_PX), a pilha do
+    // fantasminha é vertical (desloca em y, ver FICHA_EMPILHA_FANTASMA_PX).
+    // `ancoraX`/`ancoraY` são o ponto SEM deslocamento nenhum (a mesma
+    // ancora guardada em `cartasVazaGanhas.x/y`, ver
+    // iniciarRevelacaoVazaComVencedora) — usada tanto pro render final
+    // quanto (com o MESMO resultado) pro alvo da viagem, então a carta já
+    // chega pousada no lugar certo, sem "tp" nenhum na troca do componente
+    // viajando pro card estático.
+    function calcularPosicaoCartaVazaGanha(assentoIndice, slotIndice, ancoraX, ancoraY, apostaValor) {
+        const meio = (apostaValor - 1) / 2;
+        const offset = slotIndice - meio;
+        if (assentoIndice === 0) {
+            return { x: ancoraX + offset * FICHA_LEQUE_ESPACAMENTO_PX, y: ancoraY };
+        }
+        return { x: ancoraX, y: ancoraY - offset * FICHA_EMPILHA_FANTASMA_PX };
     }
 
     // Aposta feita (ver estado.apostas): dispara o arremesso de fichas
@@ -2253,68 +2294,55 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
 
             <div className="mesa-exp-aposta-canto" ref={cantoFichasRef} />
 
-            {(fichasNoCanto.length > 0 || cartasVazaGanhas.some((c) => c.assentoIndice === 0)) && (
-                <div className="mesa-exp-aposta-fichas-linha">
-                    {fichasNoCanto.map((ficha, i) => {
-                        const cartaAqui = cartasVazaGanhas.find((c) => c.assentoIndice === 0 && c.slotIndice === i);
-                        return (
-                            <div
-                                key={ficha.id}
-                                className={`mesa-exp-aposta-ficha-slot${cartaAqui ? ' mesa-exp-aposta-ficha-slot-com-carta' : ''}`}
-                            >
-                                {cartaAqui && (
-                                    <div className="mesa-exp-carta-vaza-ganha-slot">
-                                        <Carta rank={cartaAqui.rank} naipe={cartaAqui.naipe} />
-                                    </div>
-                                )}
-                                <div className="mesa-exp-aposta-ficha-slot-corpo">
-                                    <Ficha />
-                                </div>
-                            </div>
-                        );
-                    })}
-                    {/* Vazas feitas sem ficha pra "abraçar" — apostou 0, ou fez
-                        mais vazas do que apostou (slotIndice não acha ficha
-                        nenhuma com esse índice no map acima). Sem este bloco a
-                        carta simplesmente nunca aparecia em lugar nenhum:
-                        mesmo slot de sempre (mesma largura/animação), só que
-                        sem <Ficha/> dentro. */}
-                    {cartasVazaGanhas
-                        .filter((c) => c.assentoIndice === 0 && c.slotIndice >= fichasNoCanto.length)
-                        .map((carta) => (
-                            <div key={carta.id} className="mesa-exp-aposta-ficha-slot mesa-exp-aposta-ficha-slot-com-carta">
-                                <div className="mesa-exp-carta-vaza-ganha-slot">
-                                    <Carta rank={carta.rank} naipe={carta.naipe} />
-                                </div>
-                            </div>
-                        ))}
-                    {estado.apostas?.[estado.meuNome] != null && (
-                        <span className="mesa-exp-aposta-linha-legenda">Sua aposta: {estado.apostas[estado.meuNome]}</span>
-                    )}
+            {/* Sua ficha pousada, MESMA classe/posição fixa (`ficha.para`)
+                da ficha do fantasminha (ver fichasFantasmaNoCanto acima) —
+                nada de flex/largura variável: uma vez pousada, a ficha
+                nunca mais se move (é o que deixa a chegada de carta lisa
+                igual a do fantasminha, sem reajuste nenhum nas vizinhas). */}
+            {fichasNoCanto.map((ficha) => (
+                <div
+                    key={ficha.id}
+                    className="mesa-exp-aposta-ficha-canto"
+                    style={{ left: `${ficha.para.x}px`, top: `${ficha.para.y}px` }}
+                >
+                    <Ficha />
+                </div>
+            ))}
+
+            {estado.apostas?.[estado.meuNome] != null && (
+                <div className="mesa-exp-aposta-linha-legenda-ancora">
+                    <span
+                        className="mesa-exp-aposta-linha-legenda"
+                        style={{
+                            // Deixa uma folga de um `espaçamento` de ficha depois
+                            // da ÚLTIMA ficha do leque antes do texto começar.
+                            marginLeft: `${FICHA_LEQUE_ESPACAMENTO_PX + ((estado.apostas[estado.meuNome] - 1) / 2) * FICHA_LEQUE_ESPACAMENTO_PX}px`,
+                        }}
+                    >
+                        Sua aposta: {estado.apostas[estado.meuNome]}
+                    </span>
                 </div>
             )}
 
-            {cartasVazaGanhas.filter((c) => c.assentoIndice !== 0).map((carta) => {
-                // Mesmo sistema de slot que já funciona pra VOCÊ (ver fileira
-                // de fichas acima), adaptado pro layout empilhado (vertical,
-                // não em fileira) dos fantasminhas: cada carta usa o MESMO
-                // offset vertical que a ficha de mesmo número (`slotIndice`)
-                // já usa ao redor do `ancora.y` (ver FICHA_EMPILHA_FANTASMA_PX/
-                // animarAposta) — sem isso todas as cartas de um fantasminha
-                // pousavam no MESMO pixel, cobrindo umas às outras (e a
-                // pilha de fichas inteira). Aposta 0 (ou mais vazas que
-                // apostou) não precisa de caso especial nenhum aqui — é só
-                // uma fórmula contínua, a carta extra extrapola na mesma
-                // direção, além de onde a última ficha pararia.
+            {cartasVazaGanhas.map((carta) => {
+                // Mesmo sistema pra você e pro fantasminha (ver
+                // calcularPosicaoCartaVazaGanha): a carta pousa em cima da
+                // ficha de mesmo número (`slotIndice`) ao redor da ancora
+                // `carta.x/y` guardada sem deslocamento nenhum — sem isso
+                // todas as cartas de um mesmo assento pousavam no MESMO
+                // pixel, cobrindo umas às outras (e a pilha/fileira de
+                // fichas inteira). Aposta 0 (ou mais vazas que apostou) não
+                // precisa de caso especial — é só uma fórmula contínua, a
+                // carta extra extrapola na mesma direção, além de onde a
+                // última ficha pararia.
                 const nomeAssento = ordemAssentos[carta.assentoIndice]?.nome;
                 const apostaAssento = estado.apostas?.[nomeAssento] ?? 0;
-                const meio = (apostaAssento - 1) / 2;
-                const y = carta.y - (carta.slotIndice - meio) * FICHA_EMPILHA_FANTASMA_PX;
+                const pos = calcularPosicaoCartaVazaGanha(carta.assentoIndice, carta.slotIndice, carta.x, carta.y, apostaAssento);
                 return (
                     <div
                         key={carta.id}
-                        className="mesa-exp-carta-vaza-ganha"
-                        style={{ left: `${carta.x}px`, top: `${y}px` }}
+                        className={`mesa-exp-carta-vaza-ganha${carta.assentoIndice === 0 ? ' mesa-exp-carta-vaza-ganha-voce' : ''}`}
+                        style={{ left: `${pos.x}px`, top: `${pos.y}px` }}
                     >
                         <Carta rank={carta.rank} naipe={carta.naipe} />
                     </div>
