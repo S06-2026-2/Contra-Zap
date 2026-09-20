@@ -1093,64 +1093,19 @@ button.secundario {
     transform: translate(-50%, -50%) scale(.62);
 }
 
-/* Fileira da SUA aposta (ver .mesa-exp-aposta-fichas-linha/-ficha-slot no
-   JSX/MesaExperimento.jsx) — CSS flex de verdade, ancorada no MESMO canto
-   que .mesa-exp-aposta-canto (a "âncora" invisível usada só pra calcular
-   alvo de voo, ver JS) — cresce pra DIREITA conforme mais fichas/cartas
-   entram, nunca precisa de cálculo de x em px feito à mão. */
-.mesa-exp-aposta-fichas-linha {
+/* Âncora fixa só pro texto "Sua aposta: N" (ver JSX) — suas fichas em si
+   não moram mais aqui dentro (são .mesa-exp-aposta-ficha-canto, posição
+   fixa própria, ver logo abaixo); esta div só existe pra dar ao texto o
+   mesmo ponto de partida (left/bottom) que o leque de fichas usa, e o
+   `margin-left` inline (calculado a partir de quantas fichas cabem no
+   leque) empurra o texto pra depois da última. */
+.mesa-exp-aposta-linha-legenda-ancora {
     position: fixed;
     left: 130px;
     bottom: 8px;
     z-index: 43;
     display: flex;
     align-items: center;
-    gap: 6px;
-}
-
-/* Largura normal = SLOT_FICHA_LARGURA_PX (64px * ESCALA_FICHA_CANTO .62 =
-   ~40px, ver MesaExperimento.jsx — os dois têm que bater). A ficha fica
-   ENCOSTADA na borda DIREITA do slot (justify-content: flex-end) — é o
-   que sobra de espaço à ESQUERDA, quando o slot cresce, que vira o lugar
-   da carta espiando. */
-.mesa-exp-aposta-ficha-slot {
-    position: relative;
-    width: 40px;
-    height: 40px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    transition: width .35s ease;
-}
-
-/* == SLOT_FICHA_LARGURA_COM_CARTA_PX (40 + 34) — cresce só quando uma
-   vaza ganha "escolhe" este slot (ver slotIndice em cartasVazaGanhas). */
-.mesa-exp-aposta-ficha-slot-com-carta {
-    width: 74px;
-}
-
-/* Tamanho FIXO (não 100%/100% do slot) — o slot pode crescer só na
-   LARGURA quando ganha uma carta (ver -com-carta acima), mas a ficha
-   precisa continuar QUADRADA sempre, senão o border-radius:50% dela vira
-   uma oval em vez de um círculo. flex-shrink:0 trava o tamanho mesmo o
-   slot mudando de largura ao redor dela. */
-.mesa-exp-aposta-ficha-slot-corpo {
-    width: 40px;
-    height: 40px;
-    flex-shrink: 0;
-}
-
-/* A carta em si, espiando pela ESQUERDA do slot (atrás da ficha, que fica
-   encostada na direita — ver .mesa-exp-aposta-ficha-slot acima). Escala
-   == VAZA_POUSO_ESCALA em MesaExperimento.jsx — "mais pequenininha",
-   bem menor que a própria ficha. */
-.mesa-exp-carta-vaza-ganha-slot {
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%) rotate(-10deg) scale(.34);
-    pointer-events: none;
 }
 
 .mesa-exp-aposta-linha-legenda {
@@ -1388,22 +1343,29 @@ button.secundario {
     opacity: 0;
 }
 
-/* Carta que já venceu uma vaza, pousada permanentemente no colo de um
-   FANTASMINHA (a sua, assentoIndice 0, usa o sistema de slot da fileira
-   flex, ver .mesa-exp-carta-vaza-ganha-slot) — "mais pequenininha" (era
-   0.62, == VAZA_POUSO_ESCALA em MesaExperimento.jsx, os dois têm que
-   bater), só uma pontinha espiando atrás da pilha de fichas dele,
-   z-index MENOR que o das fichas de aposta (ver .mesa-exp-aposta-ficha-
-   canto, 43) de propósito — é isso que faz ela ficar "embaixo" de uma
-   ficha, não do lado. Rotação em 90° (não os -12deg de antes) — pedido do
-   Henrique: virada de lado, a carta ocupa menos espaço na DIREÇÃO em que
-   a pilha empilha (ver offset por slotIndice em MesaExperimento.jsx),
-   então cabem mais cartas visíveis na mesma pilha sem cobrir uma à outra. */
+/* Carta que já venceu uma vaza, pousada permanentemente em cima da ficha
+   de mesmo número (ver calcularPosicaoCartaVazaGanha em
+   MesaExperimento.jsx) — MESMA posição pra você e pro fantasminha, só o
+   eixo de empilhamento muda (linha horizontal pra você, coluna vertical
+   pro fantasminha). "Mais pequenininha" (0.34 == VAZA_POUSO_ESCALA, os
+   dois têm que bater), z-index MENOR que .mesa-exp-aposta-ficha-canto (40)
+   de propósito — é isso que faz ela ficar "embaixo" da ficha, só uma
+   pontinha espiando. Rotação em 90° por padrão (fantasminha): virada de
+   lado, a carta ocupa menos espaço na direção em que a pilha empilha,
+   então cabem mais cartas visíveis sem cobrir uma à outra. */
 .mesa-exp-carta-vaza-ganha {
     position: fixed;
     z-index: 39;
     transform: translate(-50%, -50%) rotate(90deg) scale(0.34);
     pointer-events: none;
+}
+
+/* A SUA carta pousa RETA, não de lado (pedido do Henrique) — sobrepõe o
+   `transform` de cima inteiro (mesma especificidade, esta regra vem
+   depois), só tirando o rotate(). Precisa bater com VAZA_POUSO_ROT_GRAUS
+   (0) em MesaExperimento.jsx. */
+.mesa-exp-carta-vaza-ganha-voce {
+    transform: translate(-50%, -50%) scale(0.34);
 }
 
 /* Galeria de revisão (ver GaleriaRanks em MesaExperimento.jsx) — troca a
