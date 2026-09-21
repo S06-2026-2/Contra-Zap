@@ -117,7 +117,11 @@ const VAZA_REVELACAO_PAUSA_MS = 1100;
 const VAZA_IMPACTO_QUEDA_PX = 26;
 const VAZA_IMPACTO_ESCALA = 0.7;
 const VAZA_IMPACTO_DURACAO_MS = 220;
-const VAZA_IMPACTO_PAUSA_MS = 260;
+// VAZA_IMPACTO_DURACAO_MS + VAZA_IMPACTO_PAUSA_MS tem que bater com
+// VAZA_EXPLOSAO_DURACAO_MS (mesmo tempo que a transition de
+// .mesa-exp-carta-jogada-explodindo leva no CSS) — é quanto tempo o fluxo
+// de vaza vencida espera antes de tirar as cartas explodindo do DOM.
+const VAZA_IMPACTO_PAUSA_MS = 680;
 const VAZA_VIAGEM_DURACAO_MS = 600;
 const VAZA_POUSO_ESCALA = 0.34;
 // Sua carta pousa RETA (sem giro nenhum) — só a do fantasminha gira 90°
@@ -128,10 +132,27 @@ const VAZA_POUSO_ESCALA = 0.34;
 const VAZA_POUSO_ROT_GRAUS = 0;
 const VAZA_POUSO_ROT_FANTASMA_GRAUS = 90;
 const VAZA_EXPLOSAO_FATOR = 2.6;
+// Piso de distância (independe de `distancia * FATOR`): sem isso, uma carta
+// que caiu perto do centro da mesa (distância pequena) só andava um pouco
+// mesmo multiplicada — ficava só girando no lugar, sem realmente sair da
+// tela. Com o piso, TODA carta perdedora voa pelo menos essa distância (em
+// % da mesa) na direção que já tinha, então sempre escapa do campo de
+// visão antes de a `.mesa-exp-carta-jogada-explodindo` sumir (ver CSS) —
+// era o "as cartas somem" que o Henrique via, pedido pra virar "voam pra
+// longe, saem do campo de visão" antes de desaparecer.
+const VAZA_EXPLOSAO_DISTANCIA_MIN = 260;
 const VAZA_EXPLOSAO_ESCALA_MULT = 1.35;
-const VAZA_EXPLOSAO_VOLTAS_MIN = 2;
-const VAZA_EXPLOSAO_VOLTAS_MAX = 4;
-const VAZA_EXPLOSAO_DURACAO_MS = 480;
+// Voltas mais baixas que o normal de propósito (pediu pra ficar "menos
+// violento, mais devagar") — gira e flipa visivelmente sem virar um
+// redemoinho.
+const VAZA_EXPLOSAO_VOLTAS_MIN = 1;
+const VAZA_EXPLOSAO_VOLTAS_MAX = 2;
+// Flip 3D (rotateY) somado ao giro 2D (rotate) de sempre — "como se
+// estivessem levantando voo": perspective() entra no transform só pra essa
+// carta (ver render em cartasNaMesa), sem precisar de perspective no pai.
+const VAZA_EXPLOSAO_FLIP_VOLTAS_MIN = 0.5;
+const VAZA_EXPLOSAO_FLIP_VOLTAS_MAX = 1.5;
+const VAZA_EXPLOSAO_DURACAO_MS = 900;
 // Vaza melada (ninguém pontua, ver vazaFinalizada/PROTOCOLO.md — vencedor
 // null): mesma pausa/overlay da revelação normal, só que sem carta nenhuma
 // crescendo/viajando — todo mundo que estava na mesa "explode" junto.
@@ -381,7 +402,13 @@ function FichaVoando({ de, para, atrasoMs, onChegou, hue }) {
 // pegar `coracaoRefs` com a entrada antiga (ou nenhuma, no primeiro round).
 // Sem coração encontrado mesmo assim (não devia acontecer), cai pro centro
 // do próprio assento.
-function CartaDanoVoando({ de, obterDestino, atrasoMs, carta, onChegou }) {
+//
+// `carta` null identifica dano de aposta NÃO cumprida (fez menos vazas do
+// que apostou) — nunca existiu carta de verdade pra essa parte do dano, e
+// quem "bate" no coração agora é a própria `Ficha` (girando igual moeda no
+// rotateY em vez de virar carta), não mais uma carta virada pra baixo. `hue`
+// só se aplica a esse caso (cor da ficha do fantasminha, ver Ficha.jsx).
+function CartaDanoVoando({ de, obterDestino, atrasoMs, carta, hue, onChegou }) {
     const [posBase, setPosBase] = useState(de);
     const [alturaExtra, setAlturaExtra] = useState(0);
     const [escala, setEscala] = useState(1);
@@ -430,14 +457,14 @@ function CartaDanoVoando({ de, obterDestino, atrasoMs, carta, onChegou }) {
 
     return (
         <div
-            className="mesa-exp-carta-dano-voando"
+            className={`mesa-exp-carta-dano-voando${carta ? '' : ' mesa-exp-carta-dano-voando-ficha'}`}
             style={{
                 left: `${posBase.x}px`,
                 top: `${posBase.y + alturaExtra}px`,
                 transform: `translate(-50%, -50%) scale(${escala}) rotateY(${rotY}deg)`,
             }}
         >
-            {carta ? <Carta rank={carta.rank} naipe={carta.naipe} /> : <Carta virada />}
+            {carta ? <Carta rank={carta.rank} naipe={carta.naipe} /> : <Ficha hue={hue} />}
         </div>
     );
 }
@@ -605,7 +632,7 @@ function LequeManilha({ rank }) {
                             '--deslocamento-carta': `${offset * VIRA_LEGENDA_DESLOCAMENTO_ENTRE_CARTAS}px`,
                         }}
                     >
-                        <Carta rank={rank} naipe={naipe} />
+                        <Carta rank={rank} naipe={naipe} efeitoManilha />
                     </div>
                 );
             })}
@@ -1362,13 +1389,16 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                 const dy = carta.y - 50;
                 const distancia = Math.hypot(dx, dy) || 1;
                 const angulo = Math.atan2(dy, dx);
-                const novaDistancia = distancia * VAZA_EXPLOSAO_FATOR;
+                const novaDistancia = Math.max(distancia * VAZA_EXPLOSAO_FATOR, VAZA_EXPLOSAO_DISTANCIA_MIN);
                 const voltas = VAZA_EXPLOSAO_VOLTAS_MIN + Math.random() * (VAZA_EXPLOSAO_VOLTAS_MAX - VAZA_EXPLOSAO_VOLTAS_MIN);
                 const sentido = Math.random() < 0.5 ? 1 : -1;
+                const flipVoltas = VAZA_EXPLOSAO_FLIP_VOLTAS_MIN + Math.random() * (VAZA_EXPLOSAO_FLIP_VOLTAS_MAX - VAZA_EXPLOSAO_FLIP_VOLTAS_MIN);
+                const flipSentido = Math.random() < 0.5 ? 1 : -1;
                 explosoes[carta.id] = {
                     x: 50 + Math.cos(angulo) * novaDistancia,
                     y: 50 + Math.sin(angulo) * novaDistancia,
                     rot: carta.rot + voltas * 360 * sentido,
+                    flip: flipVoltas * 360 * flipSentido,
                     escala: carta.escala * VAZA_EXPLOSAO_ESCALA_MULT,
                 };
             }
@@ -1574,6 +1604,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                 x: destino.x,
                 y: destino.y,
                 slotIndice,
+                apostaValor: apostaVencedor,
             },
         ]);
         setVazaRevelando(null);
@@ -1656,6 +1687,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                 : { x: ancora.x, y: ancora.y - (i - meio) * FICHA_EMPILHA_FANTASMA_PX },
             atrasoMs: i * FICHA_ATRASO_ENTRE_MS,
             hue,
+            assentoIndice: indice,
         }));
 
         if (ehVoce) {
@@ -1726,9 +1758,13 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     // `cartasVazaGanhas` NESTA rodada (slotIndice crescente = ordem que
     // ganhou — as mais recentes saem primeiro) e as REMOVE da pilha (saem
     // voando de verdade, não ficam duplicadas). O resto (aposta não
-    // cumprida — nunca existiu carta de verdade) voa virada pra baixo,
-    // saindo do mesmo canto onde a ficha da aposta dele nasceu
-    // (calcularAncoraFichaAssento).
+    // cumprida — nunca existiu carta de verdade) é a própria FICHA que voa
+    // até o coração (ver `carta: null` abaixo e o render de `Ficha` em
+    // CartaDanoVoando) — MESMA lógica de remover da pilha de fichas pousadas
+    // (`fichasNoCanto`/`fichasFantasmaNoCanto`), senão a ficha "antiga"
+    // continuava parada no canto enquanto uma outra (nova, desconectada da
+    // pilha) voava pro coração — parecia duplicada em vez de uma ficha da
+    // pilha se soltando pra atacar.
     function dispararCartasDeDano(indice, linha, vidaAntes) {
         const diferenca = linha.diferenca;
         if (!diferenca) return;
@@ -1741,14 +1777,40 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
             setCartasVazaGanhas((atual) => atual.filter((c) => !idsExcedentes.has(c.id)));
         }
 
+        const ehVoce = assentos[indice]?.eVoce;
+        const hue = ehVoce ? undefined : huesPorAssento[indice];
         const origemFallback = calcularAncoraFichaAssento(indice) ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+
+        const numFichasDano = diferenca - cartasExcedentes.length;
+        const fichasDoAssento = (ehVoce ? fichasNoCanto : fichasFantasmaNoCanto).filter((f) => f.assentoIndice === indice);
+        const fichasRemovidas = numFichasDano > 0 ? fichasDoAssento.slice(Math.max(0, fichasDoAssento.length - numFichasDano)) : [];
+        if (fichasRemovidas.length > 0) {
+            const idsFichasRemovidas = new Set(fichasRemovidas.map((f) => f.id));
+            if (ehVoce) {
+                setFichasNoCanto((atual) => atual.filter((f) => !idsFichasRemovidas.has(f.id)));
+            } else {
+                setFichasFantasmaNoCanto((atual) => atual.filter((f) => !idsFichasRemovidas.has(f.id)));
+            }
+        }
 
         const novasCartas = Array.from({ length: diferenca }, (_, i) => {
             const cartaPilha = cartasExcedentes[i];
+            if (cartaPilha) {
+                return {
+                    id: ++proximoIdCartaDano.current,
+                    de: { x: cartaPilha.x, y: cartaPilha.y },
+                    carta: { rank: cartaPilha.rank, naipe: cartaPilha.naipe },
+                    atrasoMs: i * DANO_CARTA_ATRASO_ENTRE_MS,
+                    assentoIndice: indice,
+                    heartIndice: vidaAntes - 1 - i,
+                };
+            }
+            const fichaPilha = fichasRemovidas[i - cartasExcedentes.length];
             return {
                 id: ++proximoIdCartaDano.current,
-                de: cartaPilha ? { x: cartaPilha.x, y: cartaPilha.y } : origemFallback,
-                carta: cartaPilha ? { rank: cartaPilha.rank, naipe: cartaPilha.naipe } : null,
+                de: fichaPilha?.para ?? origemFallback,
+                carta: null,
+                hue,
                 atrasoMs: i * DANO_CARTA_ATRASO_ENTRE_MS,
                 assentoIndice: indice,
                 heartIndice: vidaAntes - 1 - i,
@@ -2196,7 +2258,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                             style={explosao ? {
                                 left: `${explosao.x}%`,
                                 top: `${explosao.y}%`,
-                                transform: `translate(-50%, -50%) rotate(${explosao.rot}deg) scale(${explosao.escala})`,
+                                transform: `translate(-50%, -50%) perspective(700px) rotate(${explosao.rot}deg) rotateY(${explosao.flip}deg) scale(${explosao.escala})`,
                             } : melada ? {
                                 left: `${MELADA_CANTO_X}%`,
                                 top: `${MELADA_CANTO_Y}%`,
@@ -2277,6 +2339,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                         obterDestino={() => obterCentroCoracao(carta.assentoIndice, carta.heartIndice)}
                         atrasoMs={carta.atrasoMs}
                         carta={carta.carta}
+                        hue={carta.hue}
                         onChegou={() => aoChegarCartaDano(carta)}
                     />
                 ))}
@@ -2334,10 +2397,15 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                 // fichas inteira). Aposta 0 (ou mais vazas que apostou) não
                 // precisa de caso especial — é só uma fórmula contínua, a
                 // carta extra extrapola na mesma direção, além de onde a
-                // última ficha pararia.
-                const nomeAssento = ordemAssentos[carta.assentoIndice]?.nome;
-                const apostaAssento = estado.apostas?.[nomeAssento] ?? 0;
-                const pos = calcularPosicaoCartaVazaGanha(carta.assentoIndice, carta.slotIndice, carta.x, carta.y, apostaAssento);
+                // última ficha pararia. `carta.apostaValor` é a aposta
+                // CONGELADA no momento em que a carta pousou (ver
+                // iniciarRevelacaoVazaComVencedora) — nunca lida de
+                // `estado.apostas` ao vivo, porque isso já pode ter sido
+                // zerado pelo `novaRodadaIniciada` da rodada seguinte
+                // enquanto essas cartas ainda estão na mesa esperando a
+                // animação de dano (era o "shift" estranho de carta/ficha
+                // que o Henrique via no fim de rodada).
+                const pos = calcularPosicaoCartaVazaGanha(carta.assentoIndice, carta.slotIndice, carta.x, carta.y, carta.apostaValor);
                 return (
                     <div
                         key={carta.id}

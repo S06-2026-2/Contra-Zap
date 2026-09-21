@@ -1045,6 +1045,15 @@ button.secundario {
     left: 0;
 }
 
+/* Dano de aposta NÃO cumprida (ver `carta` null em CartaDanoVoando): quem
+   voa é a Ficha, não a carta — e .ficha-exp só tem width/height:100% (herda
+   do pai, ver comentário dela no CSS), então sem isto ficava 0x0 e invisível
+   (a ficha "não atacava"). Mesmo 64px de .mesa-exp-ficha-voando. */
+.mesa-exp-carta-dano-voando-ficha {
+    width: 64px;
+    height: 64px;
+}
+
 .mesa-exp-ficha-sombra {
     position: fixed;
     top: 0;
@@ -1329,17 +1338,33 @@ button.secundario {
 }
 
 /* Cartas perdedoras "explodindo" pra fora no impacto (ver
-   cartasExplodindo/finalizarVaza) — transition mais curta e mais seca
-   (ease-out puro, sem o ease padrão de .3s de .mesa-exp-carta-jogada) que
-   o resto da mesa, e a opacidade só começa a cair nos ÚLTIMOS 30% do
-   percurso (transition-delay na propriedade opacity) — assim ela ainda
-   "voa" visível a maior parte do caminho, só desaparece perto do fim. */
-.mesa-exp-carta-jogada-explodindo {
+   cartasExplodindo/explodirCartasDaMesa em MesaExperimento.jsx) — transition
+   mais curta e mais seca (ease-out puro, sem o ease padrão de .3s de
+   .mesa-exp-carta-jogada) que o resto da mesa, e a opacidade só começa a
+   cair nos ÚLTIMOS 25% do percurso (transition-delay na propriedade
+   opacity) — a carta já devia estar longe da tela a essa altura (ver
+   VAZA_EXPLOSAO_DISTANCIA_MIN), então o fade é só uma rede de segurança pra
+   sumir do DOM sem popping, não o que faz ela "desaparecer" de verdade.
+   Duração tem que bater com VAZA_EXPLOSAO_DURACAO_MS (e com
+   VAZA_IMPACTO_DURACAO_MS + VAZA_IMPACTO_PAUSA_MS) lá no JS.
+
+   Seletor composto (".mesa-exp-carta-jogada.mesa-exp-carta-jogada-
+   explodindo", não só a classe sozinha) DE PROPÓSITO: essa carta sempre
+   tem as duas classes juntas (ver `classes` no JSX), e sem o composto essa
+   regra empata em especificidade com `.mesa-exp-carta-jogada` lá embaixo —
+   quem ganha o empate é quem vem DEPOIS no arquivo (a base), que sobrescreve
+   o `transition` inteiro por outro sem `opacity`. Resultado: `opacity: 0`
+   aplicava na hora, sem transição nenhuma — a carta sumia inteira no
+   instante da explosão, enquanto left/top/transform ainda animavam por
+   baixo, invisíveis (era o "todas somem juntas, não voam" que o Henrique
+   via). Especificidade maior aqui garante que ESTA regra vence sempre,
+   não importa a ordem no arquivo. */
+.mesa-exp-carta-jogada.mesa-exp-carta-jogada-explodindo {
     transition:
-        left 480ms cubic-bezier(0.16, 1, 0.3, 1),
-        top 480ms cubic-bezier(0.16, 1, 0.3, 1),
-        transform 480ms cubic-bezier(0.16, 1, 0.3, 1),
-        opacity 144ms ease-in 336ms;
+        left 900ms cubic-bezier(0.22, 1, 0.36, 1),
+        top 900ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 900ms cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 220ms ease-in 680ms;
     opacity: 0;
 }
 
@@ -1981,6 +2006,10 @@ button.secundario {
     flex-direction: column;
     align-items: center;
     line-height: 1;
+    /* Acima de qualquer decoração de manilha por naipe (rebite, coração,
+       raio — ver carta-exp-manilha-* mais abaixo), pro rank/naipe nunca
+       ficar tampado. */
+    z-index: 2;
 }
 
 /* Mesmo índice, só que ancorado no canto oposto (embaixo/direita em vez de
@@ -2010,6 +2039,7 @@ button.secundario {
 .carta-exp-pips {
     position: absolute;
     inset: 0;
+    z-index: 2;
 }
 
 .carta-exp-pip {
@@ -2024,10 +2054,158 @@ button.secundario {
 
 /* Manilha: mesmo tratamento que .carta-vencedora já usa (borda + glow),
    só dourado em vez de verde — sinaliza "essa é a carta mais forte agora"
-   em vez de "essa venceu a vaza". */
+   em vez de "essa venceu a vaza". Fallback genérico: as 4 classes
+   -ouros/-espadas/-copas/-paus abaixo sobrescrevem isso por naipe (mesmo
+   truque de especificidade composta do .mesa-exp-carta-jogada-explodindo,
+   ver comentário lá — cada uma é ".carta-exp-manilha.carta-exp-manilha-X",
+   nunca só ".carta-exp-manilha-X" sozinha, pra ganhar o empate SEMPRE,
+   direto, sem depender de onde cada regra cai no arquivo). */
 .carta-exp-manilha {
     border-color: #ffd75e;
     box-shadow: 0 0 0 2px #ffd75e, 0 0 18px rgba(255, 215, 94, .5);
+}
+
+/* Teste (ver Carta.jsx `efeitoManilha`/CLASSE_MANILHA_POR_NAIPE): cada
+   naipe de manilha vira um "material" diferente. Ouros/Espadas trocam o
+   fundo bege por um metal de verdade (gradiente multi-stop + um brilho
+   diagonal que varre a carta em loop, `::after`, cortado pelo
+   `overflow: hidden` da própria carta); Copas ganha um coração gigante
+   pulsando por cima (Carta.jsx); Paus/Zap pisca como se estivesse com
+   eletricidade correndo por cima (raios em SVG + glow trepidando). Ideia
+   ainda em teste (pedido do Henrique 2026-09-20) — sem arte/referência
+   nenhuma, só CSS/SVG. */
+.carta-exp-manilha.carta-exp-manilha-ouros {
+    background: linear-gradient(135deg, #fff6d0 0%, #f0d580 18%, #caa03c 38%, #8f6a1a 52%, #e9c766 68%, #b6892c 84%, #6b4d10 100%);
+    border-color: #6b4d10;
+    box-shadow: 0 0 0 2px #f0d580, 0 0 22px rgba(230, 190, 90, .65), inset 0 0 14px rgba(255, 255, 255, .35);
+    overflow: hidden;
+}
+
+.carta-exp-manilha-ouros::after {
+    content: '';
+    position: absolute;
+    inset: -40% -60%;
+    background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, .85) 50%, transparent 58%);
+    animation: carta-exp-brilho-metal 2.6s ease-in-out infinite;
+    pointer-events: none;
+}
+
+.carta-exp-manilha.carta-exp-manilha-espadas {
+    background: linear-gradient(160deg, #e2e6e9 0%, #b7bec4 20%, #7d848b 42%, #4a4f54 62%, #26292c 82%, #101112 100%);
+    border-color: #1c1e21;
+    box-shadow: 0 0 0 2px #9aa1a7, 0 0 18px rgba(160, 175, 185, .5), inset 0 0 16px rgba(0, 0, 0, .5);
+    overflow: hidden;
+}
+
+.carta-exp-manilha-espadas::after {
+    content: '';
+    position: absolute;
+    inset: -40% -60%;
+    background: linear-gradient(115deg, transparent 44%, rgba(255, 255, 255, .55) 50%, transparent 56%);
+    animation: carta-exp-brilho-metal 3.4s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes carta-exp-brilho-metal {
+    0%, 100% { transform: translateX(-55%) rotate(8deg); }
+    50%      { transform: translateX(55%) rotate(8deg); }
+}
+
+/* Rebites de ferro (só Espadas, ver Carta.jsx) — 4 pontinhos nos cantos,
+   puramente decorativos, reforçando "placa de metal presa por rebite". */
+.carta-exp-rebite {
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #eef2f5, #9aa1a7 55%, #43474b 100%);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .6);
+    z-index: 1;
+}
+.carta-exp-rebite-tl { top: 6px; left: 6px; }
+.carta-exp-rebite-tr { top: 6px; right: 6px; }
+.carta-exp-rebite-bl { bottom: 6px; left: 6px; }
+.carta-exp-rebite-br { bottom: 6px; right: 6px; }
+
+.carta-exp-manilha.carta-exp-manilha-copas {
+    border-color: #d81b3f;
+    box-shadow: 0 0 0 2px #ff5577, 0 0 20px rgba(255, 60, 90, .6);
+}
+
+/* Coração gigante pulsando (só Copas, ver Carta.jsx) — fundo continua bege
+   (a cor do naipe já é vermelha, sem problema de contraste), o coração
+   fica semitransparente atrás do rank/naipe (z-index deles é maior). Batida
+   em dois tempos (sobe rápido, desce, sobe de novo menor, desce) pra
+   parecer um coração de verdade em vez de um scale(1<->1.1) simples. */
+.carta-exp-coracao-pulsante {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 96px;
+    line-height: 1;
+    color: rgba(216, 27, 63, .5);
+    text-shadow: 0 0 18px rgba(255, 60, 90, .8);
+    pointer-events: none;
+    animation: carta-exp-coracao-batida 1.1s ease-in-out infinite;
+    z-index: 1;
+}
+
+@keyframes carta-exp-coracao-batida {
+    0%, 100% { transform: scale(1); }
+    20%      { transform: scale(1.16); }
+    35%      { transform: scale(.98); }
+    50%      { transform: scale(1.1); }
+    70%      { transform: scale(1); }
+}
+
+.carta-exp-manilha.carta-exp-manilha-paus {
+    border-color: #7fd9ff;
+    animation: carta-exp-eletrico-flicker 1.9s linear infinite;
+}
+
+/* Raios (só Paus/Zap, ver Carta.jsx) — dois traçados em SVG (viewBox do
+   tamanho exato da carta, então escalam junto se .carta-exp mudar de
+   tamanho em algum outro lugar) que piscam em momentos DIFERENTES um do
+   outro (delay negativo no segundo), pra nunca ficar simétrico/mecânico
+   demais — eletricidade de verdade não risca sempre no mesmo padrão. */
+.carta-exp-raio {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: none;
+}
+.carta-exp-raio-tracado {
+    fill: none;
+    stroke: #dff6ff;
+    stroke-width: 3;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 4px #7fd9ff) drop-shadow(0 0 9px #38b6ff);
+    opacity: 0;
+}
+.carta-exp-raio-tracado-1 { animation: carta-exp-raio-pisca 1.9s steps(1, end) infinite; }
+.carta-exp-raio-tracado-2 { animation: carta-exp-raio-pisca 1.9s steps(1, end) infinite -0.85s; }
+
+@keyframes carta-exp-raio-pisca {
+    0%, 100% { opacity: 0; }
+    4%       { opacity: 1; }
+    7%       { opacity: .25; }
+    9%       { opacity: 1; }
+    13%      { opacity: 0; }
+}
+
+@keyframes carta-exp-eletrico-flicker {
+    0%, 100% { box-shadow: 0 0 0 2px #7fd9ff, 0 0 22px rgba(110, 200, 255, .75); }
+    5%       { box-shadow: 0 0 0 2px #eafcff, 0 0 30px rgba(160, 230, 255, 1); }
+    8%       { box-shadow: 0 0 0 1px #4fb8e8, 0 0 10px rgba(80, 170, 220, .4); }
+    12%      { box-shadow: 0 0 0 2px #7fd9ff, 0 0 22px rgba(110, 200, 255, .75); }
+    60%      { box-shadow: 0 0 0 2px #7fd9ff, 0 0 22px rgba(110, 200, 255, .75); }
+    63%      { box-shadow: 0 0 0 2px #eafcff, 0 0 34px rgba(160, 230, 255, 1); }
+    66%      { box-shadow: 0 0 0 2px #7fd9ff, 0 0 22px rgba(110, 200, 255, .75); }
 }
 
 /* Verso: sem rank/naipe nenhum, só um padrão listrado repetindo — cor

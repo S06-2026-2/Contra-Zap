@@ -15,6 +15,24 @@ const NAIPES = {
     Paus:    { simbolo: '♣', cor: '#42c98a' },
 };
 
+// Teste de "material" por naipe quando a carta é MANILHA (ver `ehManilha`
+// abaixo) — cada naipe vira uma classe própria no CSS (fundo/borda/glow
+// diferentes: ouro de verdade, ferro, um coração gigante em Copas, raios em
+// Paus/Zap). `COR_MANILHA` só existe pros dois naipes cujo fundo novo (ouro/
+// ferro) não tem contraste nenhum com a cor original do naipe (vermelho em
+// cima de ouro, azul em cima de ferro cinza escuro somem) — Copas/Paus
+// mantêm o fundo bege de sempre, então a cor original continua legível.
+const CLASSE_MANILHA_POR_NAIPE = {
+    Ouros: 'carta-exp-manilha-ouros',
+    Espadas: 'carta-exp-manilha-espadas',
+    Copas: 'carta-exp-manilha-copas',
+    Paus: 'carta-exp-manilha-paus',
+};
+const COR_MANILHA_POR_NAIPE = {
+    Ouros: '#4a3005',
+    Espadas: '#eef3f7',
+};
+
 // Layout de "pips" no meio da carta — só pras cartas numéricas do baralho
 // de truco (ver valores em game/Baralho.js: 4,5,6,7,Q,J,K,A,2,3, sem
 // 8/9/10). Ás é 1 naipe gigante centralizado; 2 e 3 formam uma coluna
@@ -37,17 +55,46 @@ const PIPS = {
     ],
 };
 
-export default function Carta({ rank, naipe, valorInt, manilha, virada = false }) {
+export default function Carta({ rank, naipe, valorInt, manilha, efeitoManilha = false, virada = false }) {
     if (virada) {
         return <div className="carta-exp carta-exp-verso" />;
     }
 
     const info = NAIPES[naipe] ?? { simbolo: '', cor: 'inherit' };
-    const ehManilha = manilha != null && valorInt === manilha;
+    // `efeitoManilha`: força o efeito sem precisar de valorInt/manilha numéricos
+    // (ninguém no jogo de verdade passa esses dois ainda — ver LequeManilha,
+    // que É sempre manilha nas 4 cartas por construção). `manilha`/`valorInt`
+    // continuam aqui pro dia que a mesa/mão real quiser calcular sozinha.
+    const ehManilha = efeitoManilha || (manilha != null && valorInt === manilha);
+    const cor = ehManilha ? (COR_MANILHA_POR_NAIPE[naipe] ?? info.cor) : info.cor;
+    const classeMaterial = ehManilha ? CLASSE_MANILHA_POR_NAIPE[naipe] : null;
     const pips = PIPS[rank];
 
     return (
-        <div className={`carta-exp${ehManilha ? ' carta-exp-manilha' : ''}`}>
+        <div className={`carta-exp${ehManilha ? ' carta-exp-manilha' : ''}${classeMaterial ? ` ${classeMaterial}` : ''}`}>
+            {/* Decoração por naipe, só quando é manilha — cada uma só
+                aparece na carta do próprio naipe (ver classeMaterial acima
+                escolhendo QUAL destas quatro classes entra). Abaixo do
+                índice/pips na ordem do DOM (ver z-index deles no CSS), pra
+                nunca tampar o rank/naipe de leitura. */}
+            {ehManilha && naipe === 'Espadas' && (
+                <>
+                    <span className="carta-exp-rebite carta-exp-rebite-tl" />
+                    <span className="carta-exp-rebite carta-exp-rebite-tr" />
+                    <span className="carta-exp-rebite carta-exp-rebite-bl" />
+                    <span className="carta-exp-rebite carta-exp-rebite-br" />
+                </>
+            )}
+            {ehManilha && naipe === 'Copas' && (
+                <div className="carta-exp-coracao-pulsante">♥</div>
+            )}
+            {ehManilha && naipe === 'Paus' && (
+                <svg className="carta-exp-raio" viewBox="0 0 110 154" preserveAspectRatio="none">
+                    <polyline className="carta-exp-raio-tracado carta-exp-raio-tracado-1" points="70,4 40,60 62,64 30,150" />
+                    <polyline className="carta-exp-raio-tracado carta-exp-raio-tracado-2" points="34,12 58,52 40,58 80,146" />
+                </svg>
+            )}
+
             {/* Índice repetido nos dois cantos opostos (clássico de carta
                 de baralho de verdade) — com o leque mais cheio (ver
                 SuaMaoEmLeque) as cartas se sobrepõem, e só um canto de
@@ -58,12 +105,12 @@ export default function Carta({ rank, naipe, valorInt, manilha, virada = false }
                 mão — é a forma clássica de ficar legível de cabeça pra
                 baixo também. */}
             <div className="carta-exp-indice">
-                <span className="carta-exp-rank" style={{ color: info.cor }}>{rank}</span>
-                <span className="carta-exp-naipe" style={{ color: info.cor }}>{info.simbolo}</span>
+                <span className="carta-exp-rank" style={{ color: cor }}>{rank}</span>
+                <span className="carta-exp-naipe" style={{ color: cor }}>{info.simbolo}</span>
             </div>
             <div className="carta-exp-indice carta-exp-indice-invertido">
-                <span className="carta-exp-rank" style={{ color: info.cor }}>{rank}</span>
-                <span className="carta-exp-naipe" style={{ color: info.cor }}>{info.simbolo}</span>
+                <span className="carta-exp-rank" style={{ color: cor }}>{rank}</span>
+                <span className="carta-exp-naipe" style={{ color: cor }}>{info.simbolo}</span>
             </div>
 
             {pips && (
@@ -75,7 +122,7 @@ export default function Carta({ rank, naipe, valorInt, manilha, virada = false }
                             style={{
                                 left: `${pip.x}%`,
                                 top: `${pip.y}%`,
-                                color: info.cor,
+                                color: cor,
                                 transform: `translate(-50%, -50%) rotate(${pip.rot ?? 0}deg)`,
                             }}
                         >
