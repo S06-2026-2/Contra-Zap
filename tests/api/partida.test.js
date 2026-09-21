@@ -166,8 +166,10 @@ test('apostar', async (t) => {
 
     await t.test('APOSTA_FECHA_RODADA só pega o último a apostar', async () => {
         // Regra: a soma das apostas não pode dar exatamente o número de
-        // cartas — senão alguém acerta garantido, sem risco.
-        const { salaId, clientes } = await partidaEmAndamento(servidor, { humanos: 2, roundStart: 1 });
+        // cartas — senão alguém acerta garantido, sem risco. Precisa de uma
+        // rodada com mais de 1 carta: na de 1 carta a regra é invalida (ver
+        // teste abaixo).
+        const { salaId, clientes } = await partidaEmAndamento(servidor, { humanos: 2, roundStart: 2 });
 
         const primeiroTurno = await clientes[0].esperar(EventosServidor.TURNO_APOSTA);
         const primeiro = donoDoTurno(clientes, primeiroTurno);
@@ -176,10 +178,27 @@ test('apostar', async (t) => {
 
         const segundoTurno = await clientes[0].esperar(EventosServidor.TURNO_APOSTA);
         const segundo = donoDoTurno(clientes, segundoTurno);
-        // Rodada de 1 carta, soma dos outros = 1: apostar 0 fecharia em 1.
-        await segundo.erro(EventosCliente.APOSTAR, { salaId, valor: 0 }, CodigosErro.APOSTA_FECHA_RODADA);
+        // Rodada de 2 cartas, soma dos outros = 1: apostar 1 fecharia em 2.
+        await segundo.erro(EventosCliente.APOSTAR, { salaId, valor: 1 }, CodigosErro.APOSTA_FECHA_RODADA);
         // Qualquer outro valor válido passa.
-        await segundo.ok(EventosCliente.APOSTAR, { salaId, valor: 1 });
+        await segundo.ok(EventosCliente.APOSTAR, { salaId, valor: 0 });
+    });
+
+    await t.test('rodada de 1 carta não tem APOSTA_FECHA_RODADA', async () => {
+        // Com só 0 e 1 como valores possíveis, proibir um dos dois travaria
+        // o último jogador num valor único e forçado — o dobro do aperto de
+        // uma rodada normal. Por isso a regra não vale na rodada de 1 carta.
+        const { salaId, clientes } = await partidaEmAndamento(servidor, { humanos: 2, roundStart: 1 });
+
+        const primeiroTurno = await clientes[0].esperar(EventosServidor.TURNO_APOSTA);
+        const primeiro = donoDoTurno(clientes, primeiroTurno);
+        await primeiro.ok(EventosCliente.APOSTAR, { salaId, valor: 1 });
+
+        const segundoTurno = await clientes[0].esperar(EventosServidor.TURNO_APOSTA);
+        const segundo = donoDoTurno(clientes, segundoTurno);
+        // Soma dos outros = 1: apostar 0 fecharia em 1 numa rodada normal,
+        // mas aqui é aceito de boa.
+        await segundo.ok(EventosCliente.APOSTAR, { salaId, valor: 0 });
     });
 
     await t.test('SALA_NAO_INICIADA numa sala que ainda não começou', async () => {

@@ -1045,6 +1045,15 @@ button.secundario {
     left: 0;
 }
 
+/* Dano de aposta NÃO cumprida (ver `carta` null em CartaDanoVoando): quem
+   voa é a Ficha, não a carta — e .ficha-exp só tem width/height:100% (herda
+   do pai, ver comentário dela no CSS), então sem isto ficava 0x0 e invisível
+   (a ficha "não atacava"). Mesmo 64px de .mesa-exp-ficha-voando. */
+.mesa-exp-carta-dano-voando-ficha {
+    width: 64px;
+    height: 64px;
+}
+
 .mesa-exp-ficha-sombra {
     position: fixed;
     top: 0;

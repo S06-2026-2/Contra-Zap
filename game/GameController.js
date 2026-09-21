@@ -569,9 +569,11 @@ export class GameController extends EventEmitter {
     // que ele não pode saber sozinho: se apostar 1 fecharia a soma da
     // rodada exatamente no número de cartas (só pode acontecer com o
     // último a apostar; 0 sempre é alternativa válida nesse caso, porque só
-    // existe um valor proibido por vez — ver apostar()).
+    // existe um valor proibido por vez — ver apostar()). Na rodada de 1
+    // carta a regra nem entra em jogo — ver o comentário em apostar().
     _decidirApostaAutomatica(jogador) {
-        const permiteAposta1 = !(this._ehUltimoAApostar(jogador) && this._somaApostasDosOutros(jogador) + 1 === this.rodada.round);
+        const numCartas = this.rodada.round;
+        const permiteAposta1 = !(numCartas > 1 && this._ehUltimoAApostar(jogador) && this._somaApostasDosOutros(jogador) + 1 === numCartas);
         return escolherAposta(jogador, { permiteAposta1, controller: this });
     }
 
@@ -616,6 +618,13 @@ export class GameController extends EventEmitter {
     // (é justamente por isso que a ordem de aposta precisa ser aleatória:
     // ser o último é uma desvantagem real, então não pode ser sempre a
     // mesma pessoa por ter entrado por último na sala).
+    //
+    // Essa segunda trava fica DESLIGADA na rodada de 1 carta (numCartas ===
+    // 1). Nela os únicos valores possíveis já são 0 e 1 — proibir um dos
+    // dois não sobra "outra opção", trava o último jogador num valor único
+    // e forçado, o dobro do aperto que a regra causa numa rodada normal (que
+    // só descarta 1 de vários valores possíveis). Por isso ela só passa a
+    // valer a partir da rodada de 2 cartas.
     apostar(playerId, valor) {
         if (!this._apostaEsperada || this._apostaEsperada.jogadorId !== playerId) {
             return { ok: false, motivo: 'NAO_E_SUA_VEZ' };
@@ -627,7 +636,7 @@ export class GameController extends EventEmitter {
         }
 
         const jogador = this.jogadores.find(j => j.id === playerId);
-        if (this._ehUltimoAApostar(jogador) && this._somaApostasDosOutros(jogador) + valor === numCartas) {
+        if (numCartas > 1 && this._ehUltimoAApostar(jogador) && this._somaApostasDosOutros(jogador) + valor === numCartas) {
             return { ok: false, motivo: 'APOSTA_FECHA_RODADA' };
         }
 

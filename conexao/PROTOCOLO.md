@@ -469,6 +469,11 @@ número de cartas da rodada), `APOSTA_FECHA_RODADA` (só pode acontecer com o
   precisa ser sorteada de verdade a cada partida: ser o último a apostar é
   uma desvantagem real (perde a liberdade de escolher qualquer valor), então
   não pode ser sempre a mesma pessoa só por ter entrado por último na sala.
+  **Exceção**: na rodada de 1 carta esse limite não vale — com só `0` e `1`
+  como valores possíveis, proibir um dos dois travaria o último jogador
+  num valor único e forçado (o dobro do aperto de uma rodada normal, que só
+  descarta 1 valor de vários). `APOSTA_FECHA_RODADA` só pode acontecer a
+  partir da rodada de 2 cartas.
 
 **Timeout da aposta**: mesmo prazo de `jogarCarta` (`tempoTurnoMs`). Se
 estourar, o servidor aposta por aquele jogador sozinho — 1, a não ser que
@@ -835,7 +840,7 @@ de conexão, não do jogo), então chega igual na sala de espera e na partida.
 | `NAO_E_SUA_VEZ` | `jogarCarta`/`apostar` fora da sua vez |
 | `CARTA_INVALIDA` | `jogarCarta` com `indice` que não existe na mão de quem mandou |
 | `APOSTA_INVALIDA` | `apostar` com `valor` fora de `[0, número de cartas da rodada]` |
-| `APOSTA_FECHA_RODADA` | `apostar` pelo último da rodada com `valor` que fecharia a soma de todo mundo no número de cartas |
+| `APOSTA_FECHA_RODADA` | `apostar` pelo último da rodada com `valor` que fecharia a soma de todo mundo no número de cartas (não se aplica na rodada de 1 carta) |
 | `CHAT_DESABILITADO` | `chat` com `tipo: 'aberta'` numa sala criada sem `chatAberto` |
 | `CHAT_INVALIDO` | `chat` com `tipo` desconhecido, `id` fora do catálogo, ou `texto` vazio/maior que 200 caracteres |
 | `CHAT_EM_COOLDOWN` | `chat` antes de `chatCooldownMs` passar desde o último envio aceito (qualquer sala, qualquer tipo, por jogador) |

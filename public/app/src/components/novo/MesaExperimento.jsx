@@ -381,7 +381,13 @@ function FichaVoando({ de, para, atrasoMs, onChegou, hue }) {
 // pegar `coracaoRefs` com a entrada antiga (ou nenhuma, no primeiro round).
 // Sem coração encontrado mesmo assim (não devia acontecer), cai pro centro
 // do próprio assento.
-function CartaDanoVoando({ de, obterDestino, atrasoMs, carta, onChegou }) {
+//
+// `carta` null identifica dano de aposta NÃO cumprida (fez menos vazas do
+// que apostou) — nunca existiu carta de verdade pra essa parte do dano, e
+// quem "bate" no coração agora é a própria `Ficha` (girando igual moeda no
+// rotateY em vez de virar carta), não mais uma carta virada pra baixo. `hue`
+// só se aplica a esse caso (cor da ficha do fantasminha, ver Ficha.jsx).
+function CartaDanoVoando({ de, obterDestino, atrasoMs, carta, hue, onChegou }) {
     const [posBase, setPosBase] = useState(de);
     const [alturaExtra, setAlturaExtra] = useState(0);
     const [escala, setEscala] = useState(1);
@@ -430,14 +436,14 @@ function CartaDanoVoando({ de, obterDestino, atrasoMs, carta, onChegou }) {
 
     return (
         <div
-            className="mesa-exp-carta-dano-voando"
+            className={`mesa-exp-carta-dano-voando${carta ? '' : ' mesa-exp-carta-dano-voando-ficha'}`}
             style={{
                 left: `${posBase.x}px`,
                 top: `${posBase.y + alturaExtra}px`,
                 transform: `translate(-50%, -50%) scale(${escala}) rotateY(${rotY}deg)`,
             }}
         >
-            {carta ? <Carta rank={carta.rank} naipe={carta.naipe} /> : <Carta virada />}
+            {carta ? <Carta rank={carta.rank} naipe={carta.naipe} /> : <Ficha hue={hue} />}
         </div>
     );
 }
@@ -1574,6 +1580,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                 x: destino.x,
                 y: destino.y,
                 slotIndice,
+                apostaValor: apostaVencedor,
             },
         ]);
         setVazaRevelando(null);
@@ -1656,6 +1663,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                 : { x: ancora.x, y: ancora.y - (i - meio) * FICHA_EMPILHA_FANTASMA_PX },
             atrasoMs: i * FICHA_ATRASO_ENTRE_MS,
             hue,
+            assentoIndice: indice,
         }));
 
         if (ehVoce) {
@@ -1726,9 +1734,13 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     // `cartasVazaGanhas` NESTA rodada (slotIndice crescente = ordem que
     // ganhou — as mais recentes saem primeiro) e as REMOVE da pilha (saem
     // voando de verdade, não ficam duplicadas). O resto (aposta não
-    // cumprida — nunca existiu carta de verdade) voa virada pra baixo,
-    // saindo do mesmo canto onde a ficha da aposta dele nasceu
-    // (calcularAncoraFichaAssento).
+    // cumprida — nunca existiu carta de verdade) é a própria FICHA que voa
+    // até o coração (ver `carta: null` abaixo e o render de `Ficha` em
+    // CartaDanoVoando) — MESMA lógica de remover da pilha de fichas pousadas
+    // (`fichasNoCanto`/`fichasFantasmaNoCanto`), senão a ficha "antiga"
+    // continuava parada no canto enquanto uma outra (nova, desconectada da
+    // pilha) voava pro coração — parecia duplicada em vez de uma ficha da
+    // pilha se soltando pra atacar.
     function dispararCartasDeDano(indice, linha, vidaAntes) {
         const diferenca = linha.diferenca;
         if (!diferenca) return;
@@ -1741,14 +1753,40 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
             setCartasVazaGanhas((atual) => atual.filter((c) => !idsExcedentes.has(c.id)));
         }
 
+        const ehVoce = assentos[indice]?.eVoce;
+        const hue = ehVoce ? undefined : huesPorAssento[indice];
         const origemFallback = calcularAncoraFichaAssento(indice) ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+
+        const numFichasDano = diferenca - cartasExcedentes.length;
+        const fichasDoAssento = (ehVoce ? fichasNoCanto : fichasFantasmaNoCanto).filter((f) => f.assentoIndice === indice);
+        const fichasRemovidas = numFichasDano > 0 ? fichasDoAssento.slice(Math.max(0, fichasDoAssento.length - numFichasDano)) : [];
+        if (fichasRemovidas.length > 0) {
+            const idsFichasRemovidas = new Set(fichasRemovidas.map((f) => f.id));
+            if (ehVoce) {
+                setFichasNoCanto((atual) => atual.filter((f) => !idsFichasRemovidas.has(f.id)));
+            } else {
+                setFichasFantasmaNoCanto((atual) => atual.filter((f) => !idsFichasRemovidas.has(f.id)));
+            }
+        }
 
         const novasCartas = Array.from({ length: diferenca }, (_, i) => {
             const cartaPilha = cartasExcedentes[i];
+            if (cartaPilha) {
+                return {
+                    id: ++proximoIdCartaDano.current,
+                    de: { x: cartaPilha.x, y: cartaPilha.y },
+                    carta: { rank: cartaPilha.rank, naipe: cartaPilha.naipe },
+                    atrasoMs: i * DANO_CARTA_ATRASO_ENTRE_MS,
+                    assentoIndice: indice,
+                    heartIndice: vidaAntes - 1 - i,
+                };
+            }
+            const fichaPilha = fichasRemovidas[i - cartasExcedentes.length];
             return {
                 id: ++proximoIdCartaDano.current,
-                de: cartaPilha ? { x: cartaPilha.x, y: cartaPilha.y } : origemFallback,
-                carta: cartaPilha ? { rank: cartaPilha.rank, naipe: cartaPilha.naipe } : null,
+                de: fichaPilha?.para ?? origemFallback,
+                carta: null,
+                hue,
                 atrasoMs: i * DANO_CARTA_ATRASO_ENTRE_MS,
                 assentoIndice: indice,
                 heartIndice: vidaAntes - 1 - i,
@@ -2277,6 +2315,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                         obterDestino={() => obterCentroCoracao(carta.assentoIndice, carta.heartIndice)}
                         atrasoMs={carta.atrasoMs}
                         carta={carta.carta}
+                        hue={carta.hue}
                         onChegou={() => aoChegarCartaDano(carta)}
                     />
                 ))}
@@ -2334,10 +2373,15 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                 // fichas inteira). Aposta 0 (ou mais vazas que apostou) não
                 // precisa de caso especial — é só uma fórmula contínua, a
                 // carta extra extrapola na mesma direção, além de onde a
-                // última ficha pararia.
-                const nomeAssento = ordemAssentos[carta.assentoIndice]?.nome;
-                const apostaAssento = estado.apostas?.[nomeAssento] ?? 0;
-                const pos = calcularPosicaoCartaVazaGanha(carta.assentoIndice, carta.slotIndice, carta.x, carta.y, apostaAssento);
+                // última ficha pararia. `carta.apostaValor` é a aposta
+                // CONGELADA no momento em que a carta pousou (ver
+                // iniciarRevelacaoVazaComVencedora) — nunca lida de
+                // `estado.apostas` ao vivo, porque isso já pode ter sido
+                // zerado pelo `novaRodadaIniciada` da rodada seguinte
+                // enquanto essas cartas ainda estão na mesa esperando a
+                // animação de dano (era o "shift" estranho de carta/ficha
+                // que o Henrique via no fim de rodada).
+                const pos = calcularPosicaoCartaVazaGanha(carta.assentoIndice, carta.slotIndice, carta.x, carta.y, carta.apostaValor);
                 return (
                     <div
                         key={carta.id}
