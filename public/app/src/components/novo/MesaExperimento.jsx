@@ -632,7 +632,7 @@ function LequeManilha({ rank }) {
                             '--deslocamento-carta': `${offset * VIRA_LEGENDA_DESLOCAMENTO_ENTRE_CARTAS}px`,
                         }}
                     >
-                        <Carta rank={rank} naipe={naipe} />
+                        <Carta rank={rank} naipe={naipe} efeitoManilha />
                     </div>
                 );
             })}
