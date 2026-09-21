@@ -1338,17 +1338,33 @@ button.secundario {
 }
 
 /* Cartas perdedoras "explodindo" pra fora no impacto (ver
-   cartasExplodindo/finalizarVaza) — transition mais curta e mais seca
-   (ease-out puro, sem o ease padrão de .3s de .mesa-exp-carta-jogada) que
-   o resto da mesa, e a opacidade só começa a cair nos ÚLTIMOS 30% do
-   percurso (transition-delay na propriedade opacity) — assim ela ainda
-   "voa" visível a maior parte do caminho, só desaparece perto do fim. */
-.mesa-exp-carta-jogada-explodindo {
+   cartasExplodindo/explodirCartasDaMesa em MesaExperimento.jsx) — transition
+   mais curta e mais seca (ease-out puro, sem o ease padrão de .3s de
+   .mesa-exp-carta-jogada) que o resto da mesa, e a opacidade só começa a
+   cair nos ÚLTIMOS 25% do percurso (transition-delay na propriedade
+   opacity) — a carta já devia estar longe da tela a essa altura (ver
+   VAZA_EXPLOSAO_DISTANCIA_MIN), então o fade é só uma rede de segurança pra
+   sumir do DOM sem popping, não o que faz ela "desaparecer" de verdade.
+   Duração tem que bater com VAZA_EXPLOSAO_DURACAO_MS (e com
+   VAZA_IMPACTO_DURACAO_MS + VAZA_IMPACTO_PAUSA_MS) lá no JS.
+
+   Seletor composto (".mesa-exp-carta-jogada.mesa-exp-carta-jogada-
+   explodindo", não só a classe sozinha) DE PROPÓSITO: essa carta sempre
+   tem as duas classes juntas (ver `classes` no JSX), e sem o composto essa
+   regra empata em especificidade com `.mesa-exp-carta-jogada` lá embaixo —
+   quem ganha o empate é quem vem DEPOIS no arquivo (a base), que sobrescreve
+   o `transition` inteiro por outro sem `opacity`. Resultado: `opacity: 0`
+   aplicava na hora, sem transição nenhuma — a carta sumia inteira no
+   instante da explosão, enquanto left/top/transform ainda animavam por
+   baixo, invisíveis (era o "todas somem juntas, não voam" que o Henrique
+   via). Especificidade maior aqui garante que ESTA regra vence sempre,
+   não importa a ordem no arquivo. */
+.mesa-exp-carta-jogada.mesa-exp-carta-jogada-explodindo {
     transition:
-        left 480ms cubic-bezier(0.16, 1, 0.3, 1),
-        top 480ms cubic-bezier(0.16, 1, 0.3, 1),
-        transform 480ms cubic-bezier(0.16, 1, 0.3, 1),
-        opacity 144ms ease-in 336ms;
+        left 900ms cubic-bezier(0.22, 1, 0.36, 1),
+        top 900ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 900ms cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 220ms ease-in 680ms;
     opacity: 0;
 }
 

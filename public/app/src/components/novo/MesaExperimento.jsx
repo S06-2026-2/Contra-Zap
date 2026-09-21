@@ -117,7 +117,11 @@ const VAZA_REVELACAO_PAUSA_MS = 1100;
 const VAZA_IMPACTO_QUEDA_PX = 26;
 const VAZA_IMPACTO_ESCALA = 0.7;
 const VAZA_IMPACTO_DURACAO_MS = 220;
-const VAZA_IMPACTO_PAUSA_MS = 260;
+// VAZA_IMPACTO_DURACAO_MS + VAZA_IMPACTO_PAUSA_MS tem que bater com
+// VAZA_EXPLOSAO_DURACAO_MS (mesmo tempo que a transition de
+// .mesa-exp-carta-jogada-explodindo leva no CSS) — é quanto tempo o fluxo
+// de vaza vencida espera antes de tirar as cartas explodindo do DOM.
+const VAZA_IMPACTO_PAUSA_MS = 680;
 const VAZA_VIAGEM_DURACAO_MS = 600;
 const VAZA_POUSO_ESCALA = 0.34;
 // Sua carta pousa RETA (sem giro nenhum) — só a do fantasminha gira 90°
@@ -128,10 +132,27 @@ const VAZA_POUSO_ESCALA = 0.34;
 const VAZA_POUSO_ROT_GRAUS = 0;
 const VAZA_POUSO_ROT_FANTASMA_GRAUS = 90;
 const VAZA_EXPLOSAO_FATOR = 2.6;
+// Piso de distância (independe de `distancia * FATOR`): sem isso, uma carta
+// que caiu perto do centro da mesa (distância pequena) só andava um pouco
+// mesmo multiplicada — ficava só girando no lugar, sem realmente sair da
+// tela. Com o piso, TODA carta perdedora voa pelo menos essa distância (em
+// % da mesa) na direção que já tinha, então sempre escapa do campo de
+// visão antes de a `.mesa-exp-carta-jogada-explodindo` sumir (ver CSS) —
+// era o "as cartas somem" que o Henrique via, pedido pra virar "voam pra
+// longe, saem do campo de visão" antes de desaparecer.
+const VAZA_EXPLOSAO_DISTANCIA_MIN = 260;
 const VAZA_EXPLOSAO_ESCALA_MULT = 1.35;
-const VAZA_EXPLOSAO_VOLTAS_MIN = 2;
-const VAZA_EXPLOSAO_VOLTAS_MAX = 4;
-const VAZA_EXPLOSAO_DURACAO_MS = 480;
+// Voltas mais baixas que o normal de propósito (pediu pra ficar "menos
+// violento, mais devagar") — gira e flipa visivelmente sem virar um
+// redemoinho.
+const VAZA_EXPLOSAO_VOLTAS_MIN = 1;
+const VAZA_EXPLOSAO_VOLTAS_MAX = 2;
+// Flip 3D (rotateY) somado ao giro 2D (rotate) de sempre — "como se
+// estivessem levantando voo": perspective() entra no transform só pra essa
+// carta (ver render em cartasNaMesa), sem precisar de perspective no pai.
+const VAZA_EXPLOSAO_FLIP_VOLTAS_MIN = 0.5;
+const VAZA_EXPLOSAO_FLIP_VOLTAS_MAX = 1.5;
+const VAZA_EXPLOSAO_DURACAO_MS = 900;
 // Vaza melada (ninguém pontua, ver vazaFinalizada/PROTOCOLO.md — vencedor
 // null): mesma pausa/overlay da revelação normal, só que sem carta nenhuma
 // crescendo/viajando — todo mundo que estava na mesa "explode" junto.
@@ -1368,13 +1389,16 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                 const dy = carta.y - 50;
                 const distancia = Math.hypot(dx, dy) || 1;
                 const angulo = Math.atan2(dy, dx);
-                const novaDistancia = distancia * VAZA_EXPLOSAO_FATOR;
+                const novaDistancia = Math.max(distancia * VAZA_EXPLOSAO_FATOR, VAZA_EXPLOSAO_DISTANCIA_MIN);
                 const voltas = VAZA_EXPLOSAO_VOLTAS_MIN + Math.random() * (VAZA_EXPLOSAO_VOLTAS_MAX - VAZA_EXPLOSAO_VOLTAS_MIN);
                 const sentido = Math.random() < 0.5 ? 1 : -1;
+                const flipVoltas = VAZA_EXPLOSAO_FLIP_VOLTAS_MIN + Math.random() * (VAZA_EXPLOSAO_FLIP_VOLTAS_MAX - VAZA_EXPLOSAO_FLIP_VOLTAS_MIN);
+                const flipSentido = Math.random() < 0.5 ? 1 : -1;
                 explosoes[carta.id] = {
                     x: 50 + Math.cos(angulo) * novaDistancia,
                     y: 50 + Math.sin(angulo) * novaDistancia,
                     rot: carta.rot + voltas * 360 * sentido,
+                    flip: flipVoltas * 360 * flipSentido,
                     escala: carta.escala * VAZA_EXPLOSAO_ESCALA_MULT,
                 };
             }
@@ -2234,7 +2258,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                             style={explosao ? {
                                 left: `${explosao.x}%`,
                                 top: `${explosao.y}%`,
-                                transform: `translate(-50%, -50%) rotate(${explosao.rot}deg) scale(${explosao.escala})`,
+                                transform: `translate(-50%, -50%) perspective(700px) rotate(${explosao.rot}deg) rotateY(${explosao.flip}deg) scale(${explosao.escala})`,
                             } : melada ? {
                                 left: `${MELADA_CANTO_X}%`,
                                 top: `${MELADA_CANTO_Y}%`,
