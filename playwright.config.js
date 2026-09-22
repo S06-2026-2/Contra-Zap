@@ -22,6 +22,15 @@ const PORTA = 3100; // não colide com um `npm start` (3000) nem com `npm run do
 // login em conta existente funcionam.
 const DIRETORIO_TEMPORARIO = mkdtempSync(path.join(tmpdir(), 'contra-zap-e2e-'));
 
+// Quando E2E_SERVIDOR_EXTERNO=true (setado só pelo job de CI que roda o
+// container Docker de verdade — ver .github/workflows/ci.yml), o Playwright
+// NÃO sobe servidor nenhum: assume que já tem algo respondendo em baseURL
+// (o container, nesse caso, com seu próprio banco/env já configurados na
+// hora do `docker run`). Sem essa variável (uso local, ou qualquer outro
+// contexto), comportamento de sempre: builda o front e sobe o Server.js
+// direto no processo que está rodando o Playwright.
+const USAR_SERVIDOR_EXTERNO = process.env.E2E_SERVIDOR_EXTERNO === 'true';
+
 export default defineConfig({
     testDir: './tests/e2e',
     // Os specs compartilham UM servidor (ver webServer abaixo) e criam salas
@@ -58,27 +67,35 @@ export default defineConfig({
     // falharia por um motivo que não é o testado. Buildar aqui também
     // garante que o teste sempre exercita o front ATUAL de
     // `public/app/src`, nunca um build velho que alguém esqueceu no disco.
-    webServer: {
-        command: 'npm --prefix public/app run build && node Server.js',
-        url: `http://localhost:${PORTA}/health`,
-        // Se já houver algo na porta é de OUTRA execução com OUTRO banco —
-        // reusar daria testes conversando com estado que não é deles.
-        reuseExistingServer: false,
-        // Inclui o build do Vite, não só o boot do servidor.
-        timeout: 120_000,
-        env: {
-            PORT: String(PORTA),
-            DB_PATH: path.join(DIRETORIO_TEMPORARIO, 'banco.sqlite'),
-            JWT_SECRET: 'segredo-de-teste-e2e-contra-zap',
-            // Os tetos por IP contam por `socket.handshake.address`, e a
-            // suíte inteira sai de 127.0.0.1: cada login de teste gasta um
-            // `verificarNome`, e só de existir a suíte já passa dos 20 por
-            // 5min de produção — o último teste a rodar receberia
-            // MUITAS_TENTATIVAS em vez de logar. Quem cobre o rate limit de
-            // propósito é tests/api/limites.test.js, com tetos apertados.
-            VERIFICAR_NOME_MAX: '100000',
-            ENTRAR_MAX: '100000',
-            CADASTRAR_MAX: '100000',
-        },
-    },
+    //
+    // undefined quando USAR_SERVIDOR_EXTERNO: o job de CI que roda o E2E
+    // contra o container Docker real já deixa algo respondendo em baseURL
+    // antes de chamar `npm run test:e2e` — nesse caso, gerenciar um
+    // segundo servidor aqui só brigaria pela mesma porta.
+    webServer: USAR_SERVIDOR_EXTERNO
+        ? undefined
+        : {
+              command: 'npm --prefix public/app run build && node Server.js',
+              url: `http://localhost:${PORTA}/health`,
+              // Se já houver algo na porta é de OUTRA execução com OUTRO
+              // banco — reusar daria testes conversando com estado que não
+              // é deles.
+              reuseExistingServer: false,
+              // Inclui o build do Vite, não só o boot do servidor.
+              timeout: 120_000,
+              env: {
+                  PORT: String(PORTA),
+                  DB_PATH: path.join(DIRETORIO_TEMPORARIO, 'banco.sqlite'),
+                  JWT_SECRET: 'segredo-de-teste-e2e-contra-zap',
+                  // Os tetos por IP contam por `socket.handshake.address`, e a
+                  // suíte inteira sai de 127.0.0.1: cada login de teste gasta um
+                  // `verificarNome`, e só de existir a suíte já passa dos 20 por
+                  // 5min de produção — o último teste a rodar receberia
+                  // MUITAS_TENTATIVAS em vez de logar. Quem cobre o rate limit de
+                  // propósito é tests/api/limites.test.js, com tetos apertados.
+                  VERIFICAR_NOME_MAX: '100000',
+                  ENTRAR_MAX: '100000',
+                  CADASTRAR_MAX: '100000',
+              },
+          },
 });

@@ -12,9 +12,6 @@ jobs:
   docker-build:
     name: Build da imagem Docker
     runs-on: ubuntu-latest
-    # Roda primeiro, sem depender de nada: se a imagem nem builda, não faz
-    # sentido gastar tempo rodando testes/docs/e2e em cima de um artefato
-    # que não seria implantável de qualquer jeito.
     steps:
       - name: Baixa o código do repositório
         uses: actions/checkout@v4
@@ -22,10 +19,7 @@ jobs:
       - name: Configura Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Por enquanto só builda pra validar que o Dockerfile continua
-      # funcionando (sem push pra registry ainda). Quando o time
-      # decidir onde hospedar, essa etapa evolui pra publicar a imagem.
-      - name: Builda a imagem
+      - name: Builda a imagem e exporta como .tar
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -33,6 +27,14 @@ jobs:
           tags: contra-zap-game-server:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=min
+          outputs: type=docker,dest=/tmp/contra-zap-image.tar
+
+      - name: Guarda a imagem pros outros jobs baixarem
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: /tmp/contra-zap-image.tar
+          retention-days: 1
 
   test:
     name: Testes automatizados
@@ -42,9 +44,6 @@ jobs:
       - name: Baixa o código do repositório
         uses: actions/checkout@v4
 
-      # IMPORTANTE: usar Node 22 aqui também — o better-sqlite3@13
-      # exige essa versão mínima, e usar Node 20 (como já aconteceu no
-      # Docker) causa segfault silencioso em vez de erro claro.
       - name: Configura Node.js 22
         uses: actions/setup-node@v4
         with:
@@ -60,8 +59,6 @@ jobs:
   docs:
     name: Documentação de API
     runs-on: ubuntu-latest
-    # Depois dos testes: não faz sentido validar contrato de uma versão que
-    # já falhou nos testes de comportamento.
     needs: test
     steps:
       - name: Baixa o código do repositório
@@ -73,23 +70,15 @@ jobs:
           node-version: "22"
           cache: "npm"
 
-      # As duas specs são o contrato publicado da API. Um typo aqui não
-      # quebra o jogo, mas quebra quem está integrando por elas.
       - name: Valida o OpenAPI (rotas HTTP)
         run: npx --yes @redocly/cli@1 lint docs/openapi.yaml
 
       - name: Valida o AsyncAPI (protocolo socket.io)
         run: npx --yes @asyncapi/cli@2 validate docs/asyncapi.yaml
 
-      # --ignore-scripts: better-sqlite3 e bcrypt trazem binário pronto em
-      # prebuilds/, mas o npm chama node-gyp sozinho por causa do
-      # binding.gyp. Pular isso economiza a compilação inteira.
       - name: Instala dependências
         run: npm ci --ignore-scripts
 
-      # A coleção do Postman é o único artefato aqui que pode apodrecer sem
-      # ninguém ver: ela roda contra um servidor de verdade, então só quebra
-      # quando alguém tenta usar. Rodando no CI, quebra na hora.
       - name: Sobe o servidor e espera ficar saudável
         run: |
           node Server.js &
@@ -114,8 +103,6 @@ jobs:
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
-    # Depois dos testes de API, e separado deles: sobe navegador de verdade e
-    # leva ~40s — não pode alongar o loop de quem só mexeu em regra de jogo.
     needs: test
     steps:
       - name: Baixa o código do repositório
@@ -127,25 +114,71 @@ jobs:
           node-version: "22"
           cache: "npm"
 
+      # Só as dependências da raiz (Playwright em si + helpers de teste).
+      # NÃO precisa mais instalar/buildar public/app aqui — o front já vem
+      # pronto DENTRO da imagem Docker que vamos rodar (ver abaixo).
       - name: Instala dependências
         run: npm ci --ignore-scripts
 
-      # O front é buildado pelo próprio playwright.config.js (webServer),
-      # mas as dependências dele precisam existir antes — public/dist não é
-      # versionado.
-      - name: Instala dependências do front
-        run: npm --prefix public/app ci --ignore-scripts
-
-      # Só o Chromium: é o único projeto em playwright.config.js.
-      # --with-deps instala as libs de sistema que o navegador precisa.
       - name: Instala o Chromium do Playwright
         run: npx playwright install --with-deps chromium
 
-      - name: Roda o E2E
-        run: npm run test:e2e
+      - name: Baixa a imagem Docker buildada
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+          path: /tmp
 
-      # Trace + screenshot de cada falha, pra abrir com `npx playwright
-      # show-report` sem precisar reproduzir localmente.
+      - name: Carrega a imagem no Docker local
+        run: docker load -i /tmp/contra-zap-image.tar
+
+      # Roda a imagem exatamente como ela sairia pra produção, com três
+      # sobrescritas necessárias só pro E2E:
+      #  - NODE_ENV=test (não "production"): a imagem pula o seed de
+      #    banco.json em produção de propósito (contas fixture nunca podem
+      #    nascer em prod) — mas o E2E depende desse seed pra testar login
+      #    em conta existente (henrique/123 etc.)
+      #  - DB_PATH próprio: nunca reusa o banco.sqlite de quem tá
+      #    desenvolvendo
+      #  - tetos de rate limit afrouxados: a suíte inteira sai de
+      #    127.0.0.1, estouraria o limite de produção só de existir
+      - name: Sobe o container e espera ficar saudável
+        run: |
+          docker run -d --name contra-zap-e2e -p 3100:3000 \
+            -e NODE_ENV=test \
+            -e PORT=3000 \
+            -e DB_PATH=/tmp/banco-e2e.sqlite \
+            -e JWT_SECRET=segredo-de-teste-e2e-contra-zap \
+            -e VERIFICAR_NOME_MAX=100000 \
+            -e ENTRAR_MAX=100000 \
+            -e CADASTRAR_MAX=100000 \
+            contra-zap-game-server:${{ github.sha }}
+          for tentativa in $(seq 1 30); do
+            if curl -sf http://localhost:3100/health > /dev/null; then
+              echo "Container no ar após $tentativa tentativa(s)."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "O container não respondeu em /health depois de 30s."
+          docker logs contra-zap-e2e
+          exit 1
+
+      # E2E_SERVIDOR_EXTERNO=true diz pro playwright.config.js pra NÃO
+      # tentar subir servidor nenhum — o container acima já está de pé.
+      - name: Roda o E2E contra o container
+        run: npm run test:e2e
+        env:
+          E2E_SERVIDOR_EXTERNO: "true"
+
+      - name: Mostra os logs do container (sempre, ajuda a debugar falha)
+        if: always()
+        run: docker logs contra-zap-e2e
+
+      - name: Derruba o container
+        if: always()
+        run: docker rm -f contra-zap-e2e || true
+
       - name: Guarda o relatório quando falha
         if: failure()
         uses: actions/upload-artifact@v4
