@@ -442,7 +442,8 @@ operations:
 
       **A soma das apostas de todos não pode fechar exatamente no número de
       cartas** — isso garantiria que alguém acerta sem risco. Na prática só o
-      último a apostar esbarra nisso, e recebe `APOSTA_FECHA_RODADA`.
+      último a apostar esbarra nisso, e recebe `APOSTA_FECHA_RODADA`. Não vale
+      na rodada de 1 carta (só há 0 e 1 como valores possíveis).
 
       Se o prazo (`tempoTurnoMs`) estourar, o servidor aposta sozinho.
       Erros: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`, `SALA_NAO_INICIADA`,

@@ -273,10 +273,11 @@ test('listarSalas', async (t) => {
         const minha = salas.find(sala => sala.salaId === salaId);
 
         assert.ok(minha, 'a sala recém-criada devia aparecer na listagem');
-        assert.deepEqual(Object.keys(minha).sort(), ['chatAberto', 'jogadoresAtual', 'numberPlayers', 'salaId']);
+        assert.deepEqual(Object.keys(minha).sort(), ['chatAberto', 'jogadoresAtual', 'numberPlayers', 'privada', 'salaId']);
         assert.equal(minha.jogadoresAtual, 1);
         assert.equal(minha.numberPlayers, 4);
         assert.equal(minha.chatAberto, true);
+        assert.equal(minha.privada, false);
     });
 
     await t.test('não expõe o controller nem os objetos Player', async () => {
@@ -411,7 +412,7 @@ test('forcarInicio', async (t) => {
             const rodada = await cliente.esperar(EventosServidor.NOVA_RODADA_INICIADA);
             assert.equal(rodada.salaId, salaId);
             assert.equal(rodada.numero, 1);
-            assert.equal(rodada.cartas, 3); // roundStart default
+            assert.equal(rodada.cartas, 1); // roundStart default
         }
     });
 

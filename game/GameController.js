@@ -19,10 +19,10 @@ import { escolherCarta, escolherAposta } from '../bots/BotBrain.js';
 const ATRASO_BOT_MS_SALA_ABANDONADA = 50;
 
 export class GameController extends EventEmitter {
-    constructor({ numberPlayers, roundStart, randomShuffle, maxDeck, seed, tempoTurnoMs, limiteInatividadeMs, atrasoBotMs, tempoReservaMs } = {}) {
+    constructor({ numberPlayers, roundStart, randomShuffle, maxDeck, seed, tempoTurnoMs, limiteInatividadeMs, atrasoBotMs, tempoReservaMs, pausaVazaMs, pausaRodadaMs } = {}) {
         super();
         this.numberPlayers = numberPlayers || 4;
-        this.roundStart = roundStart || 3;
+        this.roundStart = roundStart || 1;
         this.randomShuffle = randomShuffle;
         // Máximo de baralhos por rodada (ver Game.proximaRodada). Sem valor na
         // config = "Sem Limite" (MAX_DECK_SEM_LIMITE). A validação de que
@@ -51,6 +51,32 @@ export class GameController extends EventEmitter {
         // _iniciarContadorReserva/_expirarVaga. Depois disso, reconectar não
         // funciona mais pra esse jogador (CodigosErro.VAGA_EXPIRADA).
         this.tempoReservaMs = tempoReservaMs ?? 150_000;
+        // Pausa depois de finalizarVaza() (antes de começar a próxima vaza da
+        // mesma rodada) pra dar tempo do front terminar a animação de "quem
+        // levou" antes da próxima carta cair — mesmo problema do atrasoBotMs
+        // acima, mas do lado do front em vez do de bots resolvendo rápido
+        // demais. Valor pareado com PAUSA_VAZA_MS em
+        // public/app/src/components/novo/Partida.jsx; mudou um lado, muda o
+        // outro. Só entra ANTES de uma próxima vaza de verdade dentro da
+        // MESMA rodada (ver _jogarUmaRodada) — a última vaza de uma rodada
+        // usa pausaRodadaMs logo abaixo em vez desta (a suposição antiga de
+        // que apostas/distribuição da rodada seguinte já dava folga sozinha
+        // se provou errada: nada segura isso, ver pausaRodadaMs).
+        this.pausaVazaMs = pausaVazaMs ?? 1_600;
+        // Pausa depois de emitir rodadaFinalizada, antes de começar a
+        // distribuir a rodada seguinte (ver _jogarUmaRodada) — cobre a
+        // MESMA lacuna do pausaVazaMs acima, só que na borda entre rodadas:
+        // sem isso, cartasDistribuidas/manilhaVirada da rodada nova saíam
+        // colados em rodadaFinalizada, e o front (revelação da carta
+        // vencedora da última vaza + cartas de dano do placar, ver
+        // danoRodadaAtivoRef em MesaExperimento.jsx) tinha que segurar TUDO
+        // isso sozinho só na base de refs — funciona no papel, mas dá zero
+        // folga de verdade pra absorver qualquer corrida que escape daquela
+        // trava. Não precisa cobrir a animação inteira (isso já é
+        // responsabilidade do front) — só evitar o "murro" de eventos
+        // colados que o Henrique via especificamente na vaza final da
+        // rodada.
+        this.pausaRodadaMs = pausaRodadaMs ?? 2_000;
         this.jogadores = [];
         this.game = null;
         this.rodada = null;
@@ -417,6 +443,24 @@ export class GameController extends EventEmitter {
         });
     }
 
+    // Mesma ideia de _atrasoBot, mas pra segurar o back depois de uma vaza
+    // (ver pausaVazaMs no construtor).
+    _pausaVaza() {
+        return new Promise((resolve) => {
+            const timer = setTimeout(resolve, this.pausaVazaMs);
+            timer.unref?.();
+        });
+    }
+
+    // Mesma ideia, mas pra segurar o back depois de fechar uma rodada
+    // inteira (ver pausaRodadaMs no construtor).
+    _pausaRodada() {
+        return new Promise((resolve) => {
+            const timer = setTimeout(resolve, this.pausaRodadaMs);
+            timer.unref?.();
+        });
+    }
+
     // Igual _aguardarJogada, mas com prazo: se tempoTurnoMs passar sem
     // jogarCarta() de verdade, joga por conta própria (ver bots/BotBrain.js)
     // e liga jogador.desconectado — é o sinal de que essa cadeira está no
@@ -525,9 +569,11 @@ export class GameController extends EventEmitter {
     // que ele não pode saber sozinho: se apostar 1 fecharia a soma da
     // rodada exatamente no número de cartas (só pode acontecer com o
     // último a apostar; 0 sempre é alternativa válida nesse caso, porque só
-    // existe um valor proibido por vez — ver apostar()).
+    // existe um valor proibido por vez — ver apostar()). Na rodada de 1
+    // carta a regra nem entra em jogo — ver o comentário em apostar().
     _decidirApostaAutomatica(jogador) {
-        const permiteAposta1 = !(this._ehUltimoAApostar(jogador) && this._somaApostasDosOutros(jogador) + 1 === this.rodada.round);
+        const numCartas = this.rodada.round;
+        const permiteAposta1 = !(numCartas > 1 && this._ehUltimoAApostar(jogador) && this._somaApostasDosOutros(jogador) + 1 === numCartas);
         return escolherAposta(jogador, { permiteAposta1, controller: this });
     }
 
@@ -572,6 +618,13 @@ export class GameController extends EventEmitter {
     // (é justamente por isso que a ordem de aposta precisa ser aleatória:
     // ser o último é uma desvantagem real, então não pode ser sempre a
     // mesma pessoa por ter entrado por último na sala).
+    //
+    // Essa segunda trava fica DESLIGADA na rodada de 1 carta (numCartas ===
+    // 1). Nela os únicos valores possíveis já são 0 e 1 — proibir um dos
+    // dois não sobra "outra opção", trava o último jogador num valor único
+    // e forçado, o dobro do aperto que a regra causa numa rodada normal (que
+    // só descarta 1 de vários valores possíveis). Por isso ela só passa a
+    // valer a partir da rodada de 2 cartas.
     apostar(playerId, valor) {
         if (!this._apostaEsperada || this._apostaEsperada.jogadorId !== playerId) {
             return { ok: false, motivo: 'NAO_E_SUA_VEZ' };
@@ -583,7 +636,7 @@ export class GameController extends EventEmitter {
         }
 
         const jogador = this.jogadores.find(j => j.id === playerId);
-        if (this._ehUltimoAApostar(jogador) && this._somaApostasDosOutros(jogador) + valor === numCartas) {
+        if (numCartas > 1 && this._ehUltimoAApostar(jogador) && this._somaApostasDosOutros(jogador) + valor === numCartas) {
             return { ok: false, motivo: 'APOSTA_FECHA_RODADA' };
         }
 
@@ -707,6 +760,7 @@ export class GameController extends EventEmitter {
         if (!jogador || jogador.vagaExpirada) return false;
 
         jogador.hp = 0;
+        jogador.desistiu = true;
         jogador.desconectado = true;
         jogador.bot = true;
         jogador.expulsoPorInatividade = true;
@@ -822,6 +876,14 @@ export class GameController extends EventEmitter {
                 vencedor: vencedor ? vencedor.nome : null,
                 carta: vencedor ? rodada.mesaAtiva.melhorJogada.carta.toString() : null
             });
+
+            // Só espera se AINDA vem outra vaza nesta rodada — a última
+            // emenda em apostas/distribuição da próxima rodada, que já
+            // segura o próximo lance por conta própria (ver pausaVazaMs).
+            if (v < rodada.round - 1) {
+                await this._pausaVaza();
+                if (this._encerrado) return;
+            }
         }
 
         const apostas = new Map(rodada.gameOrder.map(j => [j, j.aposta]));
@@ -838,6 +900,12 @@ export class GameController extends EventEmitter {
             numero: this.numeroRodada,
             resultado: this._ultimoPlacar
         });
+
+        // Ver pausaRodadaMs no construtor — dá folga antes que _rodarPartida
+        // (fora daqui) sequer tenha a chance de montar a rodada seguinte ou
+        // de emitir jogoFinalizado, os dois igualmente rápidos demais em
+        // cima da revelação/dano da última vaza sem isso.
+        await this._pausaRodada();
     }
 
     // Fim de jogo? Devolve true (e emite jogoFinalizado) quando só sobra um
@@ -856,10 +924,12 @@ export class GameController extends EventEmitter {
             return true;
         }
         if (vivos.length === 0) {
+            const candidatos = this.rodada.gameOrder.filter(jogador => !jogador.desistiu);
+            const baseDesempate = candidatos.length > 0 ? candidatos : this.rodada.gameOrder;
             // rodada.gameOrder já está na ordem em que finalizarRodada aplicou
             // a perda de hp; o `>` estrito mantém o primeiro em caso de empate.
-            let vencedor = this.rodada.gameOrder[0];
-            for (const jogador of this.rodada.gameOrder) {
+            let vencedor = baseDesempate[0];
+            for (const jogador of baseDesempate) {
                 if (jogador.hp > vencedor.hp) vencedor = jogador;
             }
             this._finalizada = true;

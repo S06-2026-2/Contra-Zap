@@ -6,10 +6,10 @@ const INTERVALO_ATUALIZACAO_MS = 10_000;
 // Tela 2: criar uma sala nova, listar/entrar numa já aberta, ou reconectar
 // numa partida em andamento em que ainda temos assento (expulsão por
 // inatividade ou "Sair da partida" manual — ver Partida.jsx).
-export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onReconectou }) {
+export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onReconectou, onTrocarFrente }) {
     const [salas, setSalas] = useState(null); // null = ainda não buscou
     const [numberPlayers, setNumberPlayers] = useState(4);
-    const [roundStart, setRoundStart] = useState(3);
+    const [roundStart, setRoundStart] = useState(1);
     const [botNumber, setBotNumber] = useState(0);
     const [chatAberto, setChatAberto] = useState(false);
     const [privada, setPrivada] = useState(false);
@@ -169,7 +169,12 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
 
     return (
         <div className="cartao">
-            <h1>Olá, {meuNome}</h1>
+            <div className="linha" style={{ justifyContent: 'space-between' }}>
+                <h1>Olá, {meuNome}</h1>
+                <button type="button" className="secundario" onClick={onTrocarFrente}>
+                    🔄 Trocar front
+                </button>
+            </div>
 
             {salaParaReconectar && (
                 <section>

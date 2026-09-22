@@ -29,6 +29,13 @@ export class Jogador {
     // da interface e autentica igual aos outros.
     static async entrar(browser, nome = nomeUnico()) {
         const context = await browser.newContext();
+        // Contexto novo do Playwright não tem localStorage nenhum — sem isto,
+        // cairia no SeletorFrente (ver App.jsx) em vez do Login direto. Fixa
+        // "debugging" pra o E2E continuar testando a interface de sempre,
+        // igual a um usuário de verdade que já escolheu isso antes.
+        await context.addInitScript(() => {
+            try { localStorage.setItem('contrazap-frente', 'debugging'); } catch {}
+        });
         const page = await context.newPage();
         const jogador = new Jogador(context, page, nome);
         await page.goto('/');
@@ -112,6 +119,15 @@ export class Jogador {
 // `jogador`: um jogador já logado. `jogadores(n)`: vários, em paralelo — pra
 // sala com gente de verdade dos dois lados. Os dois fecham tudo no fim.
 export const test = base.extend({
+    // Mesma razão do addInitScript em Jogador.entrar, pra quem usa `page`
+    // direto (ex.: login.spec.js) em vez de passar por Jogador.entrar.
+    context: async ({ context }, use) => {
+        await context.addInitScript(() => {
+            try { localStorage.setItem('contrazap-frente', 'debugging'); } catch {}
+        });
+        await use(context);
+    },
+
     jogador: async ({ browser }, use) => {
         const jogador = await Jogador.entrar(browser);
         await use(jogador);

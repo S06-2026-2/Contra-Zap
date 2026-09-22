@@ -244,7 +244,7 @@ toda vez em `npm run dev`.
 
 ### `criarSala`
 Payload: `{ numberPlayers?: number, roundStart?: number, randomShuffle?: boolean, maxDeck?: number, seed?: number, botNumber?: number, chatAberto?: boolean, privada?: boolean }`
-(todos opcionais — default vem do `SalaManager`: 4 / 3 / true / 50 / — / 0 / false / false)
+(todos opcionais — default vem do `SalaManager`: 4 / 1 / true / 50 / — / 0 / false / false)
 `numberPlayers` precisa ser inteiro entre 2 e 6; `roundStart` inteiro entre
 1 e 10 (o teto evita montar milhares de baralhos e estourar a memória);
 `maxDeck` inteiro entre 1 e 50 — máximo de baralhos de 40 cartas que a
@@ -311,7 +311,7 @@ devolver quando cai no caminho de entrar numa sala já existente
 jogadores com o mesmo nome batendo na fila ao mesmo tempo).
 
 Fila compartilhada de sala com config default (mesmo resultado de
-`criarSala` sem parâmetros nenhum — 4 jogadores, 3 cartas na primeira
+`criarSala` sem parâmetros nenhum — 4 jogadores, 1 carta na primeira
 rodada, sem bots, chat fechado): quem chama primeiro cria essa sala; todo
 mundo que chamar depois, enquanto ela continuar aberta (não cheia, não
 iniciada), entra nela em vez de criar uma nova — não precisa saber o
@@ -469,6 +469,11 @@ número de cartas da rodada), `APOSTA_FECHA_RODADA` (só pode acontecer com o
   precisa ser sorteada de verdade a cada partida: ser o último a apostar é
   uma desvantagem real (perde a liberdade de escolher qualquer valor), então
   não pode ser sempre a mesma pessoa só por ter entrado por último na sala.
+  **Exceção**: na rodada de 1 carta esse limite não vale — com só `0` e `1`
+  como valores possíveis, proibir um dos dois travaria o último jogador
+  num valor único e forçado (o dobro do aperto de uma rodada normal, que só
+  descarta 1 valor de vários). `APOSTA_FECHA_RODADA` só pode acontecer a
+  partir da rodada de 2 cartas.
 
 **Timeout da aposta**: mesmo prazo de `jogarCarta` (`tempoTurnoMs`). Se
 estourar, o servidor aposta por aquele jogador sozinho — 1, a não ser que
@@ -725,8 +730,8 @@ adicionado:
 | `apostaFeita` | `{ jogador, aposta }` — só depois que a aposta foi de fato registrada (real ou timeout) |
 | `turnoJogador` | `{ id, jogador }` — `id` é de quem tem que mandar `jogarCarta` |
 | `cartaJogada` | `{ jogador, carta, status }` |
-| `vazaFinalizada` | `{ vencedor, carta }` |
-| `rodadaFinalizada` | `{ numero, resultado }` |
+| `vazaFinalizada` | `{ vencedor, carta }` — se ainda vem outra vaza na mesma rodada, o servidor segura `pausaVazaMs` (`GameController`, 1.6s por padrão, pareado com `PAUSA_VAZA_MS` do front) antes de emitir o próximo `turnoJogador`/`cartaJogada`, pra não pisar na animação de "quem levou". Se essa vaza FECHA a rodada, quem segura o próximo evento (`rodadaFinalizada`) é `pausaVazaMs` normalmente (o servidor só sabe que é a última DEPOIS de fechar a vaza) — e `rodadaFinalizada` abaixo tem sua própria pausa antes da rodada seguinte |
+| `rodadaFinalizada` | `{ numero, resultado }` — resultado é `[{ nome, aposta, steak, diferenca, hp }]`. Antes de emitir `manilhaVirada`/`cartasDistribuidas` da rodada seguinte (ou `jogoFinalizado`, se a partida acabou aqui), o servidor segura `pausaRodadaMs` (`GameController`, 2s por padrão) — dá folga pro front terminar a revelação da carta vencedora da última vaza + a animação de dano do placar (ver `danoRodadaAtivoRef` em `MesaExperimento.jsx`) antes da rodada nova começar a distribuir por cima |
 | `jogadoresEliminados` | `{ eliminados: [{ nome, hp }] }` |
 | `jogoFinalizado` | `{ vencedor }` |
 | `partidaAbortada` | `{ motivo, erro }` — erro interno inesperado no motor (invariante quebrada, ex.: baralho vazio por conta errada de baralhos). A partida parou e **não recupera**; `GameController.finalizada` vira `true` (igual `jogoFinalizado`), mas **não há vencedor**. A sala não é desmontada sozinha — ver "Limpeza de sala após o fim da partida" abaixo. Cliente deve mostrar erro e deixar sair. |
@@ -835,7 +840,7 @@ de conexão, não do jogo), então chega igual na sala de espera e na partida.
 | `NAO_E_SUA_VEZ` | `jogarCarta`/`apostar` fora da sua vez |
 | `CARTA_INVALIDA` | `jogarCarta` com `indice` que não existe na mão de quem mandou |
 | `APOSTA_INVALIDA` | `apostar` com `valor` fora de `[0, número de cartas da rodada]` |
-| `APOSTA_FECHA_RODADA` | `apostar` pelo último da rodada com `valor` que fecharia a soma de todo mundo no número de cartas |
+| `APOSTA_FECHA_RODADA` | `apostar` pelo último da rodada com `valor` que fecharia a soma de todo mundo no número de cartas (não se aplica na rodada de 1 carta) |
 | `CHAT_DESABILITADO` | `chat` com `tipo: 'aberta'` numa sala criada sem `chatAberto` |
 | `CHAT_INVALIDO` | `chat` com `tipo` desconhecido, `id` fora do catálogo, ou `texto` vazio/maior que 200 caracteres |
 | `CHAT_EM_COOLDOWN` | `chat` antes de `chatCooldownMs` passar desde o último envio aceito (qualquer sala, qualquer tipo, por jogador) |

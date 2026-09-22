@@ -10,7 +10,12 @@ import { test, expect } from './fixtures.js';
 
 test.describe('partida (1 humano + 1 bot)', () => {
     test.beforeEach(async ({ jogador }) => {
-        await jogador.criarSala({ jogadores: 2, bots: 1 });
+        // cartas: 3 fixo de propósito — o default da sala hoje é 1 carta
+        // ("rodada cega", ver PROTOCOLO.md), que esconde a própria mão e some
+        // com a leitura normal da carta. Este describe testa mecânica geral
+        // de jogo, não a rodada cega, então pede 3 cartas explicitamente em
+        // vez de depender do default (que pode mudar de novo).
+        await jogador.criarSala({ jogadores: 2, bots: 1, cartas: 3 });
         // Com o bot já dentro, a sala nasce cheia — o adm pode começar na hora.
         await jogador.forcarInicio();
     });
