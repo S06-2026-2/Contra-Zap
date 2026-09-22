@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { chamar } from '../../socket.js';
+import CartaGiratoria from './CartaGiratoria.jsx';
+import MesaDanificada from './MesaDanificada.jsx';
 // Fonte única de verdade (conexao/limites.js) — não há mais teto de tamanho
 // nem mínimo de senha espelhado aqui à mão; se a régua mudar no backend,
 // esta tela já reflete sozinha (ver server.fs.allow em vite.config.js).
@@ -24,6 +26,21 @@ export default function Login({ onAutenticado }) {
     const [senha, setSenha] = useState('');
     const [carregando, setCarregando] = useState(false);
     const [erro, setErro] = useState(null);
+    // Sandbox isolada (ver CartaGiratoria.jsx) — nem faz parte da máquina de
+    // ETAPA acima de propósito: não tem nada a ver com autenticação, só um
+    // desvio local que volta pro mesmo lugar (ETAPA.NOME continua intacta
+    // por baixo enquanto isso fica true).
+    const [testeCarta3D, setTesteCarta3D] = useState(false);
+    // Mesma ideia da carta giratória acima — sandbox local, fora da máquina
+    // de ETAPA, sem nada a ver com login de verdade.
+    const [testeMesaDanificada, setTesteMesaDanificada] = useState(false);
+
+    if (testeCarta3D) {
+        return <CartaGiratoria onVoltar={() => setTesteCarta3D(false)} />;
+    }
+    if (testeMesaDanificada) {
+        return <MesaDanificada onVoltar={() => setTesteMesaDanificada(false)} />;
+    }
 
     function voltar() {
         setEtapa(ETAPA.NOME);
@@ -89,6 +106,14 @@ export default function Login({ onAutenticado }) {
                 </div>
                 {nomeCurtoDemais && <p className="erro">Nome precisa ter pelo menos {NOME_MIN} caracteres.</p>}
                 {erro && <p className="erro">{erro}</p>}
+                <div className="botoes">
+                    <button type="button" onClick={() => setTesteCarta3D(true)} className="secundario">
+                        🃏 Testar carta giratória
+                    </button>
+                    <button type="button" onClick={() => setTesteMesaDanificada(true)} className="secundario">
+                        🔪 Testar mesa danificada
+                    </button>
+                </div>
             </form>
         );
     }

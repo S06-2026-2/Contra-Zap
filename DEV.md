@@ -126,6 +126,8 @@ polimento.
 - Subir o servidor num ambiente de verdade, com sockets web funcionando fora
   da rede local (hoje só foi testado em `localhost`).
 - **Banco de testes em produção**
+- **fantasminhas em ordem sentido horario**
+- **timer pra aposta e tacar a carta*
  
 
 ### PIN — só mexer se alguém reclamar

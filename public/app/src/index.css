@@ -1445,6 +1445,82 @@ button.secundario {
         inset 0 0 60px rgba(0, 0, 0, .4);
 }
 
+/* Camada de danos (pedido do Henrique 2026-09-21: "criar um layer em
+   cima da mesa, adicionar elementos que se parecem com algo danificado"
+   — ver MesaDanificada.jsx, primeiro efeito é o corte). overflow:hidden +
+   border-radius:inherit (mesmo raio que .mesa-exp-mesa acabou de
+   calcular em --altura-mesa) garantem que nada aqui dentro vaze pro lado
+   de fora do contorno oval. pointer-events:none — é decoração pura, nunca
+   deve roubar clique de nada por baixo. */
+.mesa-exp-danos {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.mesa-exp-corte-mesa {
+    position: absolute;
+}
+
+/* Mesmo espírito do corte do fantasminha (.fantasminha-corte, fill
+   vermelho de "carne") só que aqui é madeira/feltro rasgado: bem mais
+   escuro que o verde ao redor, pra ler como um talho revelando o fundo
+   por baixo, não uma mancha de tinta. drop-shadow clarinho por cima
+   simula uma beirada erguida pegando luz (SVG, então acompanha a forma
+   da lente, não um retângulo). */
+.mesa-exp-corte-mesa-tracado {
+    fill: #150d06;
+    filter: drop-shadow(0 1px 0 rgba(255, 255, 255, .12));
+}
+
+.mesa-exp-cortar-botao {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    z-index: 43;
+    padding: 12px 28px;
+    font-size: 16px;
+    border-radius: 10px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .45);
+}
+
+/* Faca caindo (pedido do Henrique 2026-09-21, v2: pousa numa PONTA da
+   linha e desliza até a outra, ver FacaCaindo em MesaDanificada.jsx —
+   não mais centralizada no corte parada). left/top mudam de valor entre
+   fases (pontoInicio -> pontoFim, calculados geometricamente a partir do
+   `rot`/tamanho do corte, ver cortarLugarAleatorio) — é ISSO que faz o
+   deslize de verdade, não só um drift decorativo. perspective aqui (não
+   num ancestral comum, mesmo motivo de .mesa-exp-vira/.carta-giro3d-
+   palco) porque só esta instância precisa da projeção 3D. `transition`
+   inteiro (duração incluída) vem inline por fase — ver FacaCaindo —
+   então esta regra só cobre o que NÃO muda entre fases.
+   pointer-events:none — decoração, nunca deve capturar clique de nada
+   por baixo dela. */
+.mesa-exp-faca-caindo {
+    position: absolute;
+    perspective: 700px;
+    pointer-events: none;
+}
+
+/* .carta-giro3d-miolo dentro dela: clip-path inset(topoPx ...) com
+   valores em PX (não %) de propósito — percentual seria relativo só à
+   caixa pequena do miolo (110x154, a carta), mas lâmina/guarda/cabo são
+   filhos posicionados BEM fora dessa caixa (top:-220px etc.); em px, o
+   clip é medido na mesma origem (0,0 = canto da carta) que esses offsets
+   já usam, então dá pra mirar exatamente na ponta da lâmina (topo ≈
+   -220px) mesmo ela estando fora da caixa "oficial" do elemento. O clip
+   roda JUNTO com o transform (mesmo elemento) — é sempre "o topo do
+   espaço local", que continua sendo a ponta da lâmina não importa pra
+   qual ângulo de tela o rotateX/Y/Z esteja apontando no momento (o clip
+   acontece ANTES da rotação/escala na composição do navegador). -300px
+   do lado/base é só "bem mais que o necessário", pra nunca cortar nada
+   ali. `transition` inteiro (propriedades + durações, inclusive a do
+   próprio clip-path — sempre um "plunge" rápido, ver FACA_AFUNDAR_MS,
+   mais curto que o resto) vem inline por fase — ver FacaCaindo. */
+
 /* Não é mais um "cartão" de jogador — é o CAMPO/hitbox onde os elementos de
    verdade (avatar, cartas, fichas...) vão entrar depois. Sem preenchimento
    nem sombra de propósito: só a borda marca a área, o resto do espaço fica
@@ -2103,6 +2179,13 @@ button.secundario {
     inset: -40% -60%;
     background: linear-gradient(115deg, transparent 44%, rgba(255, 255, 255, .55) 50%, transparent 56%);
     animation: carta-exp-brilho-metal 3.4s ease-in-out infinite;
+    /* var() com fallback 'running' — só a CartaGiratoria pausa este (ver
+       .carta-giro3d-face no index.css/componente): lá o brilho da carta
+       vira parte do .carta-giro3d-brilho-unico por cima de tudo (ver mais
+       abaixo), então este daqui ficaria duplicado/dessincronizado se
+       continuasse rodando. Em qualquer outro lugar do app (MesaExperimento
+       etc., que nunca seta a variável) continua tocando normal. */
+    animation-play-state: var(--brilho-carta-play, running);
     pointer-events: none;
 }
 
@@ -2206,6 +2289,234 @@ button.secundario {
     60%      { box-shadow: 0 0 0 2px #7fd9ff, 0 0 22px rgba(110, 200, 255, .75); }
     63%      { box-shadow: 0 0 0 2px #eafcff, 0 0 34px rgba(160, 230, 255, 1); }
     66%      { box-shadow: 0 0 0 2px #7fd9ff, 0 0 22px rgba(110, 200, 255, .75); }
+}
+
+/* Carta giratória (CartaGiratoria.jsx, botão de teste na tela de Login) —
+   `perspective` no palco (ancestral comum de todo o giro, diferente do
+   .mesa-exp-vira que bota perspective nele mesmo porque só ele girava);
+   `touch-action: none` evita o navegador tentando fazer scroll/pull-to-
+   refresh enquanto o dedo arrasta a carta. O miolo gira livre nos 3 eixos
+   (pitch/yaw do drag normal, roll do Shift+drag — ver componente), sem
+   limite nenhum de ângulo, por isso cursor:grab/grabbing pra deixar claro
+   que é arrastável em qualquer direção. Mesmas duas faces empilhadas com
+   backface-visibility:hidden de .mesa-exp-vira-face — a de verso nasce
+   virada 180° em Y só pra nunca ficar de frente pro rosto junto com a
+   principal (qual das duas aparece depende só de onde o giro livre parou,
+   sem keyframe/transição nenhuma aqui). */
+.carta-giro3d-palco {
+    /* Alto o bastante pra lâmina (ver .carta-giro3d-lamina) caber acima E
+       guarda+cabo (ver mais abaixo) caberem abaixo da carta sem cortar
+       nada — align-items:center deixa a CARTA (não o conjunto todo, já
+       que o resto é posicionado absoluto e não conta pro tamanho do
+       .carta-giro3d-miolo) no meio do palco, sobrando espaço simétrico
+       nas duas pontas. */
+    height: 600px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    perspective: 700px;
+    touch-action: none;
+    cursor: grab;
+    user-select: none;
+}
+.carta-giro3d-palco:active {
+    cursor: grabbing;
+}
+
+.carta-giro3d-miolo {
+    position: relative;
+    width: 110px;
+    height: 154px;
+    transform-style: preserve-3d;
+    /* Gradiente único do punhal inteiro (lâmina+guarda+cabo — ver os três
+       abaixo), num custom property só pra não repetir o mesmo texto 3x.
+       180deg (reto, de cima pra baixo) de propósito, não diagonal como a
+       manilha de Espadas: a cor não pode variar em X, senão lâmina (110px
+       de largura), guarda (140px) e cabo (55px) society cada uma cortaria
+       o gradiente numa faixa horizontal diferente e a costura entre elas
+       ficaria visível. Suave também no degradê em si — passos mais curtos
+       e sem chegar perto do preto, pra não ter salto de contraste nenhum
+       de um stop pro outro. */
+    --metal-punhal: linear-gradient(180deg, #eef2f5 0%, #c7ced4 20%, #9aa1a7 40%, #6f757b 60%, #4a4f54 80%, #33373b 100%);
+}
+
+.carta-giro3d-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+}
+
+.carta-giro3d-face-verso {
+    transform: rotateY(180deg);
+}
+
+/* "Plano estendido" (pedido do Henrique 2026-09-21, toggle no componente):
+   a carta em si (.carta-giro3d-face) não muda nem de tamanho nem de forma
+   — lâmina/guarda/cabo abaixo são elementos A MAIS, irmãos das duas faces
+   dentro do MESMO .carta-giro3d-miolo (mesmo preserve-3d), então giram
+   junto de graça com o pitch/yaw/roll que o componente já aplica no
+   miolo, sem nenhuma conta de ângulo própria — é o "plano invisível da
+   carta continuando pra fora dela" formando um punhal inteiro (lâmina em
+   cima, guarda+cabo embaixo). Nenhum dos três usa backface-visibility:
+   todos simétricos esquerda-direita, então o espelhamento natural de
+   quando o miolo passa de 90° já fica idêntico ao original — não precisa
+   de segunda cópia pro verso.
+
+   Lâmina: width:100% = MESMA largura da carta ("quadrada seguindo a
+   carta", não afunilando desde a base) — só a faixa final do clip-path
+   (0% a 20% da altura, contada do topo) converge num ponto, o resto (20%
+   a 100%) é reto, formando um pentágono (2 cantos de baixo + 2 "ombros" +
+   1 vértice no topo) em vez do triângulo cheio de antes. bottom:100%
+   gruda a base dela exatamente na aresta de cima da carta.
+
+   As três peças (lâmina/guarda/cabo) recortam fatias DIFERENTES do MESMO
+   --metal-punhal (ver .carta-giro3d-miolo) — background-size fixa a
+   altura do degradê no tamanho do punhal inteiro (220 lâmina + 16 guarda
+   + 77 cabo = 313px), e background-position-y desloca cada peça pro seu
+   trecho: lâmina mostra 0..220, guarda 220..236, cabo 236..313. A carta
+   fica ENTRE lâmina e guarda sem fazer parte da conta — o degradê seria
+   contínuo se ela não estivesse lá no meio, então o metal "por trás dela"
+   sempre bate, dando a impressão de ser uma peça inteira só, mesmo com a
+   carta cortando a peça ao meio. */
+.carta-giro3d-lamina {
+    position: absolute;
+    left: 0;
+    bottom: 100%;
+    width: 100%;
+    height: 220px;
+    overflow: hidden;
+    clip-path: polygon(50% 0%, 100% 20%, 100% 100%, 0% 100%, 0% 20%);
+    background: var(--metal-punhal);
+    background-size: 100% 313px;
+    background-position-y: 0px;
+}
+
+/* Friso central (o "sulco" de uma lâmina de verdade) — uma faixa clara
+   vertical fina, esmaecendo nas duas pontas, só decorativa. */
+.carta-giro3d-lamina::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 6%;
+    bottom: 4%;
+    width: 3px;
+    transform: translateX(-50%);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, .6) 12%, rgba(255, 255, 255, .25) 70%, rgba(255, 255, 255, 0) 100%);
+}
+
+/* Guarda (o "punho" do punhal, cruzando a lâmina): mais larga que a carta
+   (140px > 110px, sobrando pras duas pontas) e bem fina (16px de altura)
+   — a barra transversal clássica de guarda de espada/adaga. top:100%
+   gruda no fundo da carta, sem gap. */
+.carta-giro3d-guarda {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 140px;
+    height: 16px;
+    overflow: hidden;
+    background: var(--metal-punhal);
+    background-size: 100% 313px;
+    background-position-y: -220px;
+}
+
+/* Cabo (onde segura): metade da largura e metade da altura da carta
+   (55x77), grudado embaixo da guarda (top:100% relativo à própria guarda
+   — por isso é filho posicionado a partir do MESMO ponto de referência
+   que ela, .carta-giro3d-miolo, com o offset da guarda somado à mão).
+   Prata igual ao resto do punhal (ver --metal-punhal), última fatia do
+   degradê (236..313px). */
+.carta-giro3d-cabo {
+    position: absolute;
+    top: calc(100% + 16px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 55px;
+    height: 77px;
+    overflow: hidden;
+    background: var(--metal-punhal);
+    background-size: 100% 313px;
+    background-position-y: -236px;
+}
+
+/* Rebites/marcas de solda (pedido do Henrique 2026-09-21) — mesmo visual
+   de .carta-exp-rebite (rivet da manilha de Espadas), reaproveitado nos
+   pontos de junção de um punhal de verdade: base da lâmina com a guarda,
+   e guarda com o cabo. */
+.carta-giro3d-rebite {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #eef2f5, #9aa1a7 55%, #43474b 100%);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .6);
+    z-index: 1;
+}
+.carta-giro3d-rebite-lamina-esq { left: 6px; bottom: 6px; }
+.carta-giro3d-rebite-lamina-dir { right: 6px; bottom: 6px; }
+.carta-giro3d-rebite-guarda-esq { left: 8px; top: 50%; transform: translateY(-50%); }
+.carta-giro3d-rebite-guarda-dir { right: 8px; top: 50%; transform: translateY(-50%); }
+.carta-giro3d-rebite-cabo-cima { left: 50%; top: 8px; transform: translateX(-50%); }
+.carta-giro3d-rebite-cabo-baixo { left: 50%; bottom: 8px; transform: translateX(-50%); }
+
+/* Brilho único (pedido do Henrique 2026-09-21: "uma div invisível que
+   seja só o efeito, por cima de todos esses elementos, pra ela ser
+   contínua") — um streak SÓ atravessando lâmina+carta+guarda+cabo juntos,
+   em vez de cada peça ter o seu (que é como era antes: 4 faixas
+   independentes, cada uma resetando na borda da própria peça, óbvias
+   como pedaços soltos mesmo sincronizadas). top/width/height vêm inline
+   do componente (mudam com o toggle "plano estendido" — cobre só a carta
+   quando as peças extras estão desligadas, ou a pilha inteira quando
+   ligadas). Sem background próprio: o retângulo em si é 100% invisível,
+   overflow:hidden só recorta o ::before (que É o brilho, oversized com
+   inset negativo pra poder deslizar via transform — mesmo mecanismo do
+   keyframe carta-exp-brilho-metal) na área exata da peça/pilha atual.
+   pointer-events:none é obrigatório aqui: sem isso, por estar por cima de
+   tudo (última do DOM dentro do miolo), capturaria o pointerdown/move do
+   drag do .carta-giro3d-palco e travaria o giro da carta. */
+.carta-giro3d-brilho-unico {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 5;
+}
+.carta-giro3d-brilho-unico::before {
+    content: '';
+    position: absolute;
+    inset: -40% -60%;
+    background: linear-gradient(115deg, transparent 44%, rgba(255, 255, 255, .6) 50%, transparent 56%);
+    animation-name: carta-exp-brilho-metal;
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+    animation-duration: var(--brilho-unico-duracao, 3.4s);
+    animation-delay: var(--brilho-unico-delay, 0s);
+}
+
+/* Leitura do ângulo atual (pedido do Henrique 2026-09-21) — os 3 valores
+   já normalizados pro componente (ver normalizarAngulo em
+   CartaGiratoria.jsx), monoespaçado só pra não "dançar" de largura a
+   cada dígito diferente enquanto arrasta. */
+.carta-giro3d-angulo {
+    display: flex;
+    gap: 16px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: var(--texto-fraco);
+}
+
+/* Painel de sliders — os 2 <label> de range que o .label/input genérico
+   do app já estiliza (ver topo do arquivo), só com um pouco de respiro e
+   uma borda fina pra separar visualmente do resto do "cartao" ao redor. */
+.carta-giro3d-controles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    padding: 10px;
+    border: 1px solid var(--borda);
+    border-radius: 8px;
 }
 
 /* Verso: sem rank/naipe nenhum, só um padrão listrado repetindo — cor
