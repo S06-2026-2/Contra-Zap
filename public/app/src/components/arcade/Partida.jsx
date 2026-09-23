@@ -83,6 +83,10 @@ export default function Partida({
 
     // ---- Estado espelhado de novo/Partida.jsx ----
     const [jogadores, setJogadores] = useState(jogadoresIniciais ?? reconexao?.jogadores ?? []);
+    // Nomes na ordem dos assentos (novaRodadaIniciada / ack de reconectar) —
+    // a ordem de jogo, sorteada no início. `jogadores` é a ordem de ENTRADA
+    // na sala, que não tem nada a ver com a vez; a mesa é desenhada por esta.
+    const [ordem, setOrdem] = useState(reconexao?.ordem ?? null);
     // Contagem regressiva local a partir de partidaIniciandoEm; null = sala ainda não lotou.
     const [contagem, setContagem] = useState(segundosIniciais ?? null);
     const [iniciada, setIniciada] = useState(!!reconexao);
@@ -277,6 +281,7 @@ export default function Partida({
         setMao(resposta.mao ?? []);
         setCartasRodada(resposta.cartasRodada);
         setNumeroRodada(resposta.numeroRodada);
+        if (resposta.ordem) setOrdem(resposta.ordem);
         numeroRodadaRef.current = resposta.numeroRodada;
         setMaosReveladas(paraMapa(resposta.maosReveladas, 'jogador', 'mao'));
         setJogadorDaVez(resposta.jogadorDaVez);
@@ -339,6 +344,7 @@ export default function Partida({
                 setJogadorDaVezAposta(null);
                 setCartasRodada(p.cartas);
                 setNumeroRodada(p.numero);
+                if (p.ordem) setOrdem(p.ordem);
                 numeroRodadaRef.current = p.numero;
                 setApostas({});
                 setVazasFeitas({});
@@ -885,10 +891,24 @@ export default function Partida({
 
     // ================= MESA =================
     const meuIndice = indiceDe(meuNome);
-    const oponentes = meuIndice >= 0
-        ? [...jogadores.slice(meuIndice + 1), ...jogadores.slice(0, meuIndice)]
-        : jogadores.filter((j) => j.nome !== meuNome);
+    // Sentido horário pra qualquer um: você embaixo, e a vez anda pra
+    // esquerda -> topo -> direita. Então os oponentes entram na ordem dos
+    // assentos começando por quem joga DEPOIS de você. Sem `ordem` (servidor
+    // antigo) cai na ordem da sala, que ao menos é a mesma pra todo mundo.
+    const assentos = ordem?.length ? ordem : jogadores.map((j) => j.nome);
+    const minhaPosicao = assentos.indexOf(meuNome);
+    const oponentes = (minhaPosicao >= 0
+        ? [...assentos.slice(minhaPosicao + 1), ...assentos.slice(0, minhaPosicao)]
+        : assentos.filter((nome) => nome !== meuNome)
+    ).map((nome) => ({ nome }));
     const areas = AREAS[Math.min(5, oponentes.length)] ?? AREAS[5];
+    // Estreito (2 colunas, todo mundo acima do feltro): um "U" invertido —
+    // a coluna da esquerda sobe, a da direita desce — pra continuar horário.
+    const naEsquerda = Math.ceil(oponentes.length / 2);
+    const linhasEstreito = Math.max(naEsquerda, oponentes.length - naEsquerda);
+    const posicaoEstreita = (i) => (i < naEsquerda
+        ? { gridColumn: 1, gridRow: linhasEstreito - i }
+        : { gridColumn: 2, gridRow: 1 + (i - naEsquerda) });
     const maxVersos = estreito ? 2 : 3;
     // Cartas na mão de cada oponente: todo mundo joga uma por vaza, então é
     // a minha mão ajustada por quem já jogou na vaza atual.
@@ -962,7 +982,7 @@ export default function Partida({
                             <div
                                 key={nome}
                                 className="az-oponente"
-                                style={{ gridArea: estreito ? 'auto' : areas[i] }}
+                                style={estreito ? posicaoEstreita(i) : { gridArea: areas[i] }}
                             >
                                 {balao && <div key={balao.id} className="az-balao">{balao.texto}</div>}
 
@@ -1003,7 +1023,7 @@ export default function Partida({
 
                     <div
                         className="az-feltro"
-                        style={estreito ? { gridColumn: '1 / 3' } : { gridArea: 'felt' }}
+                        style={estreito ? { gridColumn: '1 / 3', gridRow: linhasEstreito + 1 } : { gridArea: 'felt' }}
                     >
                         <div className="az-feltro-borda" />
 
