@@ -341,7 +341,8 @@ operations:
       Todos os campos são opcionais (`null` cai no default, não é erro).
       `botNumber` preenche o resto dos assentos com bots na criação; se isso
       já lotar a sala, o início é agendado e `segundosParaIniciar` vem
-      preenchido no próprio ack.
+      preenchido no próprio ack. `modeloBot` escolhe qual bot joga por eles
+      (e pelo automático de quem cair).
       Erros: `NAO_IDENTIFICADO`, `CONFIGURACAO_INVALIDA`.
     messages: [{ $ref: '#/channels/criarSala/messages/pedido' }]
     reply:
@@ -683,6 +684,11 @@ components:
           roundStart: { type: integer, minimum: 1, default: 3, description: Cartas por jogador na primeira rodada. }
           randomShuffle: { type: boolean, default: true }
           botNumber: { type: integer, minimum: 0, default: 0, description: 'Bots que já entram na criação. Máximo `numberPlayers - 1` — sempre sobra o assento de quem criou.' }
+          modeloBot:
+            type: string
+            enum: [iniciante, classico, veterano, campeao]
+            default: classico
+            description: 'Qual bot decide as jogadas automáticas da sala (catálogo em `bots/modelosBot.js`): heurístico, rede noite1_G, noite1_H ou slot01.'
           chatAberto: { type: boolean, default: false, description: Libera o chat de texto livre. As mensagens prontas não dependem disto. }
           maxDeck: { type: integer, minimum: 1, maximum: 50, description: 'Teto de baralhos de 40 cartas que a partida pode montar. A primeira rodada (mesa cheia) já precisa caber nele, senão a criação é recusada.' }
     PedidoApostar:
@@ -763,6 +769,7 @@ components:
                 type: [integer, 'null']
                 description: Preenchido quando esta ação lotou a sala e agendou o início; `null` caso contrário.
               chatAberto: { type: boolean }
+              modeloBot: { type: string, description: 'Bot escolhido na criação da sala (ver `PedidoCriarSala.modeloBot`).' }
           - { $ref: '#/components/schemas/Erro' }
     RespostaListarSalas:
       name: RespostaListarSalas
@@ -781,6 +788,8 @@ components:
                     numberPlayers: { type: integer }
                     jogadoresAtual: { type: integer }
                     chatAberto: { type: boolean }
+                    privada: { type: boolean }
+                    modeloBot: { type: string }
           - { $ref: '#/components/schemas/Erro' }
     RespostaMinhaSalaAtiva:
       name: RespostaMinhaSalaAtiva

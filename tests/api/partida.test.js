@@ -338,7 +338,8 @@ test('jogarDeNovo', async (t) => {
 
     // Uma partida inteira, do início ao jogoFinalizado.
     async function partidaTerminada() {
-        const sala = await partidaEmAndamento(servidor, { humanos: 2 });
+        // modeloBot fora do default só pra provar que "jogar de novo" herda.
+        const sala = await partidaEmAndamento(servidor, { humanos: 2, modeloBot: 'iniciante' });
         const parar = sala.clientes.map(cliente => jogarSozinho(cliente, sala.salaId));
         await sala.clientes[0].esperar(EventosServidor.JOGO_FINALIZADO, { timeoutMs: 60_000 });
         parar.forEach(fn => fn());
@@ -358,6 +359,7 @@ test('jogarDeNovo', async (t) => {
 
         assert.notEqual(resposta.salaId, salaId);
         assert.equal(resposta.numberPlayers, 2); // mesma config da que terminou
+        assert.equal(resposta.modeloBot, 'iniciante');
         assert.deepEqual(resposta.jogadores.map(j => j.nome), [adm.nome]);
 
         // Quem ficou na sala antiga recebe o convite com o id da sala nova.

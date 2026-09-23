@@ -243,8 +243,8 @@ a exceção "mesma conta é permitida", isso quebraria a restauração de sessã
 toda vez em `npm run dev`.
 
 ### `criarSala`
-Payload: `{ numberPlayers?: number, roundStart?: number, randomShuffle?: boolean, maxDeck?: number, seed?: number, botNumber?: number, chatAberto?: boolean, privada?: boolean }`
-(todos opcionais — default vem do `SalaManager`: 4 / 1 / true / 50 / — / 0 / false / false)
+Payload: `{ numberPlayers?: number, roundStart?: number, randomShuffle?: boolean, maxDeck?: number, seed?: number, botNumber?: number, modeloBot?: string, chatAberto?: boolean, privada?: boolean }`
+(todos opcionais — default vem do `SalaManager`: 4 / 1 / true / 50 / — / 0 / `'classico'` / false / false)
 `numberPlayers` precisa ser inteiro entre 2 e 6; `roundStart` inteiro entre
 1 e 10 (o teto evita montar milhares de baralhos e estourar a memória);
 `maxDeck` inteiro entre 1 e 50 — máximo de baralhos de 40 cartas que a
@@ -277,9 +277,15 @@ Bots não têm socket: não aparecem em `jogadorPorSocket`, nunca desconectam
 nem reconectam, e cada turno deles é decidido por `bots/BotBrain.js` e
 jogado depois de uma pausa de `atrasoBotMs` (2s por padrão), sem esperar
 `tempoTurnoMs` (ver `PlayerGame.bot`).
+`modeloBot` escolhe QUAL bot decide essas jogadas — um dos ids de
+`bots/modelosBot.js`: `'iniciante'` (heurístico, sem rede), `'classico'`
+(rede noite1_G, o bot de antes desta opção existir), `'veterano'` (noite1_H)
+ou `'campeao'` (slot01). Vale pra sala inteira: todo `Bot` dela e também
+o automático de quem cair ou for expulso (ver `reconectar`). Qualquer outro
+valor, `CONFIGURACAO_INVALIDA`. É herdado por "jogar de novo".
 Pré-condição: socket já mandou `entrar` com sucesso.
 Ack sucesso: `{ ok: true, salaId, numberPlayers, jogadores: [{ nome, adm }],
-segundosParaIniciar: number | null, chatAberto: boolean, senha: string | null }`.
+segundosParaIniciar: number | null, chatAberto: boolean, modeloBot: string, senha: string | null }`.
 `senha` só vem preenchida quando `privada` é `true` (senão `null`) — é a
 ÚNICA vez que ela aparece numa resposta do servidor; o front deve mostrar
 pro criador (ex.: junto do código da sala na tela de espera) pra ele
@@ -303,7 +309,7 @@ traz `{ salaId }` dela; reconecte ou `desista` antes).
 Payload: `{}`
 Pré-condição: socket já mandou `entrar`/`cadastrar`/`entrarComoConvidado`.
 Ack sucesso: mesmo formato de `criarSala`/`entrarSala` — `{ ok: true, salaId,
-numberPlayers, jogadores, segundosParaIniciar: number | null, chatAberto }`.
+numberPlayers, jogadores, segundosParaIniciar: number | null, chatAberto, modeloBot }`.
 Erros possíveis: `NAO_IDENTIFICADO`, `JA_EM_PARTIDA` (você já tem assento
 numa partida em andamento — ver `criarSala`), mais os que `entrarSala` pode
 devolver quando cai no caminho de entrar numa sala já existente
@@ -326,7 +332,8 @@ nenhuma mudança — `partidaRapida` é só um atalho por cima do mesmo
 Payload: `{ salaId: string, senha?: string }`
 Pré-condição: socket já mandou `entrar` com sucesso.
 Ack sucesso: `{ ok: true, salaId, numberPlayers, jogadores,
-segundosParaIniciar: number | null, chatAberto: boolean }`. O socket já dá
+segundosParaIniciar: number | null, chatAberto: boolean, modeloBot: string }`.
+`modeloBot` é o bot escolhido por quem criou (ver `criarSala`). O socket já dá
 `join` na sala; todos os membros (incluindo quem entrou) recebem
 `listaJogadores` atualizado. Se
 essa entrada lotar a sala, o início automático é agendado (ver
@@ -344,7 +351,7 @@ dela; reconecte ou `desista` antes).
 ### `listarSalas`
 Payload: `{}`
 Pré-condição: socket já mandou `entrar` com sucesso.
-Ack sucesso: `{ ok: true, salas: [{ salaId, numberPlayers, jogadoresAtual, chatAberto, privada }] }`
+Ack sucesso: `{ ok: true, salas: [{ salaId, numberPlayers, jogadoresAtual, chatAberto, privada, modeloBot }] }`
 — só salas **abertas** (não iniciadas e não cheias). Sala cheia ou já
 iniciada simplesmente não aparece na lista. `privada: true` só avisa que
 `entrarSala` vai exigir `senha` batendo — a senha em si nunca aparece aqui
@@ -425,9 +432,9 @@ partida dessa sala precisa ter terminado de verdade (não só começado — ver
 chamar.
 Ack sucesso: mesmo formato de `criarSala`/`entrarSala` — `{ ok: true,
 salaId, numberPlayers, jogadores, segundosParaIniciar: number | null,
-chatAberto }`, só que `salaId` aqui já é o da sala **nova**. A sala nova
+chatAberto, modeloBot }`, só que `salaId` aqui já é o da sala **nova**. A sala nova
 nasce com exatamente a mesma config da que terminou (`numberPlayers`,
-`roundStart`, `randomShuffle`, `maxDeck`, `botNumber`, `chatAberto`) e o adm já entra
+`roundStart`, `randomShuffle`, `maxDeck`, `botNumber`, `modeloBot`, `chatAberto`) e o adm já entra
 nela, do mesmo jeito que `criarSala` — ela fica esperando gente lotar, igual
 qualquer sala nova.
 Além do ack, todo mundo que ainda estava na sala antiga (broadcast em
@@ -825,7 +832,7 @@ de conexão, não do jogo), então chega igual na sala de espera e na partida.
 | `JA_AUTENTICADO` | `entrar`/`cadastrar`/`entrarComoConvidado`/`retomarSessao` tentando virar OUTRA conta num socket que já é alguém (ver "Reautenticação num socket já autenticado") — a mesma conta de novo é permitida, não cai aqui |
 | `MUITAS_TENTATIVAS` | `verificarNome` acima do teto por IP (20 a cada 5 minutos), `entrar` com 5 falhas (senha errada/usuário inexistente) em 20 minutos, **ou** `cadastrar` com 10 tentativas (sucesso incluso) em 10 minutos, tudo pelo mesmo IP — ver `conexao/rateLimiter.js`. Espere a janela passar |
 | `NOME_INVALIDO` | `entrarSala` com nome já em uso *nessa sala* |
-| `CONFIGURACAO_INVALIDA` | `criarSala` com `numberPlayers`/`roundStart`/`maxDeck`/`botNumber` fora do intervalo aceito (`roundStart` 1 a 10, `maxDeck` 1 a 50), `roundStart` que não cabe em `maxDeck` baralhos com a mesa cheia, `seed` que não é inteiro não-negativo, ou `chatAberto`/`randomShuffle`/`privada` que não é boolean |
+| `CONFIGURACAO_INVALIDA` | `criarSala` com `numberPlayers`/`roundStart`/`maxDeck`/`botNumber` fora do intervalo aceito (`roundStart` 1 a 10, `maxDeck` 1 a 50), `roundStart` que não cabe em `maxDeck` baralhos com a mesa cheia, `seed` que não é inteiro não-negativo, `modeloBot` fora do catálogo de `bots/modelosBot.js`, ou `chatAberto`/`randomShuffle`/`privada` que não é boolean |
 | `LIMITE_DE_SALAS` | `criarSala`/`partidaRapida` com o teto global de salas simultâneas já atingido — barreira de sanidade, tenta de novo mais tarde |
 | `LIMITE_DE_SALAS_POR_JOGADOR` | `criarSala`/`partidaRapida` por quem já é adm de salas ativas (não finalizadas) demais ao mesmo tempo — teto por pessoa (4), complementar ao global. Feche (`sairSala`) ou termine alguma antes |
 | `SALA_NAO_ENCONTRADA` | `entrarSala`/`forcarInicio`/`sairSala`/`jogarCarta`/`reconectar` com `salaId` que não existe |

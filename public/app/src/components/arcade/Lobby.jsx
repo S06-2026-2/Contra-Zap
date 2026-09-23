@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { chamar } from '../../socket.js';
+import { MODELOS_BOT, MODELO_BOT_PADRAO, modeloBotPorId } from '../../../../../bots/modelosBot.js';
 import Casca from './Casca.jsx';
 import Modal from './Modal.jsx';
 import { guardarInfoSala } from './salasInfo.js';
@@ -21,6 +22,7 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
     const [numberPlayers, setNumberPlayers] = useState(4);
     const [roundStart, setRoundStart] = useState(1);
     const [botNumber, setBotNumber] = useState(0);
+    const [modeloBot, setModeloBot] = useState(MODELO_BOT_PADRAO);
     const [chatAberto, setChatAberto] = useState(false);
     const [privada, setPrivada] = useState(false);
     const [reconectando, setReconectando] = useState(false);
@@ -73,7 +75,7 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
     function partidaRapida() {
         return tentarEntrada(async () => {
             const resposta = await chamar('partidaRapida');
-            guardarInfoSala(resposta.salaId, { numberPlayers: resposta.numberPlayers });
+            guardarInfoSala(resposta.salaId, { numberPlayers: resposta.numberPlayers, modeloBot: resposta.modeloBot });
             onEntrouNaSala(resposta.salaId, resposta.jogadores, resposta.segundosParaIniciar, resposta.chatAberto);
         });
     }
@@ -82,8 +84,8 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
         evento.preventDefault();
         setCriando(true);
         await tentarEntrada(async () => {
-            const resposta = await chamar('criarSala', { numberPlayers, roundStart, botNumber, chatAberto, privada });
-            guardarInfoSala(resposta.salaId, { numberPlayers: resposta.numberPlayers ?? numberPlayers, roundStart, botNumber });
+            const resposta = await chamar('criarSala', { numberPlayers, roundStart, botNumber, modeloBot, chatAberto, privada });
+            guardarInfoSala(resposta.salaId, { numberPlayers: resposta.numberPlayers ?? numberPlayers, roundStart, botNumber, modeloBot: resposta.modeloBot ?? modeloBot });
             // `senha` só vem quando a sala é privada — é a única vez que o
             // servidor a mostra (ver PROTOCOLO.md), a espera repassa pro criador.
             onEntrouNaSala(resposta.salaId, resposta.jogadores, resposta.segundosParaIniciar, resposta.chatAberto, resposta.senha);
@@ -93,7 +95,7 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
 
     async function entrarSalaComSenha(salaId, numberPlayersDaLista, senhaDigitada) {
         const resposta = await chamar('entrarSala', { salaId, senha: senhaDigitada });
-        guardarInfoSala(salaId, { numberPlayers: resposta.numberPlayers ?? numberPlayersDaLista });
+        guardarInfoSala(salaId, { numberPlayers: resposta.numberPlayers ?? numberPlayersDaLista, modeloBot: resposta.modeloBot });
         onEntrouNaSala(salaId, resposta.jogadores, resposta.segundosParaIniciar, resposta.chatAberto);
     }
 
@@ -177,7 +179,7 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
                 onClick={onTrocarFrente}
                 title="Trocar de frente visual"
             >
-                🔄 FRENTE
+                🔄 FRONT
             </button>
         </>
     );
@@ -264,6 +266,24 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
                             {seletor(Array.from({ length: numberPlayers }, (_, i) => i), botNumber, setBotNumber)}
                         </div>
                         <div>
+                            <div className="az-px az-rotulo">QUAL BOT</div>
+                            <div className="az-seletor">
+                                {MODELOS_BOT.map((m) => (
+                                    <button
+                                        key={m.id}
+                                        type="button"
+                                        className={`az-b az-px az-opcao az-opcao-larga${m.id === modeloBot ? ' az-ativo' : ''}`}
+                                        onClick={() => setModeloBot(m.id)}
+                                        title={m.descricao}
+                                    >
+                                        {m.nome.toUpperCase()}
+                                    </button>
+                                ))}
+                            </div>
+                            {/* Vale também pro automático de quem cair, por isso aparece mesmo com 0 bots. */}
+                            <div className="az-chave-desc az-desc-bot">{modeloBotPorId(modeloBot)?.descricao}</div>
+                        </div>
+                        <div>
                             <div className="az-px az-rotulo">CARTAS NA 1ª RODADA</div>
                             {seletor(OPCOES_CARTAS, roundStart, setRoundStart)}
                         </div>
@@ -347,6 +367,7 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
                         const tags = [
                             sala.chatAberto ? 'CHAT ABERTO' : 'SÓ FRASES',
                             sala.privada ? '🔒 PRIVADA' : null,
+                            modeloBotPorId(sala.modeloBot) ? `BOT ${modeloBotPorId(sala.modeloBot).nome.toUpperCase()}` : null,
                         ].filter(Boolean);
                         return (
                             <div key={sala.salaId} className="az-sala">

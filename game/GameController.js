@@ -19,9 +19,13 @@ import { escolherCarta, escolherAposta } from '../bots/BotBrain.js';
 const ATRASO_BOT_MS_SALA_ABANDONADA = 50;
 
 export class GameController extends EventEmitter {
-    constructor({ numberPlayers, roundStart, randomShuffle, maxDeck, seed, tempoTurnoMs, limiteInatividadeMs, atrasoBotMs, tempoReservaMs, pausaVazaMs, pausaRodadaMs } = {}) {
+    constructor({ numberPlayers, roundStart, randomShuffle, maxDeck, seed, modeloBot, tempoTurnoMs, limiteInatividadeMs, atrasoBotMs, tempoReservaMs, pausaVazaMs, pausaRodadaMs } = {}) {
         super();
         this.numberPlayers = numberPlayers || 4;
+        // Qual bot decide as jogadas automáticas desta sala (id de
+        // bots/modelosBot.js). Só bots/BotBrain.js lê; undefined = modelo
+        // padrão. A validação do id é da camada de sala (SalaManager).
+        this.modeloBot = modeloBot;
         this.roundStart = roundStart || 1;
         this.randomShuffle = randomShuffle;
         // Máximo de baralhos por rodada (ver Game.proximaRodada). Sem valor na

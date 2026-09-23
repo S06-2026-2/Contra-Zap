@@ -15,8 +15,13 @@ CK = RAIZ / "training" / "checkpoints"
 SAIDA = RAIZ / "bots" / "models"
 
 # (checkpoint, arquivo de saida, tem cabeca de carta?)
+# Cada rede de rodada >= 2 aqui vira uma opcao de bot na criacao de sala
+# (ver bots/modelosBot.js). Checkpoint ausente e pulado em silencio -- o
+# noite1_G, por exemplo, nao esta mais em checkpoints/, so o JSON dele.
 ALVOS = [
     (CK / "noite1_G.melhor.pt", SAIDA / "noite1.json", True),
+    (CK / "noite1_H.melhor.pt", SAIDA / "noite1H.json", True),
+    (CK / "noite1_slot01_4dias.melhor.pt", SAIDA / "slot01.json", True),
     (CK / "round1pbt_D.melhor.pt", SAIDA / "round1.json", False),
 ]
 
@@ -48,7 +53,7 @@ def exportar(ckpt_path, saida_path, com_carta):
     with open(saida_path, "w", encoding="utf-8") as f:
         json.dump(dados, f)
     kb = saida_path.stat().st_size / 1024
-    print(f"{ckpt_path.name:26s} -> {saida_path.relative_to(RAIZ)}  "
+    print(f"{ckpt_path.name:26s} -> {saida_path.resolve().relative_to(RAIZ)}  "
           f"(obs_dim={obs_dim}, hidden={hidden}, {kb:.0f} KB)")
 
 
