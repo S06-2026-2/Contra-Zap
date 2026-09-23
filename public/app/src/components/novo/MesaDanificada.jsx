@@ -70,7 +70,7 @@ function CorteNaMesa({ corte }) {
             style={{
                 left: `${corte.x}%`,
                 top: `${corte.y}%`,
-                transform: `translate(-50%, -50%) rotate(${corte.rot}deg) scale(${corte.escala})`,
+                transform: `translate(-50%, -50%) rotate(${corte.rot}deg) scale(${corte.escala}, ${corte.escala * (corte.arco ?? 1)})`,
             }}
         >
             {/* clip-path em % é relativo à própria caixa CSS do <svg>
@@ -124,7 +124,7 @@ function sortearPontoCentralMesa() {
 // com ESSE MESMO centro — ver CartaSimulada — pra cortar exatamente onde a
 // carta tinha pousado).
 function sortearGeometriaCorte(mesaRef, centroForcado) {
-    const variante = FACA_YAW_VARIANTES[Math.floor(Math.random() * FACA_YAW_VARIANTES.length)];
+    const variante = FACA_VARIANTES[Math.floor(Math.random() * FACA_VARIANTES.length)];
     const rot = variante.rotMin + Math.random() * (variante.rotMax - variante.rotMin);
     const escalaGolpe = 0.85 + Math.random() * 0.4;
     const centro = centroForcado ?? sortearPontoCentralMesa();
@@ -152,7 +152,15 @@ function sortearGeometriaCorte(mesaRef, centroForcado) {
     return {
         variante,
         rot,
+        yaw: yawDoCorte(rot),
         escalaGolpe,
+        // A lente sempre curva pro +y LOCAL; rotacionada por `rot`, isso
+        // dá barriga pra baixo na tela quando cos(rot) >= 0 (corte indo pra
+        // direita) e pra CIMA quando o corte vai pra esquerda. -1 espelha a
+        // lente no eixo local (scaleY negativo em CorteNaMesa) pra barriga
+        // ficar sempre pra baixo na tela — as duas direções de corte viram
+        // espelho uma da outra, e a faca (ver seguirArcoDoCorte) acompanha.
+        arco: Math.cos(rad) >= 0 ? 1 : -1,
         centro,
         pontoInicio: { x: centro.x - dxPct, y: centro.y - dyPct },
         pontoFim: { x: centro.x + dxPct, y: centro.y + dyPct },
@@ -163,27 +171,38 @@ function sortearGeometriaCorte(mesaRef, centroForcado) {
 // no corte e não dava a impressão de ser ELA cortando; agora pousa numa
 // PONTA da linha e desliza pela mesa até a outra ponta, com o corte se
 // desenhando NO MESMO RITMO do deslize — ver FACA_DESLIZE_MS == duração
-// do corte). Ângulo da peça em si vem dos dois testados na Carta
-// giratória — Pitch 141°/Yaw 240°/Roll 0° e o espelho Yaw 132° — mas o
-// ângulo do CORTE em si (`rot`, direção da linha na mesa) é sorteado à
-// parte por variante (ver FACA_YAW_VARIANTES: cada uma tem sua faixa de
+// do corte). O ângulo do CORTE em si (`rot`, direção da linha na mesa) é
+// sorteado por variante (ver FACA_VARIANTES: cada uma tem sua faixa de
 // rot), e as DUAS pontas da linha são calculadas geometricamente a partir
 // dele (ver cortarLugarAleatorio) — `driftSign` decide qual ponta é o
 // POUSO (de onde a faca "veio") e qual é o DESTINO do deslize.
-const FACA_YAW_VARIANTES = [
-    { yaw: 240, driftSign: -1, rotMin: 140, rotMax: 160 }, // pousa na ponta direita, desliza pra esquerda
-    { yaw: 132, driftSign: 1, rotMin: 20, rotMax: 40 }, // pousa na ponta esquerda, desliza pra direita
+const FACA_VARIANTES = [
+    { driftSign: -1, rotMin: 140, rotMax: 160 }, // pousa na ponta direita, desliza pra esquerda
+    { driftSign: 1, rotMin: 20, rotMax: 40 }, // pousa na ponta esquerda, desliza pra direita
 ];
+// Decresce até FACA_PITCH_POUSO durante a queda — ajuda a ler como "caindo".
 const FACA_PITCH_INICIAL = 141;
-// Decresce — é ISSO que lê como "caindo" (pedido do Henrique: "o ângulo
-// diminuir vai causar o efeito que está caindo"); fica FIXO nesse valor
-// durante todo o resto da coreografia (pouso, deslize, levantar).
-const FACA_PITCH_POUSO = 98;
+// Pose da faca cortando: quase em pé, ponta enfiada na mesa e cabo vindo na
+// direção de quem olha. Roll sempre 0 — ela cai reta.
+const FACA_PITCH_POUSO = 130;
+// O yaw (rotateY) gira a faca em torno do PRÓPRIO eixo da lâmina, então é
+// ele que decide pra que lado o FIO aponta na mesa. O fio é o eixo X local
+// da peça; depois de rotateX(p) rotateY(y) ele aparece na tela na direção
+// (cos y, sin p · sin y). Pra ficar paralelo ao deslize (`rot`, y da tela
+// crescendo pra baixo): tan y = tan rot / sin p — o atan2 abaixo escolhe o
+// ramo em que o fio aponta PRO MESMO lado do deslize, não pro oposto.
+function yawDoCorte(rot) {
+    const r = (rot * Math.PI) / 180;
+    const senoPitch = Math.sin((FACA_PITCH_POUSO * Math.PI) / 180);
+    return (Math.atan2(Math.sin(r), senoPitch * Math.cos(r)) * 180) / Math.PI;
+}
 const FACA_ESCALA_INICIAL = 3; // "super grande nesse ângulo"
 // Multiplicada por `escalaGolpe` (sorteado por golpe, mesmo fator que
 // escala o próprio corte — ver cortarLugarAleatorio) pra faca e corte
-// crescerem/encolherem sempre JUNTOS, nunca um maior que o outro.
-const FACA_ESCALA_POUSO_BASE = 1;
+// crescerem/encolherem sempre JUNTOS, nunca um maior que o outro. Mesmo
+// tamanho de uma carta jogada na mesa (SIM_VOO_ESCALA_POUSO) — encolher de
+// FACA_ESCALA_INICIAL até aqui é boa parte do efeito de queda.
+const FACA_ESCALA_POUSO_BASE = 0.6;
 const FACA_QUEDA_ALTURA_PX = 260;
 const FACA_DESLOCAMENTO_PX = 45; // flourish da queda, pequeno de propósito
 const FACA_LEVANTAR_PX = 70;
@@ -205,9 +224,65 @@ const FACA_ASSEMBLY_TOPO_PX = -220;
 // pontinha da lâmina, não a lâmina inteira. Fica assim o deslize INTEIRO
 // (ver fase 'cortando'), não só no instante do toque.
 const FACA_AFUNDAMENTO_PX = 46;
+// Onde a lâmina "entra" na mesa (a borda do clip afundado), medida a partir
+// do pivô do miolo — o meio da carta (154/2 = 77px, transform-origin
+// padrão). Enquanto ainda não afundou, os 46px da ponta ficam visíveis além
+// da linha; ao afundar (clip-path), é exatamente esse pedaço que some
+// "dentro" da mesa.
+const FACA_ENTRADA_NA_MESA_PX = 154 / 2 - FACA_ASSEMBLY_TOPO_PX - FACA_AFUNDAMENTO_PX;
+// == `perspective` de .mesa-exp-faca-caindo/.mesa-exp-carta-simulada (e do
+// palco da Carta giratória) em index.css.
+const FACA_PERSPECTIVA_PX = 700;
+
+// Onde a entrada da lâmina aparece NA TELA, em px, relativa ao ponto
+// ancorado em `pos` — pra empurrar o wrapper pelo inverso disso e a entrada
+// cair EXATAMENTE em cima da linha do corte. O pivô continua sendo o meio da
+// carta (em z=0, igual à Carta giratória): mudar o pivô pra ponta via
+// translateY jogaria o resto da faca pra perto da câmera e a perspectiva
+// deixaria ela enorme e com cara de deitada, diferente da pose testada.
+// Mesma composição do transform do miolo — scale
+// rotateX(pitch) rotateY(yaw) — aplicada no vetor (0, -E, 0) do pivô até a
+// entrada; rotateY não mexe nesse vetor (ele É o eixo do rotateY), então
+// yaw nem entra na conta. Depois projeta pela perspectiva (origem = pivô,
+// porque o wrapper tem o tamanho exato da carta).
+function entradaNaTela(escala, pitch) {
+    const e = FACA_ENTRADA_NA_MESA_PX * escala;
+    const p = (pitch * Math.PI) / 180;
+    const z = -e * Math.sin(p);
+    const fator = FACA_PERSPECTIVA_PX / (FACA_PERSPECTIVA_PX - z);
+    return { x: 0, y: -e * Math.cos(p) * fator };
+}
+
+// O corte não é reto: a linha do meio da lente (ver MESA_CORTE_LENTE) é a
+// média das duas quadráticas, ou seja, outra quadrática com controle em
+// (0, MESA_CORTE_CURVATURA) — no progresso t ela fica 2·t·(1−t)·CURVATURA
+// fora da reta entre as pontas (máximo no meio), na direção do +y local do
+// corte. Como o controle está em x=0, o x dela anda LINEAR com t, que é
+// exatamente o ritmo em que o corte se revela (clip-path, ease-in-out) e em
+// que a faca desliza (left/top, ease-in-out) — então o mesmo t serve pros
+// três. O deslize reto continua na transição de left/top; isto só SOMA o
+// desvio perpendicular por cima, via a propriedade `translate` (aplicada
+// por fora do `transform`, em px da mesa), com a MESMA duração/easing — os
+// quadros são amostrados em t linear e o easing do efeito inteiro converte
+// tempo em t igual à transição do deslize.
+const FACA_ARCO_AMOSTRAS = 20;
+function seguirArcoDoCorte(elemento, geometria) {
+    if (!elemento?.animate) return;
+    const r = (geometria.rot * Math.PI) / 180;
+    const perpX = -Math.sin(r) * geometria.arco;
+    const perpY = Math.cos(r) * geometria.arco;
+    const quadros = [];
+    for (let i = 0; i <= FACA_ARCO_AMOSTRAS; i++) {
+        const t = i / FACA_ARCO_AMOSTRAS;
+        const desvio = 2 * t * (1 - t) * MESA_CORTE_CURVATURA * geometria.escalaGolpe;
+        quadros.push({ translate: `${perpX * desvio}px ${perpY * desvio}px` });
+    }
+    elemento.animate(quadros, { duration: FACA_DESLIZE_MS, easing: 'ease-in-out' });
+}
 
 function FacaCaindo({ faca, onImpacto, onFim }) {
     const [fase, setFase] = useState('inicio');
+    const wrapperRef = useRef(null);
 
     useEffect(() => {
         let cancelado = false;
@@ -223,6 +298,7 @@ function FacaCaindo({ faca, onImpacto, onFim }) {
             // (FACA_DESLIZE_MS), então correm sincronizadas até o fim.
             setFase('cortando');
             onImpacto();
+            seguirArcoDoCorte(wrapperRef.current, faca);
             await esperar(FACA_DESLIZE_MS);
             if (cancelado) return;
             setFase('levantando');
@@ -264,15 +340,17 @@ function FacaCaindo({ faca, onImpacto, onFim }) {
         : fase === 'levantando' ? FACA_LEVANTAR_MS
         : 0;
     const clipTopoPx = FACA_ASSEMBLY_TOPO_PX + (afundada ? FACA_AFUNDAMENTO_PX : 0);
+    const entrada = entradaNaTela(escala, pitch);
 
     return (
         <div
+            ref={wrapperRef}
             className="mesa-exp-faca-caindo"
             style={{
                 left: `${pos.x}%`,
                 top: `${pos.y}%`,
                 transition: `left ${duracaoPosicao}ms ease-in-out, top ${duracaoPosicao}ms ease-in-out, transform ${duracaoPosicao}ms ease-in-out`,
-                transform: `translate(-50%, -50%) translate(${driftX}px, ${quedaY}px)`,
+                transform: `translate(-50%, -50%) translate(${driftX - entrada.x}px, ${quedaY - entrada.y}px)`,
             }}
         >
             <div
@@ -284,7 +362,7 @@ function FacaCaindo({ faca, onImpacto, onFim }) {
                     // duração da fase atual (queda, deslize ou subida).
                     transition: `transform ${duracaoPosicao}ms ease-in-out, opacity ${duracaoPosicao}ms ease-in-out, clip-path ${FACA_AFUNDAR_MS}ms ease-in-out`,
                     opacity: opacidade,
-                    transform: `scale(${escala}) rotateX(${pitch}deg) rotateY(${faca.variante.yaw}deg) rotateZ(0deg)`,
+                    transform: `scale(${escala}) rotateX(${pitch}deg) rotateY(${faca.yaw}deg) rotateZ(0deg)`,
                     clipPath: `inset(${clipTopoPx}px -300px -300px -300px)`,
                 }}
             >
@@ -325,12 +403,19 @@ const SIM_ORIGEM_RAIO_Y = 90;
 const SIM_CRESCIDA_DURACAO_MS = 550; // == VAZA_REVELACAO_TRANSICAO_MS (MesaExperimento.jsx)
 const SIM_CRESCIDA_ESCALA = 2.2;
 const SIM_CRESCIDA_PITCH_GRAUS = -14;
-const SIM_CRESCIDA_YAW_GRAUS = 360; // uma volta inteira — "dar uma girada" enquanto cresce
+const SIM_CRESCIDA_ROT_GRAUS = -90; // deitada na horizontal (lâmina pra esquerda) enquanto fica grande na tela
+// O conjunto inteiro vai de -220px (ponta da lâmina) a +247px (fim do cabo)
+// na origem do miolo, então o meio da FACA fica em y=13.5px, 63.5px acima
+// do meio da CARTA (y=77, onde o transform-origin padrão pivota). Enquanto
+// está grande na tela, esse translateY (aplicado antes das rotações/escala)
+// leva o meio da faca pro pivô, então é ela que fica centralizada e gira em
+// torno do próprio centro, não a carta.
+const SIM_CRESCIDA_CENTRO_FACA_PX = 63.5;
 // Fração da JANELA (não da mesa — mesma ideia de VAZA_REVELACAO_*_FRACAO em
 // MesaExperimento.jsx), onde a carta cresce até parar.
 const SIM_CRESCIDA_X_FRACAO = 0.5;
-const SIM_CRESCIDA_Y_FRACAO = 0.42;
-const SIM_SEGURAR_MS = 400; // pedido explícito do Henrique: "ele vai segurar uns 400ms"
+const SIM_CRESCIDA_Y_FRACAO = 0.48;
+const SIM_SEGURAR_MS = 600;
 const SIM_DESCIDA_DURACAO_MS = FACA_QUEDA_MS; // mesma sensação de queda da faca de verdade
 // Um pouco mais que FACA_LEVANTAR_MS: dá tempo da espada recolher (transição
 // de .35s em index.css, ver .carta-giro3d-extra-oculta) terminar ANTES da
@@ -369,6 +454,12 @@ function CartaSimulada({ mesaRef, onCortar, onFim }) {
     const [pousoJogada] = useState(sortearPontoCentralMesa);
     const [giroInicial] = useState(() => 360 + Math.random() * 360);
     const [rotFinalJogada] = useState(() => Math.random() * 360);
+    // A girada da crescida é no próprio plano da tela (rotateZ): sai de
+    // rotFinalJogada e gira pra frente (menos de uma volta) até parar
+    // deitada em SIM_CRESCIDA_ROT_GRAUS. `voltasZ` é o múltiplo de 360 onde ela termina
+    // "em pé" — as fases seguintes partem dele (em vez de 0) pra não
+    // desenrolar todas essas voltas de novo ao descer/pousar.
+    const [voltasZ] = useState(() => 360 * Math.ceil((rotFinalJogada - SIM_CRESCIDA_ROT_GRAUS) / 360));
     const [rotFinalPouso] = useState(() => (Math.random() * 2 - 1) * SIM_POUSO_FINAL_ROT_MAX_GRAUS);
     // Só a queda pro corte e a geometria do corte em si dependem de valores
     // sorteados NO MEIO da coreografia (não no mount, como os de cima) —
@@ -377,6 +468,7 @@ function CartaSimulada({ mesaRef, onCortar, onFim }) {
     // dispara o render).
     const empurraoRef = useRef({ x: 0, y: 0 });
     const geometriaRef = useRef(null);
+    const wrapperRef = useRef(null);
 
     useEffect(() => {
         let cancelado = false;
@@ -405,6 +497,7 @@ function CartaSimulada({ mesaRef, onCortar, onFim }) {
 
             setFase('cortando');
             onCortar(geometriaRef.current);
+            seguirArcoDoCorte(wrapperRef.current, geometriaRef.current);
             await esperar(FACA_DESLIZE_MS);
             if (cancelado) return;
 
@@ -432,6 +525,7 @@ function CartaSimulada({ mesaRef, onCortar, onFim }) {
     let pitch = 0;
     let yaw = 0;
     let rotZ = 0;
+    let pivoY = 0;
     let extraVisivel = false;
     let afundada = false;
     let escurecendo = false;
@@ -447,7 +541,8 @@ function CartaSimulada({ mesaRef, onCortar, onFim }) {
         offsetY = empurraoRef.current.y;
         escala = SIM_CRESCIDA_ESCALA;
         pitch = SIM_CRESCIDA_PITCH_GRAUS;
-        yaw = SIM_CRESCIDA_YAW_GRAUS;
+        rotZ = voltasZ + SIM_CRESCIDA_ROT_GRAUS;
+        pivoY = SIM_CRESCIDA_CENTRO_FACA_PX;
         extraVisivel = true;
         escurecendo = true;
         duracaoPos = fase === 'subindo' ? SIM_CRESCIDA_DURACAO_MS : 0;
@@ -455,14 +550,16 @@ function CartaSimulada({ mesaRef, onCortar, onFim }) {
         pos = geometria.pontoInicio;
         escala = FACA_ESCALA_POUSO_BASE * geometria.escalaGolpe;
         pitch = FACA_PITCH_POUSO;
-        yaw = geometria.variante.yaw;
+        yaw = geometria.yaw;
+        rotZ = voltasZ;
         extraVisivel = true;
         duracaoPos = SIM_DESCIDA_DURACAO_MS;
     } else if (fase === 'cortando') {
         pos = geometria.pontoFim;
         escala = FACA_ESCALA_POUSO_BASE * geometria.escalaGolpe;
         pitch = FACA_PITCH_POUSO;
-        yaw = geometria.variante.yaw;
+        yaw = geometria.yaw;
+        rotZ = voltasZ;
         extraVisivel = true;
         afundada = true;
         duracaoPos = FACA_DESLIZE_MS;
@@ -470,24 +567,40 @@ function CartaSimulada({ mesaRef, onCortar, onFim }) {
         pos = geometria.pontoFim;
         offsetY = -FACA_LEVANTAR_PX;
         escala = SIM_VOO_ESCALA_POUSO;
+        rotZ = voltasZ;
         duracaoPos = SIM_LEVANTAR_DURACAO_MS;
     } else { // 'pousando-final' ou 'pousada'
         pos = geometria.pontoFim;
         escala = SIM_VOO_ESCALA_POUSO;
-        rotZ = rotFinalPouso;
+        rotZ = voltasZ + rotFinalPouso;
         duracaoPos = fase === 'pousando-final' ? SIM_POUSO_FINAL_DURACAO_MS : 0;
     }
 
     const clipTopoPx = FACA_ASSEMBLY_TOPO_PX + (afundada ? FACA_AFUNDAMENTO_PX : 0);
+    // Mesma correção de FacaCaindo (ver entradaNaTela) — só enquanto é faca
+    // na mesa (descendo/cortando); nas outras fases ela é carta.
+    if (fase === 'descendo' || fase === 'cortando') {
+        const entrada = entradaNaTela(escala, pitch);
+        offsetX -= entrada.x;
+        offsetY -= entrada.y;
+    }
 
     return (
         <>
             {/* MESMA classe da revelação de fim de vaza real (ver index.css)
                 — escurece a tela inteira enquanto a carta está grande, fica
                 montado o tempo todo pra ter como animar de volta pra
-                transparente (ver comentário dela em index.css). */}
-            <div className={`mesa-exp-vaza-overlay${escurecendo ? ' mesa-exp-vaza-overlay-escuro' : ''}`} />
+                transparente (ver comentário dela em index.css). Como a
+                CartaSimulada nunca desmonta (fica pousada na mesa), o
+                overlay só captura clique enquanto está escuro — senão
+                ficaria uma camada invisível (z-index 46) por cima dos
+                botões pra sempre. */}
             <div
+                className={`mesa-exp-vaza-overlay${escurecendo ? ' mesa-exp-vaza-overlay-escuro' : ''}`}
+                style={{ pointerEvents: escurecendo ? 'auto' : 'none' }}
+            />
+            <div
+                ref={wrapperRef}
                 className="mesa-exp-carta-simulada"
                 style={{
                     left: `${pos.x}%`,
@@ -500,7 +613,12 @@ function CartaSimulada({ mesaRef, onCortar, onFim }) {
                     className="carta-giro3d-miolo"
                     style={{
                         transition: `transform ${duracaoPos}ms ease-in-out, clip-path ${FACA_AFUNDAR_MS}ms ease-in-out`,
-                        transform: `scale(${escala}) rotateX(${pitch}deg) rotateY(${yaw}deg) rotateZ(${rotZ}deg)`,
+                        // translateY sempre presente (0 fora da crescida) —
+                        // a lista de funções precisa ser a mesma em toda
+                        // fase pro navegador interpolar função a função;
+                        // se mudasse, cairia em interpolação de matriz e o
+                        // giro de voltas inteiras do rotateZ viraria "nenhum giro".
+                        transform: `scale(${escala}) rotateX(${pitch}deg) rotateY(${yaw}deg) rotateZ(${rotZ}deg) translateY(${pivoY}px)`,
                         clipPath: `inset(${clipTopoPx}px -300px -300px -300px)`,
                     }}
                 >
@@ -549,6 +667,7 @@ export default function MesaDanificada({ onVoltar }) {
                 y: faca.centro.y,
                 rot: faca.rot,
                 escala: faca.escalaGolpe,
+                arco: faca.arco,
                 // A MESMA duração do deslize (ver FacaCaindo) — é isso que
                 // faz o corte se desenhar no ritmo exato da faca
                 // arrastando de ponta a ponta.
