@@ -1475,16 +1475,35 @@ button.secundario {
     filter: drop-shadow(0 1px 0 rgba(255, 255, 255, .12));
 }
 
-.mesa-exp-cortar-botao {
+/* Container dos botões de teste do rodapé (pedido do Henrique: um segundo
+   botão AO LADO do "Cortar a mesa") — o posicionamento fixo/centralizado
+   que antes vivia só em .mesa-exp-cortar-botao mudou pra cá, um nível
+   acima; os botões em si viram itens de um flex row comum. */
+.mesa-exp-botoes-teste {
     position: fixed;
     left: 50%;
     bottom: 20px;
     transform: translateX(-50%);
     z-index: 43;
+    display: flex;
+    gap: 14px;
+}
+
+.mesa-exp-cortar-botao {
     padding: 12px 28px;
     font-size: 16px;
     border-radius: 10px;
     box-shadow: 0 6px 16px rgba(0, 0, 0, .45);
+}
+
+/* Botão da jogada simulada — mesma forma do de cortar, só com um tom mais
+   próximo do metal do punhal (ver --metal-punhal) pra sinalizar que é OUTRA
+   coisa antes mesmo de ler o texto. Desabilitado enquanto a coreografia
+   inteira (ver CartaSimulada) ainda está rolando, pra não deixar empilhar
+   duas ao mesmo tempo brigando pelo centro da tela. */
+.mesa-exp-simular-botao {
+    background: linear-gradient(180deg, #eef2f5, #9aa1a7);
+    color: #1c1f22;
 }
 
 /* Faca caindo (pedido do Henrique 2026-09-21, v2: pousa numa PONTA da
@@ -1503,6 +1522,20 @@ button.secundario {
     position: absolute;
     perspective: 700px;
     pointer-events: none;
+}
+
+/* Jogada simulada (ver CartaSimulada em MesaDanificada.jsx) — mesma base de
+   .mesa-exp-faca-caindo (posicionada em % dentro da mesa, projeção 3D
+   própria), mas com z-index alto o bastante pra atravessar o escurecido de
+   .mesa-exp-vaza-overlay (z-index 46, MESMA classe da revelação de vaza,
+   reaproveitada aqui) durante as fases 'subindo'/'segurando'/'descendo' —
+   sem isso a carta cresceria escondida ATRÁS do próprio escurecido que ela
+   mesma dispara. */
+.mesa-exp-carta-simulada {
+    position: absolute;
+    perspective: 700px;
+    pointer-events: none;
+    z-index: 47;
 }
 
 /* .carta-giro3d-miolo dentro dela: clip-path inset(topoPx ...) com
@@ -2378,6 +2411,30 @@ button.secundario {
    contínuo se ela não estivesse lá no meio, então o metal "por trás dela"
    sempre bate, dando a impressão de ser uma peça inteira só, mesmo com a
    carta cortando a peça ao meio. */
+/* Transição de revelar/recolher (pedido do Henrique, jogada simulada em
+   MesaDanificada.jsx — ver CartaSimulada): as três peças ficam sempre
+   montadas no DOM (ver PunhalAssembly.jsx), só opacity+scale mudam, pra dar
+   tempo de um fade suave em vez do toggle seco que só condicionar o render
+   dava. transform-origin em cada uma fica na ARESTA que gruda na carta
+   (lâmina cresce/encolhe a partir de baixo, guarda/cabo a partir de cima) —
+   sem isso o scale "puxaria" a peça pro centro dela mesma, descolando
+   visualmente do resto do punhal enquanto anima. */
+.carta-giro3d-lamina,
+.carta-giro3d-guarda,
+.carta-giro3d-cabo {
+    transition: opacity .35s ease, transform .35s ease;
+    opacity: 1;
+    transform: scaleY(1);
+}
+.carta-giro3d-lamina { transform-origin: center bottom; }
+.carta-giro3d-guarda,
+.carta-giro3d-cabo { transform-origin: center top; }
+
+.carta-giro3d-extra-oculta {
+    opacity: 0;
+    transform: scaleY(.4);
+}
+
 .carta-giro3d-lamina {
     position: absolute;
     left: 0;

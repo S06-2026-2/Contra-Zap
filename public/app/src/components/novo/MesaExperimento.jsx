@@ -64,6 +64,14 @@ const MELADA_CANTO_ESPACAMENTO_PX = 10;
 const MELADA_GRUPO_ESPACAMENTO_PX = 60;
 const MELADA_PRIMEIRO_GRUPO_EXTRA_PX = 20;
 
+// Bot de verdade (bots/Bot.js sempre nomeia "Bot N" e nunca entra em
+// `desconectados`) ou humano jogando no automático (entra em
+// `desconectados`) — os dois ganham o visual de robozinho e a tag.
+function assentoEhBot(nome, desconectados) {
+    if (!nome) return false;
+    return /^Bot \d+$/.test(nome) || (desconectados ?? []).includes(nome);
+}
+
 function esperar(ms) {
     return new Promise((resolver) => setTimeout(resolver, ms));
 }
@@ -1232,12 +1240,16 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     // primeira vez" que o Henrique reportou.
     useEffect(() => {
         if (estado.numeroRodada === rodadaProcessadaRef.current) return;
-        if (estado.cartasRodada > 0 && estado.mao.length === 0) return;
+        // Eliminado não recebe suaMao (o servidor só dá carta pra quem está
+        // vivo) — esperar a mão aqui travaria a rodada pra sempre pra quem
+        // ficou assistindo. Nesse caso numeroRodada sozinho já é o sinal.
+        const euEliminado = (estado.eliminados ?? []).includes(estado.meuNome);
+        if (!euEliminado && estado.cartasRodada > 0 && estado.mao.length === 0) return;
         if (revelacaoVazaAtivaRef.current || danoRodadaAtivoRef.current || mortesAtivasRef.current > 0) return;
         rodadaProcessadaRef.current = estado.numeroRodada;
         iniciarRodadaNova();
         // eslint-disable-next-line react-hooks/exhaustive-deps -- iniciarRodadaNova fecha sobre ordemAssentos/assentos atuais, recriada a cada render — não precisa entrar nas deps porque só disparamos pela mudança de numeroRodada/mao
-    }, [estado.numeroRodada, estado.mao, estado.cartasRodada, revelacaoVazaAtiva, danoRodadaAtivo, mortesAtivas]);
+    }, [estado.numeroRodada, estado.mao, estado.cartasRodada, estado.eliminados, revelacaoVazaAtiva, danoRodadaAtivo, mortesAtivas]);
 
     // Vira: dispara assim que `estado.vira` chegar E a distribuição já
     // tiver terminado — se `distribuindoRef` ainda estiver true, este MESMO
@@ -1335,8 +1347,14 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
 
         const cartas = estado.cartasRodada;
         const suasCartas = estado.mao.map(lerCarta).filter(Boolean);
-        const comIndice = assentos.map((assento, indice) => ({ ...assento, indice }));
-        const ordem = [...comIndice.filter((a) => !a.eVoce).reverse(), comIndice[0]].filter(Boolean);
+        // Assento de quem já foi eliminado continua na mesa (o fantasminha
+        // morto fica lá), mas não recebe carta — o baralho pula direto pro
+        // próximo vivo.
+        const eliminados = new Set(estado.eliminados ?? []);
+        const comIndice = assentos
+            .map((assento, indice) => ({ ...assento, indice }))
+            .filter((a) => !eliminados.has(ordemAssentos[a.indice]?.nome));
+        const ordem = [...comIndice.filter((a) => !a.eVoce).reverse(), ...comIndice.filter((a) => a.eVoce)];
 
         for (const assento of ordem) {
             setAlvoIndex(assento.indice);
@@ -2104,7 +2122,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                     const rotuloAssento = assento.eVoce ? 'Você' : nomeAssento ?? '';
                     const destacado = cartaEmHover?.jogador === nomeAssento || assentoEmHoverIndex === i;
                     const bolha = [...bolhasFala].reverse().find((b) => b.assentoIndex === i);
-                    const ehBot = !assento.eVoce && (estado.desconectados ?? []).includes(nomeAssento);
+                    const ehBot = !assento.eVoce && assentoEhBot(nomeAssento, estado.desconectados);
                     const apostaDele = !assento.eVoce ? estado.apostas?.[nomeAssento] ?? null : null;
                     const naVez = turnoAssentoIndex === i;
                     const ladoFichas = assento.x < 50 ? 'esquerda' : 'direita';
@@ -2466,7 +2484,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                                 hue={huesPorAssento[jogoVencedorIndice]}
                                 chapeu={chapeusPorAssento[jogoVencedorIndice].src}
                                 ajusteChapeuPct={chapeusPorAssento[jogoVencedorIndice].ajuste}
-                                bot={jogoVencedorIndice === 0 ? false : (estado.desconectados ?? []).includes(ordemAssentos[jogoVencedorIndice]?.nome)}
+                                bot={jogoVencedorIndice === 0 ? false : assentoEhBot(ordemAssentos[jogoVencedorIndice]?.nome, estado.desconectados)}
                                 monitor
                             />
                         </div>

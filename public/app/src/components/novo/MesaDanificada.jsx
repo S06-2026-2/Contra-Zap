@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import Carta from './Carta.jsx';
+import PunhalAssembly from './PunhalAssembly.jsx';
 
 // Sandbox isolada (pedido do Henrique 2026-09-21): a mesma "sala" visual
 // de MesaExperimento.jsx, mas só fundo+mesa — sem fantasminhas, cartas,
@@ -101,6 +101,62 @@ function CorteNaMesa({ corte }) {
 
 function esperar(ms) {
     return new Promise((resolver) => setTimeout(resolver, ms));
+}
+
+// "Lugar aleatório" fica numa faixa central (20-80% x, 22-78% y) em vez de
+// 0-100% — mesmo com o overflow:hidden+border-radius:inherit de
+// .mesa-exp-danos escondendo qualquer sobra fora do contorno oval, um corte
+// sorteado bem na quina ainda ficaria com metade dele cortado fora de vista;
+// a faixa central garante que a lente inteira sempre caiba dentro da mesa.
+// Extraído de cortarLugarAleatorio (era só uma variável local ali) porque a
+// jogada simulada (ver CartaSimulada) precisa do MESMO centro pra pousar a
+// carta jogada e, mais tarde, pra cortar a mesa nesse ponto.
+function sortearPontoCentralMesa() {
+    return { x: 20 + Math.random() * 60, y: 22 + Math.random() * 56 };
+}
+
+// Geometria completa de UM golpe de corte — variante/ângulo/escala/pontas —
+// sem efeito colateral nenhum (não mexe em estado, só calcula e devolve).
+// Extraído de cortarLugarAleatorio pra poder ser chamado de dois lugares: o
+// botão manual (`centroForcado` omitido, sorteia um centro novo) e a jogada
+// simulada (que primeiro pousa a carta jogada num centro, ver
+// sortearPontoCentralMesa, e só depois de crescer/seguar chama isto de novo
+// com ESSE MESMO centro — ver CartaSimulada — pra cortar exatamente onde a
+// carta tinha pousado).
+function sortearGeometriaCorte(mesaRef, centroForcado) {
+    const variante = FACA_YAW_VARIANTES[Math.floor(Math.random() * FACA_YAW_VARIANTES.length)];
+    const rot = variante.rotMin + Math.random() * (variante.rotMax - variante.rotMin);
+    const escalaGolpe = 0.85 + Math.random() * 0.4;
+    const centro = centroForcado ?? sortearPontoCentralMesa();
+
+    // dxPct/dyPct: meio-comprimento do corte (px reais, escalado) convertido
+    // pra % de CADA EIXO separado (largura/altura da mesa não são iguais —
+    // a mesa é bem mais larga que alta), senão o ângulo `rot` desenhado na
+    // tela não bateria com o ângulo usado aqui pra calcular as pontas.
+    const retMesa = mesaRef.current?.getBoundingClientRect();
+    const larguraMesaPx = retMesa?.width || 1080;
+    const alturaMesaPx = retMesa?.height || 400;
+    const metadePx = MESA_CORTE_METADE_COMPRIMENTO * escalaGolpe;
+    const rad = (rot * Math.PI) / 180;
+    const dxPct = ((metadePx * Math.cos(rad)) / larguraMesaPx) * 100;
+    const dyPct = ((metadePx * Math.sin(rad)) / alturaMesaPx) * 100;
+    // pontoA é sempre o lado -70 do espaço local da lente (mesmo -70 que
+    // MESA_CORTE_LENTE usa, ver CorteNaMesa) e pontoB o lado +70 — só isso,
+    // sem precisar comparar qual é esquerda/direita: os rotMin/rotMax de
+    // cada variante já foram escolhidos pra manter cos(rot) com sinal
+    // CONSTANTE dentro da própria faixa (nunca cruza 90°/270°), então
+    // "pontoA" cai sempre do lado que combina com driftSign daquela
+    // variante (testado nas duas: 150° dá pontoA à direita, 30° dá pontoA à
+    // esquerda — sempre onde a faca deveria pousar). pontoA = pouso, pontoB
+    // = destino do deslize, sempre nessa ordem.
+    return {
+        variante,
+        rot,
+        escalaGolpe,
+        centro,
+        pontoInicio: { x: centro.x - dxPct, y: centro.y - dyPct },
+        pontoFim: { x: centro.x + dxPct, y: centro.y + dyPct },
+    };
 }
 
 // Faca caindo (pedido do Henrique 2026-09-21, v2 — a v1 caía centralizada
@@ -232,34 +288,242 @@ function FacaCaindo({ faca, onImpacto, onFim }) {
                     clipPath: `inset(${clipTopoPx}px -300px -300px -300px)`,
                 }}
             >
-                <div className="carta-giro3d-face">
-                    <Carta rank="A" naipe="Espadas" efeitoManilha />
-                </div>
-                <div className="carta-giro3d-face carta-giro3d-face-verso">
-                    <Carta virada />
-                </div>
-                <div className="carta-giro3d-lamina">
-                    <span className="carta-giro3d-rebite carta-giro3d-rebite-lamina-esq" />
-                    <span className="carta-giro3d-rebite carta-giro3d-rebite-lamina-dir" />
-                </div>
-                <div className="carta-giro3d-guarda">
-                    <span className="carta-giro3d-rebite carta-giro3d-rebite-guarda-esq" />
-                    <span className="carta-giro3d-rebite carta-giro3d-rebite-guarda-dir" />
-                </div>
-                <div className="carta-giro3d-cabo">
-                    <span className="carta-giro3d-rebite carta-giro3d-rebite-cabo-cima" />
-                    <span className="carta-giro3d-rebite carta-giro3d-rebite-cabo-baixo" />
-                </div>
+                <PunhalAssembly />
             </div>
         </div>
+    );
+}
+
+// Jogada simulada (pedido do Henrique 2026-09-22): não é um sistema novo de
+// verdade, é PONTE entre três que já existiam cada um do seu lado —
+//   1) o voo de carta jogada (CartaVoando, MesaExperimento.jsx) — aqui
+//      reduzido a girar/encolher em 2D indo de fora da mesa até um ponto
+//      central, sem servidor nem assento de jogador nenhum por trás;
+//   2) o crescer-e-escurecer de fim de vaza (CartaRevelando +
+//      .mesa-exp-vaza-overlay, MESMA classe CSS reaproveitada aqui sem
+//      mudar nada nela) — é o que faz a carta "sair da mesa, crescer, a
+//      tela ficar escura";
+//   3) o corte de verdade (FacaCaindo/CorteNaMesa, ACIMA nesta tela) —
+//      reaproveitado chamando sortearGeometriaCorte/aoCortar com o MESMO
+//      centro onde a carta simulada pousou, então o corte sai exatamente
+//      de baixo dela.
+// A única coisa literalmente NOVA é o meio de campo: a carta jogada vira o
+// punhal crescendo (revela lâmina/guarda/cabo com a transição suave de
+// PunhalAssembly/.carta-giro3d-extra-oculta, em vez do toggle seco que só
+// CartaGiratoria tinha), segura firme um instante grande e escuro, desce pro
+// mesmo pouso/ângulo que FacaCaindo usaria e, depois de cortar, faz o
+// INVERSO de FacaCaindo (que só some): sobe, RECOLHE a espada de volta pra
+// carta e pousa de novo na mesa — fica ali pra sempre, mesma lógica dos
+// cortes (registro visual do que aconteceu, ver .mesa-exp-corte-mesa).
+const SIM_VOO_DURACAO_MS = 620; // mesmo espírito de DURACAO_JOGADA_MS (MesaExperimento.jsx)
+const SIM_VOO_ESCALA_INICIAL = 0.34; // == ESCALA_CARTA_JOGADA_INICIAL de lá
+const SIM_VOO_ESCALA_POUSO = 0.6; // == ESCALA_CARTA_JOGADA_FINAL de lá
+// Raio > 50 (borda da mesa, em %) de propósito — a carta nasce FORA da
+// elipse, como se tivesse vindo de um jogador sentado ali, e voa pra dentro.
+const SIM_ORIGEM_RAIO_X = 85;
+const SIM_ORIGEM_RAIO_Y = 90;
+const SIM_CRESCIDA_DURACAO_MS = 550; // == VAZA_REVELACAO_TRANSICAO_MS (MesaExperimento.jsx)
+const SIM_CRESCIDA_ESCALA = 2.2;
+const SIM_CRESCIDA_PITCH_GRAUS = -14;
+const SIM_CRESCIDA_YAW_GRAUS = 360; // uma volta inteira — "dar uma girada" enquanto cresce
+// Fração da JANELA (não da mesa — mesma ideia de VAZA_REVELACAO_*_FRACAO em
+// MesaExperimento.jsx), onde a carta cresce até parar.
+const SIM_CRESCIDA_X_FRACAO = 0.5;
+const SIM_CRESCIDA_Y_FRACAO = 0.42;
+const SIM_SEGURAR_MS = 400; // pedido explícito do Henrique: "ele vai segurar uns 400ms"
+const SIM_DESCIDA_DURACAO_MS = FACA_QUEDA_MS; // mesma sensação de queda da faca de verdade
+// Um pouco mais que FACA_LEVANTAR_MS: dá tempo da espada recolher (transição
+// de .35s em index.css, ver .carta-giro3d-extra-oculta) terminar ANTES da
+// carta pousar de vez, em vez das duas coisas baterem no mesmo instante.
+const SIM_LEVANTAR_DURACAO_MS = 420;
+const SIM_POUSO_FINAL_DURACAO_MS = 260;
+const SIM_POUSO_FINAL_ROT_MAX_GRAUS = 18; // pequena inclinação 2D, só pra não pousar sempre quadradinha
+
+function sortearOrigemJogador() {
+    const angulo = Math.random() * Math.PI * 2;
+    return { x: 50 + SIM_ORIGEM_RAIO_X * Math.cos(angulo), y: 50 + SIM_ORIGEM_RAIO_Y * Math.sin(angulo) };
+}
+
+// Empurrão (em PX de tela) que faz a carta — ainda ANCORADA em % dentro da
+// mesa (ver `pos` no render de CartaSimulada) — parecer ter saltado pro
+// centro da JANELA. Por que empurrão via transform e não position:fixed:
+// trocar o TIPO de posicionamento no meio da coreografia quebraria a
+// transição CSS (left/top em % e em px não são a mesma unidade pro
+// navegador interpolar, viraria um salto seco); assim o elemento nunca muda
+// de sistema de coordenadas, só de quanto translate() empurra em cima dele.
+function calcularEmpurraoParaCentroDaTela(mesaRef, pontoPercentual) {
+    const rect = mesaRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    const ancoraX = rect.left + (rect.width * pontoPercentual.x) / 100;
+    const ancoraY = rect.top + (rect.height * pontoPercentual.y) / 100;
+    return {
+        x: window.innerWidth * SIM_CRESCIDA_X_FRACAO - ancoraX,
+        y: window.innerHeight * SIM_CRESCIDA_Y_FRACAO - ancoraY,
+    };
+}
+
+function CartaSimulada({ mesaRef, onCortar, onFim }) {
+    const [fase, setFase] = useState('jogando');
+    const [partiu, setPartiu] = useState(false);
+    const [origem] = useState(sortearOrigemJogador);
+    const [pousoJogada] = useState(sortearPontoCentralMesa);
+    const [giroInicial] = useState(() => 360 + Math.random() * 360);
+    const [rotFinalJogada] = useState(() => Math.random() * 360);
+    const [rotFinalPouso] = useState(() => (Math.random() * 2 - 1) * SIM_POUSO_FINAL_ROT_MAX_GRAUS);
+    // Só a queda pro corte e a geometria do corte em si dependem de valores
+    // sorteados NO MEIO da coreografia (não no mount, como os de cima) —
+    // ref porque não precisam disparar re-render sozinhos, só são lidos
+    // depois que a fase que os usa já trocou (o setFase ao lado é que
+    // dispara o render).
+    const empurraoRef = useRef({ x: 0, y: 0 });
+    const geometriaRef = useRef(null);
+
+    useEffect(() => {
+        let cancelado = false;
+        async function coreografia() {
+            await new Promise((r) => requestAnimationFrame(r));
+            if (cancelado) return;
+            setPartiu(true); // dispara o voo: da origem até pousoJogada
+            await esperar(SIM_VOO_DURACAO_MS);
+            if (cancelado) return;
+
+            empurraoRef.current = calcularEmpurraoParaCentroDaTela(mesaRef, pousoJogada);
+            setFase('subindo'); // sai da mesa, cresce, revela a espada, escurece a tela
+            await esperar(SIM_CRESCIDA_DURACAO_MS);
+            if (cancelado) return;
+
+            setFase('segurando');
+            await esperar(SIM_SEGURAR_MS);
+            if (cancelado) return;
+
+            // Corta EXATAMENTE onde a carta tinha pousado (mesmo pousoJogada
+            // como centro) — o golpe sai de baixo do lugar onde ela cresceu.
+            geometriaRef.current = sortearGeometriaCorte(mesaRef, pousoJogada);
+            setFase('descendo'); // desce até o pouso do corte, clareia a tela de novo
+            await esperar(SIM_DESCIDA_DURACAO_MS);
+            if (cancelado) return;
+
+            setFase('cortando');
+            onCortar(geometriaRef.current);
+            await esperar(FACA_DESLIZE_MS);
+            if (cancelado) return;
+
+            setFase('levantando'); // sobe e recolhe a espada (oposto de FacaCaindo, que só sumiria)
+            await esperar(SIM_LEVANTAR_DURACAO_MS);
+            if (cancelado) return;
+
+            setFase('pousando-final');
+            await esperar(SIM_POUSO_FINAL_DURACAO_MS);
+            if (cancelado) return;
+
+            setFase('pousada'); // fica assim pra sempre, mesma lógica dos cortes
+            onFim();
+        }
+        coreografia();
+        return () => { cancelado = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- mesaRef/pousoJogada/onCortar/onFim são fixos por instância (cada jogada simulada roda uma vez só)
+    }, []);
+
+    const geometria = geometriaRef.current;
+    let pos = pousoJogada;
+    let offsetX = 0;
+    let offsetY = 0;
+    let escala = SIM_VOO_ESCALA_POUSO;
+    let pitch = 0;
+    let yaw = 0;
+    let rotZ = 0;
+    let extraVisivel = false;
+    let afundada = false;
+    let escurecendo = false;
+    let duracaoPos = 0;
+
+    if (fase === 'jogando') {
+        pos = partiu ? pousoJogada : origem;
+        escala = partiu ? SIM_VOO_ESCALA_POUSO : SIM_VOO_ESCALA_INICIAL;
+        rotZ = partiu ? rotFinalJogada : rotFinalJogada + giroInicial;
+        duracaoPos = partiu ? SIM_VOO_DURACAO_MS : 0;
+    } else if (fase === 'subindo' || fase === 'segurando') {
+        offsetX = empurraoRef.current.x;
+        offsetY = empurraoRef.current.y;
+        escala = SIM_CRESCIDA_ESCALA;
+        pitch = SIM_CRESCIDA_PITCH_GRAUS;
+        yaw = SIM_CRESCIDA_YAW_GRAUS;
+        extraVisivel = true;
+        escurecendo = true;
+        duracaoPos = fase === 'subindo' ? SIM_CRESCIDA_DURACAO_MS : 0;
+    } else if (fase === 'descendo') {
+        pos = geometria.pontoInicio;
+        escala = FACA_ESCALA_POUSO_BASE * geometria.escalaGolpe;
+        pitch = FACA_PITCH_POUSO;
+        yaw = geometria.variante.yaw;
+        extraVisivel = true;
+        duracaoPos = SIM_DESCIDA_DURACAO_MS;
+    } else if (fase === 'cortando') {
+        pos = geometria.pontoFim;
+        escala = FACA_ESCALA_POUSO_BASE * geometria.escalaGolpe;
+        pitch = FACA_PITCH_POUSO;
+        yaw = geometria.variante.yaw;
+        extraVisivel = true;
+        afundada = true;
+        duracaoPos = FACA_DESLIZE_MS;
+    } else if (fase === 'levantando') {
+        pos = geometria.pontoFim;
+        offsetY = -FACA_LEVANTAR_PX;
+        escala = SIM_VOO_ESCALA_POUSO;
+        duracaoPos = SIM_LEVANTAR_DURACAO_MS;
+    } else { // 'pousando-final' ou 'pousada'
+        pos = geometria.pontoFim;
+        escala = SIM_VOO_ESCALA_POUSO;
+        rotZ = rotFinalPouso;
+        duracaoPos = fase === 'pousando-final' ? SIM_POUSO_FINAL_DURACAO_MS : 0;
+    }
+
+    const clipTopoPx = FACA_ASSEMBLY_TOPO_PX + (afundada ? FACA_AFUNDAMENTO_PX : 0);
+
+    return (
+        <>
+            {/* MESMA classe da revelação de fim de vaza real (ver index.css)
+                — escurece a tela inteira enquanto a carta está grande, fica
+                montado o tempo todo pra ter como animar de volta pra
+                transparente (ver comentário dela em index.css). */}
+            <div className={`mesa-exp-vaza-overlay${escurecendo ? ' mesa-exp-vaza-overlay-escuro' : ''}`} />
+            <div
+                className="mesa-exp-carta-simulada"
+                style={{
+                    left: `${pos.x}%`,
+                    top: `${pos.y}%`,
+                    transition: `left ${duracaoPos}ms ease-in-out, top ${duracaoPos}ms ease-in-out, transform ${duracaoPos}ms ease-in-out`,
+                    transform: `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px)`,
+                }}
+            >
+                <div
+                    className="carta-giro3d-miolo"
+                    style={{
+                        transition: `transform ${duracaoPos}ms ease-in-out, clip-path ${FACA_AFUNDAR_MS}ms ease-in-out`,
+                        transform: `scale(${escala}) rotateX(${pitch}deg) rotateY(${yaw}deg) rotateZ(${rotZ}deg)`,
+                        clipPath: `inset(${clipTopoPx}px -300px -300px -300px)`,
+                    }}
+                >
+                    <PunhalAssembly extraVisivel={extraVisivel} />
+                </div>
+            </div>
+        </>
     );
 }
 
 export default function MesaDanificada({ onVoltar }) {
     const [cortes, setCortes] = useState([]);
     const [facas, setFacas] = useState([]);
+    const [simulacoes, setSimulacoes] = useState([]);
+    // Gate do botão "Simular jogada" — trava enquanto a coreografia inteira
+    // (ver CartaSimulada) ainda tá rolando, pra não deixar duas brigando
+    // pelo centro da tela ao mesmo tempo. As jogadas simuladas já
+    // terminadas continuam em `simulacoes` (pousadas de vez, mesma lógica
+    // dos cortes) — só o gate solta de novo.
+    const [simulandoAgora, setSimulandoAgora] = useState(false);
     const proximoIdCorte = useRef(0);
     const proximoIdFaca = useRef(0);
+    const proximoIdSimulacao = useRef(0);
     // Pra converter o "meio-comprimento" do corte (em px de verdade, ver
     // MESA_CORTE_METADE_COMPRIMENTO) nas duas pontas em %, precisa saber o
     // tamanho ATUAL da mesa em px (ela é responsiva — min(86vw,1080px) —
@@ -269,48 +533,10 @@ export default function MesaDanificada({ onVoltar }) {
     // golpe.
     const mesaRef = useRef(null);
 
-    // "Lugar aleatório" fica numa faixa central (20-80% x, 22-78% y) em vez
-    // de 0-100% — mesmo com o overflow:hidden+border-radius:inherit de
-    // .mesa-exp-danos escondendo qualquer sobra fora do contorno oval, um
-    // corte sorteado bem na quina ainda ficaria com metade dele cortado
-    // fora de vista; a faixa central garante que a lente inteira sempre
-    // caiba dentro da mesa.
     function cortarLugarAleatorio() {
-        const variante = FACA_YAW_VARIANTES[Math.floor(Math.random() * FACA_YAW_VARIANTES.length)];
-        const rot = variante.rotMin + Math.random() * (variante.rotMax - variante.rotMin);
-        const escalaGolpe = 0.85 + Math.random() * 0.4;
-        const centro = { x: 20 + Math.random() * 60, y: 22 + Math.random() * 56 };
-
-        // dxPct/dyPct: meio-comprimento do corte (px reais, escalado)
-        // convertido pra % de CADA EIXO separado (largura/altura da mesa
-        // não são iguais — a mesa é bem mais larga que alta), senão o
-        // ângulo `rot` desenhado na tela não bateria com o ângulo usado
-        // aqui pra calcular as pontas.
-        const retMesa = mesaRef.current?.getBoundingClientRect();
-        const larguraMesaPx = retMesa?.width || 1080;
-        const alturaMesaPx = retMesa?.height || 400;
-        const metadePx = MESA_CORTE_METADE_COMPRIMENTO * escalaGolpe;
-        const rad = (rot * Math.PI) / 180;
-        const dxPct = ((metadePx * Math.cos(rad)) / larguraMesaPx) * 100;
-        const dyPct = ((metadePx * Math.sin(rad)) / alturaMesaPx) * 100;
-        // pontoA é sempre o lado -70 do espaço local da lente (mesmo -70
-        // que MESA_CORTE_LENTE usa, ver CorteNaMesa) e pontoB o lado +70 — só
-        // isso, sem precisar comparar qual é esquerda/direita: os
-        // rotMin/rotMax de cada variante já foram escolhidos pra manter
-        // cos(rot) com sinal CONSTANTE dentro da própria faixa (nunca
-        // cruza 90°/270°), então "pontoA" cai sempre do lado que
-        // combina com driftSign daquela variante (testado nas duas: 150°
-        // dá pontoA à direita, 30° dá pontoA à esquerda — sempre onde a
-        // faca deveria pousar). pontoA = pouso, pontoB = destino do
-        // deslize, sempre nessa ordem.
-        const pontoInicio = { x: centro.x - dxPct, y: centro.y - dyPct };
-        const pontoFim = { x: centro.x + dxPct, y: centro.y + dyPct };
-
+        const geometria = sortearGeometriaCorte(mesaRef);
         const idFaca = ++proximoIdFaca.current;
-        setFacas((atuais) => [
-            ...atuais,
-            { id: idFaca, variante, rot, escalaGolpe, centro, pontoInicio, pontoFim },
-        ]);
+        setFacas((atuais) => [...atuais, { id: idFaca, ...geometria }]);
     }
 
     function aoImpactar(faca) {
@@ -335,6 +561,13 @@ export default function MesaDanificada({ onVoltar }) {
         setFacas((atuais) => atuais.filter((f) => f.id !== id));
     }
 
+    function simularJogada() {
+        if (simulandoAgora) return;
+        setSimulandoAgora(true);
+        const id = ++proximoIdSimulacao.current;
+        setSimulacoes((atuais) => [...atuais, { id }]);
+    }
+
     return (
         <div className="mesa-exp-tela">
             <button type="button" className="mesa-exp-fechar" onClick={onVoltar}>← Voltar</button>
@@ -350,10 +583,32 @@ export default function MesaDanificada({ onVoltar }) {
                         onFim={() => aoTerminarFaca(faca.id)}
                     />
                 ))}
+                {/* `aoImpactar` aceita qualquer objeto com centro/rot/
+                    escalaGolpe (mesmo formato de `faca` acima e de
+                    `sortearGeometriaCorte`) — a jogada simulada reaproveita
+                    a função tal e qual, sem precisar de uma versão própria. */}
+                {simulacoes.map((sim) => (
+                    <CartaSimulada
+                        key={sim.id}
+                        mesaRef={mesaRef}
+                        onCortar={aoImpactar}
+                        onFim={() => setSimulandoAgora(false)}
+                    />
+                ))}
             </div>
-            <button type="button" className="mesa-exp-cortar-botao" onClick={cortarLugarAleatorio}>
-                🔪 Cortar a mesa
-            </button>
+            <div className="mesa-exp-botoes-teste">
+                <button type="button" className="mesa-exp-cortar-botao" onClick={cortarLugarAleatorio}>
+                    🔪 Cortar a mesa
+                </button>
+                <button
+                    type="button"
+                    className="mesa-exp-cortar-botao mesa-exp-simular-botao"
+                    onClick={simularJogada}
+                    disabled={simulandoAgora}
+                >
+                    🗡️ Simular jogada
+                </button>
+            </div>
         </div>
     );
 }

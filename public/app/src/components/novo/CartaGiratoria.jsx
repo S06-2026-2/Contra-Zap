@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import Carta from './Carta.jsx';
+import PunhalAssembly from './PunhalAssembly.jsx';
 
 // Sandbox isolada (pedido do Henrique 2026-09-21): uma carta que gira livre
 // nos 3 eixos, só pra "testar um negócio" — sem ligação nenhuma com
@@ -121,44 +121,15 @@ export default function CartaGiratoria({ onVoltar }) {
                     className="carta-giro3d-miolo"
                     style={{ transform: `scale(${escala}) rotateX(${pitch}deg) rotateY(${yaw}deg) rotateZ(${roll}deg)` }}
                 >
-                    {/* Brilho da própria carta pausado (ver
-                        --brilho-carta-play em index.css) — quem faz o
-                        streak de luz aqui é só o .carta-giro3d-brilho-unico
-                        por cima de tudo, mais abaixo. */}
-                    <div className="carta-giro3d-face" style={{ '--brilho-carta-play': 'paused' }}>
-                        <Carta rank="A" naipe="Espadas" efeitoManilha />
-                    </div>
-                    <div className="carta-giro3d-face carta-giro3d-face-verso">
-                        <Carta virada />
-                    </div>
-                    {/* Fora das duas faces de propósito — não são retrato de
-                        carta nenhum (sem rank/naipe), só o plano continuando
-                        pra cima (lâmina) e pra baixo (guarda + cabo,
-                        formando um punhal). Simétricos esquerda-direita, por
-                        isso os mesmos elementos servem pra frente E verso
-                        sem duplicar (backface-visibility fica no padrão
-                        'visible'). */}
-                    {planoEstendido && (
-                        <>
-                            {/* Rebite = mesma marca de "solda"/rebite da
-                                manilha de Espadas (ver .carta-exp-rebite),
-                                só reaproveitada aqui nos pontos onde um
-                                punhal de verdade seria preso/soldado: base
-                                da lâmina na guarda, e guarda no cabo. */}
-                            <div className="carta-giro3d-lamina">
-                                <span className="carta-giro3d-rebite carta-giro3d-rebite-lamina-esq" />
-                                <span className="carta-giro3d-rebite carta-giro3d-rebite-lamina-dir" />
-                            </div>
-                            <div className="carta-giro3d-guarda">
-                                <span className="carta-giro3d-rebite carta-giro3d-rebite-guarda-esq" />
-                                <span className="carta-giro3d-rebite carta-giro3d-rebite-guarda-dir" />
-                            </div>
-                            <div className="carta-giro3d-cabo">
-                                <span className="carta-giro3d-rebite carta-giro3d-rebite-cabo-cima" />
-                                <span className="carta-giro3d-rebite carta-giro3d-rebite-cabo-baixo" />
-                            </div>
-                        </>
-                    )}
+                    {/* Faces + lâmina/guarda/cabo (ver PunhalAssembly.jsx) —
+                        extraVisivel só liga/desliga a classe que anima
+                        opacity+scale (ver .carta-giro3d-extra-oculta em
+                        index.css), pra o toggle abaixo ganhar uma transição
+                        suave em vez do aparecer/sumir seco de antes.
+                        pausarBrilhoFace: o streak de luz aqui é só o
+                        .carta-giro3d-brilho-unico por cima de tudo, mais
+                        abaixo — o da própria carta fica pausado. */}
+                    <PunhalAssembly extraVisivel={planoEstendido} pausarBrilhoFace />
                     {/* Última do DOM de propósito — dentro do MESMO
                         preserve-3d do miolo (gira junto, sem conta de
                         ângulo própria), mas por cima de todas as peças na
