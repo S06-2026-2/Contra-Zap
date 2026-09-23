@@ -40,7 +40,7 @@ export const EventosCliente = {
 export const EventosServidor = {
     LISTA_JOGADORES: 'listaJogadores', // { salaId, jogadores: [{ nome, adm }] }
     PARTIDA_INICIANDO_EM: 'partidaIniciandoEm', // { salaId, segundos }
-    NOVA_RODADA_INICIADA: 'novaRodadaIniciada', // { salaId, numero, cartas }
+    NOVA_RODADA_INICIADA: 'novaRodadaIniciada', // { salaId, numero, cartas, ordem }
     SUA_MAO: 'suaMao',                          // { salaId, mao: string[] } — PRIVADO
     MAOS_REVELADAS: 'maosReveladas',            // { salaId, maos: [{ jogador, mao: string[] }] } — PRIVADO; conjunto de mãos que ESTE jogador pode ver (hoje: rodada de 1 carta / "testa", cada um vê a mão dos outros menos a sua). Genérico — dá pra reusar em showdown, espectador, debug.
     MANILHA_VIRADA: 'manilhaVirada',            // { salaId, vira, viraValor }

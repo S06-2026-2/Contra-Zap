@@ -5,6 +5,9 @@ import Partida from './components/Partida.jsx';
 import LoginNovo from './components/novo/Login.jsx';
 import LobbyNovo from './components/novo/Lobby.jsx';
 import PartidaNovo from './components/novo/Partida.jsx';
+import LoginArcade from './components/arcade/Login.jsx';
+import LobbyArcade from './components/arcade/Lobby.jsx';
+import PartidaArcade from './components/arcade/Partida.jsx';
 import SeletorFrente, { lerFrenteSalva, salvarFrente } from './components/SeletorFrente.jsx';
 import { assinarConexao, chamar, obterConexao, socket } from './socket.js';
 import { avisarSessaoRetomada, lerSessaoSalva, limparSessaoSalva, salvarSessao } from './sessao.js';
@@ -18,8 +21,13 @@ import { avisarSessaoRetomada, lerSessaoSalva, limparSessaoSalva, salvarSessao }
 // dele já diverge um pouco: tem um botão extra (só numa sala de teste solo,
 // você + bots) que troca pro visual novo de verdade (ver `visualNovo` em
 // components/novo/Partida.jsx e components/novo/MesaExperimento.jsx).
+//
+// "arcade" é a terceira casca (ver design_handoff_frente_arcade/README.md e
+// components/arcade/) — mesmas props das outras duas, mais `conectado`: ela
+// desenha a própria faixa de conexão perdida, então o banner global some.
 const FRENTES = {
     novo: { Login: LoginNovo, Lobby: LobbyNovo, Partida: PartidaNovo },
+    arcade: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaArcade },
     debugging: { Login, Lobby, Partida },
 };
 
@@ -174,10 +182,13 @@ export default function App() {
     }
 
     const { Login: TelaLogin, Lobby: TelaLobby, Partida: TelaPartida } = FRENTES[frente];
+    const ehArcade = frente === 'arcade';
+    // Só a arcade recebe (as outras ignorariam) — ver FRENTES acima.
+    const propsConexao = ehArcade ? { conectado } : {};
 
     let tela;
     if (!player) {
-        tela = <TelaLogin onAutenticado={autenticar} />;
+        tela = <TelaLogin onAutenticado={autenticar} {...propsConexao} />;
     } else if (!sala) {
         tela = (
             <TelaLobby
@@ -189,6 +200,7 @@ export default function App() {
                     setSala({ salaId, reconexao });
                 }}
                 onTrocarFrente={trocarFrente}
+                {...propsConexao}
             />
         );
     } else {
@@ -214,6 +226,7 @@ export default function App() {
                     setSala(null);
                 }}
                 onEntrouNaSala={entrarNaSala}
+                {...propsConexao}
             />
         );
     }
@@ -221,10 +234,10 @@ export default function App() {
     return (
         <>
             <div className="badge-frente">
-                {frente === 'novo' ? '✨ Novo' : '🐞 Debugging'}
+                {frente === 'novo' ? '✨ Novo' : ehArcade ? '👾 Arcade' : '🐞 Debugging'}
             </div>
             {/* Independe da tela atual — some sozinho quando 'connect' disparar de novo (ver socket.js) */}
-            {!conectado && (
+            {!conectado && !ehArcade && (
                 <div className="banner-conexao">
                     🔌 Conexão perdida — tentando reconectar...
                 </div>

@@ -227,7 +227,7 @@ export class GameController extends EventEmitter {
 
         this.numeroRodada = 1;
         this.rodada = this.game.newRodada();
-        this.emit('novaRodadaIniciada', { numero: this.numeroRodada, cartas: this.rodada.round });
+        this.emit('novaRodadaIniciada', { numero: this.numeroRodada, cartas: this.rodada.round, ordem: this._ordemAssentos() });
 
         // A partir daqui a partida roda em segundo plano, pausando pra
         // esperar cada jogada real (ver _aguardarJogada/jogarCarta) — pode
@@ -657,6 +657,16 @@ export class GameController extends EventEmitter {
     // rodada, quem morreu, quem está no automático e — se a partida já
     // acabou — o vencedor. null se esse playerId não faz parte de uma partida
     // em andamento aqui (sala ainda não começou, ou ele nunca esteve nela).
+    // Nomes na ordem dos assentos em volta da mesa — a sorteada no início da
+    // partida (Game.ordemOriginal), que nunca muda nem encolhe: eliminado
+    // continua no lugar dele. A vez sempre anda pra frente nesta lista (quem
+    // começa gira a cada rodada, ver Game.girarOrdem), então é o que o front
+    // precisa pra desenhar a mesa em ordem de jogo, sem depender da ordem
+    // de entrada na sala.
+    _ordemAssentos() {
+        return this.game.ordemOriginal.map(j => j.nome);
+    }
+
     estadoDeReconexao(playerId) {
         if (!this.game) return null;
         const jogador = this.jogadores.find(j => j.id === playerId);
@@ -686,6 +696,8 @@ export class GameController extends EventEmitter {
             // então sem isto a tela remontada fica sem lista de jogadores até
             // o próximo evento que a mexa (novoAdm, alguém entrando/saindo).
             jogadores: this.jogadores.map(j => ({ nome: j.nome, adm: j.adm })),
+            // Mesma lista do novaRodadaIniciada (ver _ordemAssentos).
+            ordem: this._ordemAssentos(),
             mao: jogador.mao.map(c => c.toString()),
             cartasRodada: this.rodada.round,
             numeroRodada: this.numeroRodada,
@@ -953,6 +965,6 @@ export class GameController extends EventEmitter {
 
         this.numeroRodada++;
         this.rodada = this.game.proximaRodada();
-        this.emit('novaRodadaIniciada', { numero: this.numeroRodada, cartas: this.rodada.round });
+        this.emit('novaRodadaIniciada', { numero: this.numeroRodada, cartas: this.rodada.round, ordem: this._ordemAssentos() });
     }
 }
