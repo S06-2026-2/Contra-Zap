@@ -2,12 +2,14 @@ const CHAVE_FRENTE = 'contrazap-frente';
 
 // Escolha fica no localStorage (por navegador/aba, não pelo servidor) —
 // cada pessoa escolhe o front que quiser sem afetar quem mais está
-// conectado: as duas frentes falam com o mesmo socket.js/sessao.js, então
-// alguém no "novo" e alguém no "debugging" jogam na mesma sala normalmente.
+// conectado: as três frentes falam com o mesmo socket.js/sessao.js, então
+// alguém no "novo", no "arcade" e no "debugging" jogam na mesma sala normalmente.
+const FRENTES_VALIDAS = ['novo', 'arcade', 'debugging'];
+
 export function lerFrenteSalva() {
     try {
         const valor = localStorage.getItem(CHAVE_FRENTE);
-        return valor === 'novo' || valor === 'debugging' ? valor : null;
+        return FRENTES_VALIDAS.includes(valor) ? valor : null;
     } catch {
         return null;
     }
@@ -33,6 +35,7 @@ export default function SeletorFrente({ onEscolher }) {
             <p>Qual front você quer usar?</p>
             <div className="botoes">
                 <button type="button" onClick={() => escolher('novo')}>✨ Novo</button>
+                <button type="button" onClick={() => escolher('arcade')}>👾 Arcade</button>
                 <button type="button" className="secundario" onClick={() => escolher('debugging')}>
                     🐞 Debugging
                 </button>
