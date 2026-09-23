@@ -41,6 +41,28 @@ test('início da partida', async (t) => {
         }
     });
 
+    await t.test('novaRodadaIniciada traz a ordem dos assentos, igual pra todos', async () => {
+        const { clientes } = await partidaEmAndamento(servidor, { humanos: 3 });
+
+        const ordens = clientes.map(cliente => cliente.recebidos(EventosServidor.NOVA_RODADA_INICIADA).at(0).ordem);
+        // Todo mundo da mesa, cada um uma vez — a ordem em si é sorteada.
+        assert.deepEqual([...ordens[0]].sort(), clientes.map(cliente => cliente.nome).sort());
+        for (const ordem of ordens) assert.deepEqual(ordem, ordens[0]);
+    });
+
+    await t.test('a vez de apostar anda pra frente na ordem dos assentos', async () => {
+        const { salaId, clientes } = await partidaEmAndamento(servidor, { humanos: 3, roundStart: 2 });
+        const [observador] = clientes;
+        const ordem = observador.recebidos(EventosServidor.NOVA_RODADA_INICIADA).at(0).ordem;
+
+        const primeiro = await observador.esperar(EventosServidor.TURNO_APOSTA);
+        await donoDoTurno(clientes, primeiro).ok(EventosCliente.APOSTAR, { salaId, valor: 0 });
+        const segundo = await observador.esperar(EventosServidor.TURNO_APOSTA);
+
+        const i = ordem.indexOf(primeiro.jogador);
+        assert.equal(segundo.jogador, ordem[(i + 1) % ordem.length]);
+    });
+
     await t.test('suaMao é privado: cada um recebe só a própria mão', async () => {
         const { clientes } = await partidaEmAndamento(servidor, { humanos: 2, roundStart: 3 });
         const [a, b] = clientes;

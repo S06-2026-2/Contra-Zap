@@ -600,7 +600,7 @@ logar de novo, o `socket.id` é outro); a sala precisa **já ter começado**
 parte daquela partida (ter entrado na sala antes dela começar); e a vaga
 dele não pode ter expirado de vez (ver `VAGA_EXPIRADA` abaixo e a seção
 "Expiração de vaga reservada" mais adiante).
-Ack sucesso: `{ ok: true, salaId, jogadores: [{ nome, adm }],
+Ack sucesso: `{ ok: true, salaId, jogadores: [{ nome, adm }], ordem: string[],
 mao: string[], cartasRodada: number,
 numeroRodada: number, maosReveladas: [{ jogador, mao: string[] }],
 mesa: [{ jogador, carta: string }], vira: string | null,
@@ -615,6 +615,8 @@ estava fora:
 - `jogadores`: o roster da sala com a flag `adm` — o ack de `reconectar` não
   dispara `listaJogadores`, então sem isto a tela remontada ficaria sem
   lista de jogadores até o próximo evento que a mexa.
+- `ordem`: os nomes na ordem dos assentos — a mesma lista de
+  `novaRodadaIniciada` (ver a tabela de eventos de partida).
 - `mao` / `cartasRodada` / `numeroRodada`: a mão atual, quantas cartas tem a
   rodada (pro limite do input de aposta) e o número dela.
 - `suaVez`/`jogadorDaVez` e `suaVezDaAposta`/`jogadorDaVezAposta`: de quem é
@@ -722,7 +724,7 @@ adicionado:
 
 | Evento | Payload (além de `salaId`) |
 |---|---|
-| `novaRodadaIniciada` | `{ numero, cartas }` |
+| `novaRodadaIniciada` | `{ numero, cartas, ordem }` — `ordem` é a lista de nomes na ordem dos assentos em volta da mesa: sorteada no início da partida e fixa até o fim (eliminado continua no lugar dele). A vez sempre anda pra frente nessa lista — só quem começa gira a cada rodada —, então é com ela que o front desenha a mesa em ordem de jogo (a ordem de `jogadores`/`listaJogadores` é a de entrada na sala, não a de jogo) |
 | `suaMao` **(privado)** | `{ mao: string[] }` — só a mão de quem recebe |
 | `maosReveladas` **(privado)** | `{ maos: [{ jogador, mao: string[] }] }` — conjunto de mãos que ESTE jogador pode ver; ver seção "Rodada de 1 carta" abaixo |
 | `manilhaVirada` | `{ vira, viraValor }` |

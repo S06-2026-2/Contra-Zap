@@ -802,6 +802,10 @@ components:
             properties:
               ok: { type: boolean, const: true }
               salaId: { $ref: '#/components/schemas/SalaId' }
+              ordem:
+                type: array
+                items: { type: string }
+                description: Nomes na ordem dos assentos (mesma lista do novaRodadaIniciada).
               mao: { type: array, items: { $ref: '#/components/schemas/Carta' } }
               cartasRodada: { type: integer }
               maosReveladas:
@@ -846,6 +850,10 @@ components:
           salaId: { $ref: '#/components/schemas/SalaId' }
           numero: { type: integer }
           cartas: { type: integer, description: Cartas por jogador nesta rodada. }
+          ordem:
+            type: array
+            items: { type: string }
+            description: Nomes na ordem dos assentos em volta da mesa (sorteada no início, fixa a partida toda; eliminados continuam no lugar). A vez sempre anda pra frente nesta lista.
     EvSuaMao:
       name: suaMao
       payload:
