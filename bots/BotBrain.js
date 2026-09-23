@@ -12,7 +12,8 @@
 // os pesos exportados pra bots/models/*.json (ver training/python/
 // export_weights.py) e o forward pass reimplementado em JS puro (bots/nn.js):
 //   - round 1 (rodada cega, aposta 0/1 sem ver a propria carta): round1.json
-//   - round >= 2 (aposta e escolha de carta): noite1.json
+//   - round >= 2 (aposta e escolha de carta): a rede do modelo da sala
+//     (noite1.json, noite1H.json ou slot01.json -- ver abaixo)
 // A escolha de carta no round 1 e forcada (1 carta so), nao usa rede.
 //
 // As duas redes so treinaram em mesa de 4 (training/env_bridge.js), mas
@@ -26,7 +27,13 @@
 // aposta 1" -- que agora so sobra quando os modelos nem carregam ou nao ha
 // `controller`. Uma rede dedicada a 5-6 fica pro futuro (ver DEV.md, "O que
 // falta fazer").
+//
+// Qual rede de rodada >= 2 joga depende da sala: `controller.modeloBot`
+// (escolhido em criarSala, catalogo em bots/modelosBot.js). Sem isso cai no
+// MODELO_BOT_PADRAO. O modelo 'iniciante' nao tem rede nenhuma -- joga
+// sempre pelo heuristico, inclusive na rodada 1.
 import { RedeAtorCritico, argmaxMascarado } from './nn.js';
+import { MODELOS_BOT, MODELO_BOT_PADRAO, modeloBotPorId } from './modelosBot.js';
 
 const MAX_HAND = 12;      // teto de cartas na observacao / espaco de aposta (== MAX_HAND do treino)
 const MAX_APOSTA = MAX_HAND;
@@ -38,15 +45,36 @@ const NUM_NAIPES = 4;
 const SEATS_MODELO = 4;
 
 // --- carrega os modelos uma vez; falha vira "sem modelo", nunca derruba o servidor ---
-let REDE_NOITE = null;
-let REDE_ROUND1 = null;
-try {
-    REDE_NOITE = RedeAtorCritico.carregar('noite1.json');
-    REDE_ROUND1 = RedeAtorCritico.carregar('round1.json');
-} catch (erro) {
-    console.warn(`[BotBrain] modelos nao carregados (${erro.message}) -- usando heuristico burro`);
-    REDE_NOITE = null;
-    REDE_ROUND1 = null;
+// Cada arquivo falha sozinho: um JSON faltando derruba so aquele modelo pro
+// heuristico, os outros continuam jogando com rede.
+function carregarOuNull(arquivo) {
+    try {
+        return RedeAtorCritico.carregar(arquivo);
+    } catch (erro) {
+        console.warn(`[BotBrain] modelo ${arquivo} nao carregado (${erro.message}) -- usando heuristico burro`);
+        return null;
+    }
+}
+
+const REDE_ROUND1 = carregarOuNull('round1.json');
+// id do modelo (bots/modelosBot.js) -> rede de rodada >= 2 (null = heuristico).
+const REDES_NOITE = new Map(
+    MODELOS_BOT.map(m => [m.id, m.arquivo ? carregarOuNull(m.arquivo) : null])
+);
+
+function modeloDaSala(controller) {
+    return modeloBotPorId(controller?.modeloBot) ?? modeloBotPorId(MODELO_BOT_PADRAO);
+}
+
+// Rede de rodada >= 2 que joga nesta sala, ou null pro heuristico.
+function redeNoiteDaSala(controller) {
+    return REDES_NOITE.get(modeloDaSala(controller).id) ?? null;
+}
+
+// Rede da rodada cega: so faz sentido pra modelo com rede -- o 'iniciante'
+// e heuristico do comeco ao fim.
+function redeRound1DaSala(controller) {
+    return modeloDaSala(controller).arquivo ? REDE_ROUND1 : null;
 }
 
 // --- codificacao de estado (porte fiel de training/env_bridge.js:construirObs
@@ -199,12 +227,13 @@ function maskCarta(tamanhoMao) {
 // Indice (0-based) da carta escolhida na mao do jogador.
 export function escolherCarta(jogador, controller) {
     const heuristico = () => jogador.mao.length - 1;
-    if (!REDE_NOITE || !controller?.rodada) return heuristico();
+    const rede = redeNoiteDaSala(controller);
+    if (!rede || !controller?.rodada) return heuristico();
     // Round 1 tem 1 carta: jogada forcada, nao gasta rede.
     if (controller.rodada.round === 1 || jogador.mao.length <= 1) return 0;
     try {
         const obs = construirObs110(controller, jogador, false);
-        const logits = REDE_NOITE.logitsCarta(obs);
+        const logits = rede.logitsCarta(obs);
         if (!logits) return heuristico(); // rede sem cabeca de carta (ex.: a de round 1) -- nao deveria chegar aqui, mas nao explode
         const escolha = argmaxMascarado(logits, maskCarta(jogador.mao.length));
         return escolha >= 0 && escolha < jogador.mao.length ? escolha : heuristico();
@@ -223,16 +252,18 @@ export function escolherAposta(jogador, { permiteAposta1, controller } = {}) {
 
     try {
         if (controller.rodada.round === 1) {
-            if (!REDE_ROUND1) return heuristico();
+            const redeRound1 = redeRound1DaSala(controller);
+            if (!redeRound1) return heuristico();
             const obs = construirObsRound1(controller, jogador);
-            const logits = REDE_ROUND1.logitsAposta(obs);
+            const logits = redeRound1.logitsAposta(obs);
             const mask = [1, permiteAposta1 ? 1 : 0];
             const escolha = argmaxMascarado(logits, mask);
             return escolha >= 0 ? escolha : heuristico();
         }
-        if (!REDE_NOITE) return heuristico();
+        const rede = redeNoiteDaSala(controller);
+        if (!rede) return heuristico();
         const obs = construirObs110(controller, jogador, true);
-        const logits = REDE_NOITE.logitsAposta(obs);
+        const logits = rede.logitsAposta(obs);
         const escolha = argmaxMascarado(logits, maskAposta(controller.rodada, jogador));
         return escolha >= 0 ? escolha : heuristico();
     } catch (erro) {

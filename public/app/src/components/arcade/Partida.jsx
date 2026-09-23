@@ -9,6 +9,7 @@ import {
     FORCA, ORDEM_RANKS, camadasDuelo, camadasGolpe, compararForca, lerCarta, saoIdenticas, somDoGolpe, temSprite,
 } from './golpes.js';
 import { guardarInfoSala, lerInfoSala } from './salasInfo.js';
+import { modeloBotPorId } from '../../../../../bots/modelosBot.js';
 import { tocarSom } from './somArcade.js';
 import { HP_INICIAL, coracoes, corDoAssento, ehBot, inicial } from './tema.js';
 
@@ -624,7 +625,7 @@ export default function Partida({
         setCriandoRevanche(true);
         try {
             const resposta = await chamar('jogarDeNovo', { salaId });
-            guardarInfoSala(resposta.salaId, { ...infoSala, numberPlayers: resposta.numberPlayers ?? infoSala.numberPlayers });
+            guardarInfoSala(resposta.salaId, { ...infoSala, numberPlayers: resposta.numberPlayers ?? infoSala.numberPlayers, modeloBot: resposta.modeloBot ?? infoSala.modeloBot });
             onEntrouNaSala(resposta.salaId, resposta.jogadores, resposta.segundosParaIniciar, resposta.chatAberto);
         } catch (erroDaChamada) {
             falhar(erroDaChamada);
@@ -643,7 +644,7 @@ export default function Partida({
                 // melhor esforço — a sala antiga já terminou
             }
             const resposta = await chamar('entrarSala', { salaId: conviteRevanche.novaSalaId });
-            guardarInfoSala(conviteRevanche.novaSalaId, { ...infoSala, numberPlayers: resposta.numberPlayers ?? infoSala.numberPlayers });
+            guardarInfoSala(conviteRevanche.novaSalaId, { ...infoSala, numberPlayers: resposta.numberPlayers ?? infoSala.numberPlayers, modeloBot: resposta.modeloBot ?? infoSala.modeloBot });
             onEntrouNaSala(conviteRevanche.novaSalaId, resposta.jogadores, resposta.segundosParaIniciar, resposta.chatAberto);
         } catch (erroDaChamada) {
             falhar(erroDaChamada);
@@ -708,6 +709,7 @@ export default function Partida({
             { k: 'CORAÇÕES', v: '♥'.repeat(HP_INICIAL) },
             { k: 'CHAT', v: chatAberto ? 'ABERTO' : 'FRASES' },
             { k: 'BOTS', v: String(bots) },
+            modeloBotPorId(infoSala.modeloBot) ? { k: 'BOT', v: modeloBotPorId(infoSala.modeloBot).nome.toUpperCase() } : null,
         ].filter(Boolean);
 
         return (

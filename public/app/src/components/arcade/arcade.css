@@ -526,6 +526,7 @@ body.az-body .badge-frente {
 .az-opcao:not(:disabled):hover { filter: brightness(1.15); }
 .az-opcao.az-ativo { background: #f5c451; color: #2b1d02; }
 .az-opcao-larga { padding: 0 16px; font-size: 14px; letter-spacing: 2px; }
+.az-desc-bot { margin-top: 8px; }
 
 .az-em-breve {
     margin-left: 6px;

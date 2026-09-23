@@ -200,7 +200,7 @@ var EVENTOS = [
   { nome:'cadastrar',           payload:{ nome:'novoJogador', senha:'senha123' },               dica:'Nome e senha com 3+ caracteres. Já deixa autenticado.' },
   { nome:'entrarComoConvidado', payload:{ nome:'visitante' },                                   dica:'Sem senha, nada gravado no banco. Serve para tudo depois.' },
   { nome:'retomarSessao',       payload:{ token:'cole-aqui-o-token-de-um-entrar' },             dica:'Devolve sempre um token NOVO. Serve para F5 e para queda de rede.' },
-  { nome:'criarSala',           payload:{ numberPlayers:2, botNumber:1, chatAberto:true },      dica:'Com numberPlayers 2 e botNumber 1 você joga sozinho contra um bot.' },
+  { nome:'criarSala',           payload:{ numberPlayers:2, botNumber:1, modeloBot:'campeao', chatAberto:true }, dica:'Com numberPlayers 2 e botNumber 1 você joga sozinho contra um bot. modeloBot: iniciante, classico, veterano ou campeao.' },
   { nome:'partidaRapida',       payload:{},                                                     dica:'Fila compartilhada: entra na sala aberta ou cria uma.' },
   { nome:'entrarSala',          payload:{ salaId:'' },                                          dica:'Precisa de outra aba/cliente para simular o segundo jogador.' },
   { nome:'listarSalas',         payload:{},                                                     dica:'Só salas abertas — cheia ou iniciada não aparece.' },

@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { subirServidor } from '../helpers/servidor.js';
 import { convidado, convidados, nomeUnico, salaCheia, partidaEmAndamento } from '../helpers/protocolo.js';
 import { EventosCliente, EventosServidor, CodigosErro } from '../../conexao/eventos.js';
+import { MODELOS_BOT, MODELO_BOT_PADRAO } from '../../bots/modelosBot.js';
 
 test('criarSala', async (t) => {
     const servidor = await subirServidor();
@@ -169,6 +170,28 @@ test('criarSala', async (t) => {
         await cliente.erro(EventosCliente.CRIAR_SALA, { chatAberto: 1 }, CodigosErro.CONFIGURACAO_INVALIDA);
     });
 
+    await t.test('modeloBot default é o clássico e vem no ack', async () => {
+        const cliente = await convidado(servidor);
+        const resposta = await cliente.ok(EventosCliente.CRIAR_SALA, {});
+        assert.equal(resposta.modeloBot, MODELO_BOT_PADRAO);
+        assert.equal(MODELO_BOT_PADRAO, 'classico');
+    });
+
+    await t.test('aceita todo modeloBot do catálogo', async () => {
+        for (const { id } of MODELOS_BOT) {
+            const cliente = await convidado(servidor);
+            const resposta = await cliente.ok(EventosCliente.CRIAR_SALA, { numberPlayers: 3, botNumber: 1, modeloBot: id });
+            assert.equal(resposta.modeloBot, id);
+        }
+    });
+
+    await t.test('CONFIGURACAO_INVALIDA com modeloBot fora do catálogo', async () => {
+        const cliente = await convidado(servidor);
+        for (const modeloBot of ['nao-existe', 'CAMPEAO', 3, true]) {
+            await cliente.erro(EventosCliente.CRIAR_SALA, { modeloBot }, CodigosErro.CONFIGURACAO_INVALIDA);
+        }
+    });
+
     await t.test('config inválida não deixa sala órfã pra trás', async () => {
         const cliente = await convidado(servidor);
         const antes = (await cliente.ok(EventosCliente.LISTAR_SALAS)).salas.length;
@@ -193,6 +216,14 @@ test('entrarSala', async (t) => {
         assert.equal(resposta.chatAberto, false);
         assert.equal(resposta.segundosParaIniciar, null);
         assert.deepEqual(resposta.jogadores.map(j => j.nome), [dono.nome, visitante.nome]);
+    });
+
+    await t.test('quem entra fica sabendo qual bot o dono escolheu', async () => {
+        const [dono, visitante] = await convidados(servidor, 2);
+        const { salaId } = await dono.ok(EventosCliente.CRIAR_SALA, { numberPlayers: 4, botNumber: 1, modeloBot: 'campeao' });
+
+        const resposta = await visitante.ok(EventosCliente.ENTRAR_SALA, { salaId });
+        assert.equal(resposta.modeloBot, 'campeao');
     });
 
     await t.test('todo mundo na sala recebe o roster atualizado', async () => {
@@ -267,13 +298,14 @@ test('listarSalas', async (t) => {
 
     await t.test('lista a sala aberta com o resumo enxuto', async () => {
         const dono = await convidado(servidor);
-        const { salaId } = await dono.ok(EventosCliente.CRIAR_SALA, { numberPlayers: 4, chatAberto: true });
+        const { salaId } = await dono.ok(EventosCliente.CRIAR_SALA, { numberPlayers: 4, chatAberto: true, modeloBot: 'veterano' });
 
         const { salas } = await dono.ok(EventosCliente.LISTAR_SALAS);
         const minha = salas.find(sala => sala.salaId === salaId);
 
         assert.ok(minha, 'a sala recém-criada devia aparecer na listagem');
-        assert.deepEqual(Object.keys(minha).sort(), ['chatAberto', 'jogadoresAtual', 'numberPlayers', 'privada', 'salaId']);
+        assert.deepEqual(Object.keys(minha).sort(), ['chatAberto', 'jogadoresAtual', 'modeloBot', 'numberPlayers', 'privada', 'salaId']);
+        assert.equal(minha.modeloBot, 'veterano');
         assert.equal(minha.jogadoresAtual, 1);
         assert.equal(minha.numberPlayers, 4);
         assert.equal(minha.chatAberto, true);

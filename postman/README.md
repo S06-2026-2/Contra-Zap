@@ -70,13 +70,14 @@ abas separadas, ou uma sala com bots):
 |---|---|---|---|
 | 1 | `verificarNome` | `{"nome":"henrique"}` | `{"ok":true,"existe":true}` |
 | 2 | `entrar` | `{"nome":"henrique","senha":"123"}` | `{"ok":true,"nome":"...","token":"..."}` |
-| 3 | `criarSala` | `{"numberPlayers":2,"botNumber":1,"chatAberto":true}` | `{"ok":true,"salaId":"ABC123",...}` |
+| 3 | `criarSala` | `{"numberPlayers":2,"botNumber":1,"modeloBot":"campeao","chatAberto":true}` | `{"ok":true,"salaId":"ABC123",...}` |
 | 4 | `forcarInicio` | `{"salaId":"ABC123"}` | `{"ok":true}` |
 | 5 | `apostar` | `{"salaId":"ABC123","valor":1}` | `{"ok":true}` — só na sua vez (`turnoAposta`) |
 | 6 | `jogarCarta` | `{"salaId":"ABC123","indice":0}` | `{"ok":true}` — só na sua vez (`turnoJogador`) |
 
 Com `botNumber: 1` e `numberPlayers: 2` você joga sozinho contra um bot, sem
-precisar de uma segunda aba.
+precisar de uma segunda aba. `modeloBot` escolhe qual bot: `iniciante`,
+`classico` (default), `veterano` ou `campeao` (ver `bots/modelosBot.js`).
 
 Outros eventos úteis:
 

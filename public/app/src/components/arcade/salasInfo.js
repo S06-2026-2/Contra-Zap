@@ -7,7 +7,7 @@
 // espera só mostra o que dá pra saber pelo roster.
 const infoPorSala = new Map();
 
-// info: { numberPlayers?, roundStart?, botNumber? } — campos ausentes não apagam os já anotados.
+// info: { numberPlayers?, roundStart?, botNumber?, modeloBot? } — campos ausentes não apagam os já anotados.
 export function guardarInfoSala(salaId, info) {
     if (!salaId) return;
     const limpo = Object.fromEntries(Object.entries(info).filter(([, v]) => v != null));
