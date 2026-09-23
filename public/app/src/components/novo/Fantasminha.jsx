@@ -414,6 +414,9 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
                     "🔀 Monitor" em MesaExperimento.jsx: dá pra comparar o
                     visual de bot com/sem ele, sem desligar engrenagens nem
                     olhos/boca quadrados junto. */}
+                {/* Monitor desligado por enquanto — bot fica só com
+                    engrenagens + olhos/boca quadrados. Pra religar, é só
+                    descomentar o bloco abaixo.
                 {bot && monitor && (
                     <g>
                         <rect {...MONITOR_RECT} fill={MONITOR_COR_TELA} stroke={MONITOR_COR_MOLDURA} strokeWidth="2" />
@@ -424,12 +427,12 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
                         </defs>
                         <g transform={`translate(${TELA_RECT.x} ${TELA_RECT.y})`} clipPath={`url(#${idTelaClip})`}>
                             <g fill="none" stroke={`hsl(${hue}, 100%, 62%)`} strokeWidth="1.6" strokeLinejoin="round">
-                                {/* Duas cópias idênticas lado a lado (a
+                                Duas cópias idênticas lado a lado (a
                                     segunda começa exatamente onde a primeira
                                     termina, TELA_LARGURA à direita) — o <g>
                                     desliza TELA_LARGURA inteira pra esquerda
                                     e volta pro começo (from/to), sem dar pra
-                                    notar a costura. */}
+                                    notar a costura.
                                 <path d={ondaD} />
                                 <path d={ondaD} transform={`translate(${TELA_LARGURA} 0)`} />
                                 <animateTransform
@@ -444,6 +447,7 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
                         </g>
                     </g>
                 )}
+                */}
             </svg>
             {/* `morrendo` reusa a MESMA classe -machucado do dano normal
                 (olhos "apertam"/fecham, boca aumenta, ver .fantasminha-
