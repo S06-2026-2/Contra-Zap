@@ -452,6 +452,13 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
             });
         });
 
+        socket.on(EventosCliente.SUGESTAO_BOT, ({ salaId } = {}, ack) => {
+            responder(ack, () => {
+                const player = exigirJogador();
+                return salaManager.sugestaoBot(salaId, player);
+            });
+        });
+
         socket.on(EventosCliente.RECONECTAR, ({ salaId } = {}, ack) => {
             responder(ack, () => {
                 const player = exigirJogador();

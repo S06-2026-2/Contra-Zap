@@ -652,6 +652,28 @@ export class GameController extends EventEmitter {
         return { ok: true };
     }
 
+    // "Dica do bot": o que o bot desta sala (modeloBot) faria no lugar de
+    // `playerId` AGORA, sem jogar nada — mesma chamada ao bots/BotBrain.js
+    // que o automático faria no timeout (_decidirApostaAutomatica /
+    // escolherCarta), então a dica é exatamente a jogada que ele faria. Só
+    // responde na vez do próprio jogador (aposta OU carta); fora disso
+    // devolve null. A decisão é determinística (argmax), então pedir de novo
+    // na mesma vez dá a mesma resposta.
+    sugestaoBot(playerId) {
+        if (!this.game || this._finalizada) return null;
+        const jogador = this.jogadores.find(j => j.id === playerId);
+        if (!jogador) return null;
+
+        if (this._apostaEsperada?.jogadorId === playerId) {
+            return { tipo: 'aposta', valor: this._decidirApostaAutomatica(jogador) };
+        }
+        if (this._jogadaEsperada?.jogadorId === playerId) {
+            const indice = escolherCarta(jogador, this);
+            return { tipo: 'carta', indice, carta: jogador.mao[indice]?.toString() ?? null };
+        }
+        return null;
+    }
+
     // Estado pra alguém que estava fora reencaixar numa partida já em
     // andamento e remontar a tela inteira sem depender dos broadcasts que já
     // passaram enquanto ele estava desconectado: a própria mão, de quem é a

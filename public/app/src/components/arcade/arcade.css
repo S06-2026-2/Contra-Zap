@@ -158,6 +158,7 @@ body.az-body .badge-frente {
     font-size: 9px;
 }
 .az-btn-mini:not(:disabled):hover { border-color: #4a4f60; color: #f3ead6; }
+.az-btn-mini-ligado { border-color: #ff4b3e; color: #fff2ef; }
 
 .az-linha-botoes {
     display: flex;
@@ -1029,6 +1030,28 @@ body.az-body .badge-frente {
     border-radius: 5px;
     background: #f5c451;
     color: #2b1d02;
+}
+
+/* Dica do bot (ver dicaBot.js): contorno vermelho na carta e no palpite
+   que o bot da sala escolheria. O hover não apaga o contorno. */
+.az-carta-botao.az-carta-dica-bot,
+.az-carta-botao.az-carta-dica-bot:not(:disabled):hover {
+    border-color: #ff4b3e;
+    box-shadow: 0 7px 0 rgba(0, 0, 0, .45), 0 0 0 3px #ff4b3e, 0 0 22px rgba(255, 75, 62, .5);
+}
+.az-selo-bot {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-size: 8px;
+    padding: 3px 5px;
+    border-radius: 5px;
+    background: #ff4b3e;
+    color: #fff2ef;
+}
+.az-palpite-botao.az-palpite-dica-bot {
+    border-color: #ff4b3e;
+    box-shadow: 0 4px 0 rgba(0, 0, 0, .45), 0 0 0 3px #ff4b3e, 0 0 16px rgba(255, 75, 62, .5);
 }
 
 .az-sem-cartas { font-size: 11px; color: #4a4f60; padding: 20px 0; }

@@ -456,6 +456,25 @@ export class SalaManager {
         return sala;
     }
 
+    // "Dica do bot" (ver GameController.sugestaoBot): o que o bot da sala
+    // faria no lugar do jogador na vez dele. Não muda nada na partida.
+    // NAO_E_SUA_VEZ fora da vez dele (de apostar ou de jogar).
+    sugestaoBot(salaId, player) {
+        const sala = this.salas.get(salaId);
+        if (!sala) {
+            throw new ErroSala(CodigosErro.SALA_NAO_ENCONTRADA, `Sala "${salaId}" não existe.`);
+        }
+        if (!sala.iniciada) {
+            throw new ErroSala(CodigosErro.SALA_NAO_INICIADA, 'A partida desta sala ainda não começou.');
+        }
+
+        const sugestao = sala.controller.sugestaoBot(player.id);
+        if (!sugestao) {
+            throw new ErroSala(CodigosErro.NAO_E_SUA_VEZ, 'Só dá pra pedir a dica do bot na sua vez.');
+        }
+        return { ...sugestao, modeloBot: sala.modeloBot };
+    }
+
     // Reencaixa um jogador numa partida já em andamento depois de uma
     // desconexão — diferente de entrarSala, que é só pra sala de espera.
     // Reaproveita os mesmos códigos de erro de sala inexistente/não

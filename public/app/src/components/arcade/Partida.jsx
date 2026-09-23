@@ -11,6 +11,7 @@ import {
 import { guardarInfoSala, lerInfoSala } from './salasInfo.js';
 import { modeloBotPorId } from '../../../../../bots/modelosBot.js';
 import { tocarSom } from './somArcade.js';
+import { gravarDicaBotLigada, lerDicaBotLigada } from './dicaBot.js';
 import { HP_INICIAL, coracoes, corDoAssento, ehBot, inicial } from './tema.js';
 
 // Tela 3 da frente arcade: sala de espera, mesa e fim de partida. A máquina
@@ -131,6 +132,10 @@ export default function Partida({
     const [baloes, setBaloes] = useState({}); // nome -> { id, texto }
     const [expulso, setExpulso] = useState(false);
     const [reconectandoExpulso, setReconectandoExpulso] = useState(false);
+    // "Dica do bot" (ver dicaBot.js): a preferência e a dica da vez atual
+    // ({ tipo: 'aposta', valor } | { tipo: 'carta', indice, carta }), ou null.
+    const [dicaBotLigada, setDicaBotLigada] = useState(lerDicaBotLigada);
+    const [dicaBot, setDicaBot] = useState(null);
 
     // Refs: os handlers de socket (efeito com deps [salaId]) enxergam só o
     // primeiro render — o que eles precisam ler "ao vivo" mora aqui.
@@ -151,6 +156,7 @@ export default function Partida({
     const pararTremorTimerRef = useRef(null);
     const baloesTimersRef = useRef({});
     const saindoRef = useRef(false);
+    const dicaBotSeqRef = useRef(0);
     const logSeqRef = useRef(0);
 
     function definirMesa(lista) {
@@ -690,6 +696,32 @@ export default function Partida({
     // próximo turnoJogador só sai depois da pausa) — não é vez de ninguém.
     const souEuNaVez = iniciada && jogadorDaVez === meuNome && !vencedor && !jogadorDaVezAposta && !vazaResultado;
     const souEuNaVezDaAposta = iniciada && jogadorDaVezAposta === meuNome && !vencedor;
+
+    // Dica do bot: a cada vez sua (aposta ou carta) pede ao servidor o que o
+    // bot da sala faria no seu lugar. Fora da vez, ou desligada, some. O
+    // contador descarta resposta que chegar depois da vez já ter passado.
+    const vezDaDica = !dicaBotLigada ? null : souEuNaVezDaAposta ? 'aposta' : souEuNaVez ? 'carta' : null;
+    useEffect(() => {
+        const seq = ++dicaBotSeqRef.current;
+        setDicaBot(null);
+        if (!vezDaDica) return;
+        chamar('sugestaoBot', { salaId })
+            .then((resposta) => {
+                if (dicaBotSeqRef.current === seq && resposta.tipo === vezDaDica) setDicaBot(resposta);
+            })
+            .catch((erroDaChamada) => {
+                // melhor esforço — sem dica nesta vez, a jogada segue normal.
+                // Avisa no console: servidor antigo (sem sugestaoBot) cai aqui.
+                console.warn('[dica do bot] sugestaoBot falhou:', erroDaChamada.message);
+            });
+    }, [vezDaDica, salaId, numeroRodada, mao.length]);
+
+    function alternarDicaBot() {
+        setDicaBotLigada((ligada) => {
+            gravarDicaBotLigada(!ligada);
+            return !ligada;
+        });
+    }
     const rodadaCega = iniciada && cartasRodada === 1;
     const viraValor = vira?.valor ?? null;
     const indiceDe = (nome) => jogadores.findIndex((j) => j.nome === nome);
@@ -938,6 +970,14 @@ export default function Partida({
         dica = 'SUA MÃO';
     }
     if (rodadaCega) dica += ' · SUA CARTA ESTÁ VIRADA';
+    // O ack traz o modeloBot da sala — infoSala pode não ter (reconexão depois de F5).
+    const nomeDoBot = modeloBotPorId(dicaBot?.modeloBot ?? infoSala.modeloBot)?.nome ?? 'bot';
+    // Confere pela carta, não só pelo índice: a mão local e a do servidor
+    // têm a mesma ordem, mas se divergirem vale a carta que ele escolheu.
+    const indiceDicaCarta = dicaBot?.tipo === 'carta'
+        ? (mao[dicaBot.indice] === dicaBot.carta ? dicaBot.indice : mao.indexOf(dicaBot.carta))
+        : -1;
+    const valorDicaAposta = dicaBot?.tipo === 'aposta' ? dicaBot.valor : null;
     if (souEliminado) dica = 'VOCÊ ESTÁ FORA — ASSISTINDO';
 
     const vaza = vazaResultado;
@@ -965,6 +1005,15 @@ export default function Partida({
                         RODADA <span className="az-claro">{numeroRodada || '—'}</span> · <span className="az-claro">{cartasRodada}</span> CARTA{cartasRodada === 1 ? '' : 'S'}
                     </div>
                     <div className="az-mesa-cabeca-dir">
+                        <button
+                            type="button"
+                            className={`az-b az-px az-btn-mini${dicaBotLigada ? ' az-btn-mini-ligado' : ''}`}
+                            aria-pressed={dicaBotLigada}
+                            title="Mostra, na sua vez, o que o bot da sala apostaria ou jogaria no seu lugar"
+                            onClick={alternarDicaBot}
+                        >
+                            DICA DO BOT: {dicaBotLigada ? 'ON' : 'OFF'}
+                        </button>
                         <button type="button" className="az-b az-px az-btn-mini" onClick={sair}>SAIR DA PARTIDA</button>
                         <div className="az-pilula-manilha">
                             <span className="az-px az-pilula-rotulo">MANILHA</span>
@@ -1115,13 +1164,15 @@ export default function Partida({
                                         key={`${indice}-${carta}`}
                                         type="button"
                                         data-som="mudo"
-                                        className="az-b az-carta-botao"
+                                        className={`az-b az-carta-botao${indice === indiceDicaCarta ? ' az-carta-dica-bot' : ''}`}
                                         disabled={!souEuNaVez}
                                         onClick={() => jogar(indice)}
                                         aria-label={rodadaCega ? 'Sua carta (virada)' : carta}
+                                        title={indice === indiceDicaCarta ? `O bot ${nomeDoBot} jogaria esta carta` : undefined}
                                     >
                                         {rodadaCega ? <VersoCarta tamanho="mao" /> : <FaceCarta texto={carta} tamanho="mao" />}
                                         {manilha && <span className="az-px az-selo-manilha">MANILHA</span>}
+                                        {indice === indiceDicaCarta && <span className="az-px az-selo-bot">BOT</span>}
                                     </button>
                                 );
                             })}
@@ -1138,9 +1189,11 @@ export default function Partida({
                                         key={n}
                                         type="button"
                                         data-som="mudo"
-                                        className="az-b az-px az-palpite-botao"
+                                        className={`az-b az-px az-palpite-botao${n === valorDicaAposta ? ' az-palpite-dica-bot' : ''}`}
                                         disabled={n === palpiteProibido}
-                                        title={n === palpiteProibido ? 'Esse valor fecharia a soma das apostas' : undefined}
+                                        title={n === palpiteProibido
+                                            ? 'Esse valor fecharia a soma das apostas'
+                                            : n === valorDicaAposta ? `O bot ${nomeDoBot} apostaria ${n}` : undefined}
                                         onClick={() => apostar(n)}
                                     >
                                         {n}

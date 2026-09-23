@@ -150,6 +150,12 @@ channels:
     messages:
       pedido: { $ref: '#/components/messages/PedidoJogarCarta' }
       resposta: { $ref: '#/components/messages/RespostaOk' }
+  sugestaoBot:
+    address: sugestaoBot
+    title: Dica do bot — o que o bot da sala faria na sua vez
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoSala' }
+      resposta: { $ref: '#/components/messages/RespostaSugestaoBot' }
   reconectar:
     address: reconectar
     title: Voltar para uma partida em andamento
@@ -467,6 +473,20 @@ operations:
     reply:
       channel: { $ref: '#/channels/jogarCarta' }
       messages: [{ $ref: '#/channels/jogarCarta/messages/resposta' }]
+  enviarSugestaoBot:
+    action: send
+    channel: { $ref: '#/channels/sugestaoBot' }
+    summary: Pergunta o que o bot da sala (modeloBot) faria no seu lugar agora.
+    description: |
+      Só na sua vez (`turnoAposta` ou `turnoJogador`). Não joga nada — a vez
+      continua sua. É a mesma decisão que o automático tomaria no timeout, e
+      é determinística (pedir de novo na mesma vez dá a mesma resposta).
+      Erros: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`, `SALA_NAO_INICIADA`,
+      `NAO_E_SUA_VEZ`.
+    messages: [{ $ref: '#/channels/sugestaoBot/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/sugestaoBot' }
+      messages: [{ $ref: '#/channels/sugestaoBot/messages/resposta' }]
   enviarReconectar:
     action: send
     channel: { $ref: '#/channels/reconectar' }
@@ -800,6 +820,26 @@ components:
             properties:
               ok: { type: boolean, const: true }
               salaId: { type: [string, 'null'] }
+          - { $ref: '#/components/schemas/Erro' }
+    RespostaSugestaoBot:
+      name: RespostaSugestaoBot
+      payload:
+        oneOf:
+          - type: object
+            required: [ok, tipo, valor, modeloBot]
+            properties:
+              ok: { type: boolean, const: true }
+              tipo: { type: string, const: aposta }
+              valor: { type: integer, minimum: 0, description: Aposta que o bot faria. }
+              modeloBot: { type: string, description: 'Id do bot da sala (bots/modelosBot.js).' }
+          - type: object
+            required: [ok, tipo, indice, carta, modeloBot]
+            properties:
+              ok: { type: boolean, const: true }
+              tipo: { type: string, const: carta }
+              indice: { type: integer, minimum: 0, description: 'Posição na sua mão, 0-based.' }
+              carta: { type: string, description: 'A carta, no mesmo formato de `suaMao`.' }
+              modeloBot: { type: string, description: 'Id do bot da sala (bots/modelosBot.js).' }
           - { $ref: '#/components/schemas/Erro' }
     RespostaReconectar:
       name: RespostaReconectar
