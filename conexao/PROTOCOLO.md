@@ -599,6 +599,21 @@ de verdade), ninguém vira adm — mas nesse caso a sala inteira já é removida
 do sistema no mesmo instante (ver parágrafo acima), então não sobra ninguém
 pra se importar.
 
+### `sugestaoBot`
+
+Request: `{ salaId }`
+Response (ack): `{ ok: true, tipo: 'aposta', valor, modeloBot }` na vez de
+apostar, ou `{ ok: true, tipo: 'carta', indice, carta, modeloBot }` na vez
+de jogar (`indice` 0-based na mão, `carta` no mesmo formato de `suaMao`).
+
+"Dica do bot": o que o bot da sala (`modeloBot`, escolhido em `criarSala`)
+faria no seu lugar agora — é a mesma decisão que `bots/BotBrain.js` tomaria
+se o seu turno estourasse `tempoTurnoMs`. **Não joga nada**: a vez continua
+sua e você ainda precisa mandar `apostar`/`jogarCarta`. A decisão é
+determinística, então pedir de novo na mesma vez dá a mesma resposta. Só
+existe na sua vez; fora dela: `NAO_E_SUA_VEZ`. Outros erros:
+`SALA_NAO_ENCONTRADA`, `SALA_NAO_INICIADA`.
+
 ### `reconectar`
 Payload: `{ salaId: string }`
 Pré-condição: socket já mandou `entrar` (de novo — reconectar não dispensa
@@ -846,7 +861,7 @@ de conexão, não do jogo), então chega igual na sala de espera e na partida.
 | `NAO_ESTA_NA_SALA` | `sairSala` por quem não está (mais) naquela sala; `reconectar`/`chat`/`desistir` por quem não faz parte da partida/sala |
 | `VAGA_EXPIRADA` | `reconectar` numa vaga que já passou de `tempoReservaMs` desde que virou bot, sem ninguém voltar, **ou** que o jogador liberou via `desistir` (ver "Expiração de vaga reservada" abaixo) |
 | `NAO_AUTORIZADO` | `forcarInicio` por quem não é o adm da sala |
-| `NAO_E_SUA_VEZ` | `jogarCarta`/`apostar` fora da sua vez |
+| `NAO_E_SUA_VEZ` | `jogarCarta`/`apostar`/`sugestaoBot` fora da sua vez |
 | `CARTA_INVALIDA` | `jogarCarta` com `indice` que não existe na mão de quem mandou |
 | `APOSTA_INVALIDA` | `apostar` com `valor` fora de `[0, número de cartas da rodada]` |
 | `APOSTA_FECHA_RODADA` | `apostar` pelo último da rodada com `valor` que fecharia a soma de todo mundo no número de cartas (não se aplica na rodada de 1 carta) |

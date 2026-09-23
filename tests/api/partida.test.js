@@ -383,3 +383,62 @@ test('jogarDeNovo', async (t) => {
         await cliente.erro(EventosCliente.JOGAR_DE_NOVO, { salaId: 'NAOEXISTE' }, CodigosErro.SALA_NAO_ENCONTRADA);
     });
 });
+
+test('sugestaoBot', async (t) => {
+    const servidor = await subirServidor(TURNO_FOLGADO);
+    t.after(() => servidor.fechar());
+
+    await t.test('na vez de apostar, devolve um valor válido sem registrar aposta', async () => {
+        const { salaId, clientes } = await partidaEmAndamento(servidor, { humanos: 2, roundStart: 3, modeloBot: 'campeao' });
+        const turno = await clientes[0].esperar(EventosServidor.TURNO_APOSTA);
+        const daVez = donoDoTurno(clientes, turno);
+
+        const dica = await daVez.ok(EventosCliente.SUGESTAO_BOT, { salaId });
+        assert.equal(dica.tipo, 'aposta');
+        assert.equal(dica.modeloBot, 'campeao');
+        assert.ok(Number.isInteger(dica.valor) && dica.valor >= 0 && dica.valor <= 3);
+        // Determinística: pedir de novo na mesma vez dá a mesma resposta.
+        assert.equal((await daVez.ok(EventosCliente.SUGESTAO_BOT, { salaId })).valor, dica.valor);
+        // Só dica: a vez continua dele e nenhuma aposta saiu.
+        assert.equal(daVez.recebidos(EventosServidor.APOSTA_FEITA).length, 0);
+        await daVez.ok(EventosCliente.APOSTAR, { salaId, valor: dica.valor });
+    });
+
+    await t.test('na vez de jogar, devolve uma carta da mão sem jogar', async () => {
+        const { salaId, clientes } = await partidaEmAndamento(servidor, { humanos: 2, roundStart: 3 });
+        for (let i = 0; i < clientes.length; i++) {
+            const turno = await clientes[0].esperar(EventosServidor.TURNO_APOSTA);
+            await donoDoTurno(clientes, turno).ok(EventosCliente.APOSTAR, { salaId, valor: 0 });
+        }
+        const daVez = donoDoTurno(clientes, await clientes[0].esperar(EventosServidor.TURNO_JOGADOR));
+        const mao = daVez.recebidos(EventosServidor.SUA_MAO).at(-1).mao;
+
+        const dica = await daVez.ok(EventosCliente.SUGESTAO_BOT, { salaId });
+        assert.equal(dica.tipo, 'carta');
+        assert.equal(dica.modeloBot, 'classico'); // default de criarSala
+        assert.equal(dica.carta, mao[dica.indice]);
+        assert.equal(daVez.recebidos(EventosServidor.CARTA_JOGADA).length, 0);
+
+        await daVez.ok(EventosCliente.JOGAR_CARTA, { salaId, indice: dica.indice });
+        const jogada = await daVez.esperar(EventosServidor.CARTA_JOGADA, { filtro: dados => dados.jogador === daVez.nome });
+        assert.equal(jogada.carta, dica.carta);
+    });
+
+    await t.test('NAO_E_SUA_VEZ pra quem não tem o turno', async () => {
+        const { salaId, clientes } = await partidaEmAndamento(servidor, { humanos: 2, roundStart: 3 });
+        const turno = await clientes[0].esperar(EventosServidor.TURNO_APOSTA);
+        const foraDaVez = clientes.find(cliente => cliente.nome !== turno.jogador);
+        await foraDaVez.erro(EventosCliente.SUGESTAO_BOT, { salaId }, CodigosErro.NAO_E_SUA_VEZ);
+    });
+
+    await t.test('SALA_NAO_INICIADA numa sala que ainda não começou', async () => {
+        const dono = await convidado(servidor);
+        const { salaId } = await dono.ok(EventosCliente.CRIAR_SALA, { numberPlayers: 4 });
+        await dono.erro(EventosCliente.SUGESTAO_BOT, { salaId }, CodigosErro.SALA_NAO_INICIADA);
+    });
+
+    await t.test('SALA_NAO_ENCONTRADA com salaId inexistente', async () => {
+        const dono = await convidado(servidor);
+        await dono.erro(EventosCliente.SUGESTAO_BOT, { salaId: 'NAOEXISTE' }, CodigosErro.SALA_NAO_ENCONTRADA);
+    });
+});

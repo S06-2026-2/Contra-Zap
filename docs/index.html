@@ -211,6 +211,7 @@ var EVENTOS = [
   { nome:'jogarDeNovo',         payload:{ salaId:'' },                                          dica:'Só o adm, e só depois de jogoFinalizado.' },
   { nome:'apostar',             payload:{ salaId:'', valor:1 },                                 dica:'Só na sua vez (turnoAposta). A soma das apostas não pode fechar no número de cartas.' },
   { nome:'jogarCarta',          payload:{ salaId:'', indice:0 },                                dica:'Só na sua vez (turnoJogador). indice é 0-based, veja sua mão em suaMao.' },
+  { nome:'sugestaoBot',         payload:{ salaId:'' },                                          dica:'Só na sua vez: o que o bot da sala apostaria/jogaria no seu lugar. Não joga nada.' },
   { nome:'reconectar',          payload:{ salaId:'' },                                          dica:'Só para partida já iniciada. Devolve a mão e de quem é a vez.' },
   { nome:'minhaSalaAtiva',      payload:{},                                                     dica:'Descobre a partida em andamento sem saber o salaId.' },
   { nome:'chat',                payload:{ salaId:'', tipo:'restrita', id:1 },                   dica:"tipo 'restrita' usa id 1 a 4 e sempre funciona; 'aberta' exige chatAberto e usa texto." }

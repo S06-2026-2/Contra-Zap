@@ -87,6 +87,7 @@ Outros eventos úteis:
 | `entrarComoConvidado` | `{"nome":"visitante"}` |
 | `retomarSessao` | `{"token":"<token de um entrar anterior>"}` |
 | `partidaRapida` | `{}` |
+| `sugestaoBot` | `{"salaId":"ABC123"}` — só na sua vez; devolve o que o bot da sala apostaria/jogaria, sem jogar |
 | `listarSalas` | `{}` |
 | `entrarSala` | `{"salaId":"ABC123"}` |
 | `sairSala` | `{"salaId":"ABC123"}` |
