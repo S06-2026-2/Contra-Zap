@@ -121,6 +121,12 @@ export default class Som {
   sfx_tiqueFinal() {
     this.tom({ f: 1600, f2: 1200, dur: 0.12, vol: 0.16 });
   }
+  // Sua vez (de apostar ou de jogar): chamada curta subindo em quinta, com um
+  // brilho agudo no fim — mais "olha aqui" que o clique, sem parecer alarme.
+  sfx_suaVez() {
+    this.arpejo([72, 79, 84], { passo: 0.075, dur: 0.11, vol: 0.15 });
+    this.tom({ f: NOTA(91), tipo: "triangle", dur: 0.28, vol: 0.1, atraso: 0.2 });
+  }
   sfx_erro() {
     this.tom({ f: 150, f2: 90, dur: 0.28, vol: 0.2 });
     this.tom({ f: 152, f2: 92, dur: 0.28, vol: 0.14, detune: 30 });

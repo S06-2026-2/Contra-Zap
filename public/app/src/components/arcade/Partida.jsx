@@ -369,6 +369,7 @@ export default function Partida({
             turnoAposta(p) {
                 if (!daSala(p)) return;
                 setJogadorDaVezAposta(p.jogador);
+                if (p.jogador === meuNome) tocarSom('suaVez');
             },
             apostaFeita(p) {
                 if (!daSala(p)) return;
@@ -380,6 +381,7 @@ export default function Partida({
             turnoJogador(p) {
                 if (!daSala(p)) return;
                 setJogadorDaVez(p.jogador);
+                if (p.jogador === meuNome) tocarSom('suaVez');
             },
             cartaJogada(p) {
                 if (!daSala(p)) return;
