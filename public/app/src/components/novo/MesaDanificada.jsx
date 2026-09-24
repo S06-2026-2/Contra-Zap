@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import PunhalAssembly from './PunhalAssembly.jsx';
+import Carta from './Carta.jsx';
 
 // Sandbox isolada (pedido do Henrique 2026-09-21): a mesma "sala" visual
 // de MesaExperimento.jsx, mas só fundo+mesa — sem fantasminhas, cartas,
@@ -424,6 +425,13 @@ const SIM_LEVANTAR_DURACAO_MS = 420;
 const SIM_POUSO_FINAL_DURACAO_MS = 260;
 const SIM_POUSO_FINAL_ROT_MAX_GRAUS = 18; // pequena inclinação 2D, só pra não pousar sempre quadradinha
 
+// Carta que já terminou a coreografia e ficou na mesa sai do z-index 47 de
+// .mesa-exp-carta-simulada (que existe pra atravessar o escurecido) e desce
+// pra baixo dele — senão, quando a PRÓXIMA jogada cresce e escurece a tela,
+// as pousadas continuavam claras e por cima dela (as de Copas vêm depois no
+// DOM, então empatando no 47 ainda ganhavam da espada crescendo).
+const Z_CARTA_SIMULADA_POUSADA = 1;
+
 function sortearOrigemJogador() {
     const angulo = Math.random() * Math.PI * 2;
     return { x: 50 + SIM_ORIGEM_RAIO_X * Math.cos(angulo), y: 50 + SIM_ORIGEM_RAIO_Y * Math.sin(angulo) };
@@ -607,6 +615,7 @@ function CartaSimulada({ mesaRef, onCortar, onFim }) {
                     top: `${pos.y}%`,
                     transition: `left ${duracaoPos}ms ease-in-out, top ${duracaoPos}ms ease-in-out, transform ${duracaoPos}ms ease-in-out`,
                     transform: `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px)`,
+                    zIndex: fase === 'pousada' ? Z_CARTA_SIMULADA_POUSADA : undefined,
                 }}
             >
                 <div
@@ -629,10 +638,413 @@ function CartaSimulada({ mesaRef, onCortar, onFim }) {
     );
 }
 
+// Jogada de Copas (pedido do Henrique 2026-09-23: coração -> paixão -> fogo)
+// — mesmo começo da jogada de Espadas (CartaSimulada): voa de fora da mesa
+// até um ponto central, sai da mesa crescendo pro centro da tela com o
+// fundo escurecendo. Daí pra frente é outra coreografia:
+//   segura um instante curto (COPAS_SEGURAR_MS) -> dá uma batida de coração
+//   (.mesa-exp-copas-batida) e as chamas saem de TRÁS dela, crescendo de
+//   baixo da carta pra fora das bordas (ChamasCopas modo 'borda', camada
+//   abaixo da carta no DOM) -> cai de volta no mesmo ponto da mesa -> pega
+//   fogo por CIMA (modo 'cobrindo') por mais ou menos o tempo que a faca
+//   leva cortando/levantando/pousando -> levanta um pouco (mesma altura e
+//   tempo da espada levantando, ver FACA_LEVANTAR_PX), anda um pouco pra
+//   frente na direção em que foi jogada e pousa de novo intacta —
+//   fica ali pra sempre como a de Espadas. No lugar onde ela queimou fica a
+//   marca carbonizada (MarcaCarbonizada, na camada de danos) com um coração
+//   intacto no meio.
+const COPAS_SEGURAR_MS = 100;
+// Da batida começar até as chamas aparecerem — as chamas saem logo depois
+// do pico da primeira batida (14% de .52s em mesa-exp-copas-bater).
+const COPAS_ATRASO_CHAMAS_MS = 80;
+const COPAS_QUEIMANDO_ALTO_MS = 760;
+const COPAS_DESCIDA_MS = 520;
+// ~ FACA_DESLIZE_MS + SIM_LEVANTAR_DURACAO_MS + SIM_POUSO_FINAL_DURACAO_MS
+// (tudo que a espada faz depois de pousar na mesa).
+const COPAS_QUEIMANDO_MESA_MS = 1200;
+const COPAS_POUSO_ROT_MAX_GRAUS = 18;
+// Quanto ela anda pra frente (px de tela) entre sair da marca e pousar de
+// novo — o bastante pra descobrir boa parte da marca carbonizada.
+const COPAS_AVANCO_PX = 75;
+const COPAS_APAGAR_FOGO_MS = 200;
+
+// Uma fogueira no estilo do "CSS Blend Mode Fire" (codepen.io/jkantner/pen/
+// gKRKKb, que o Henrique mandou): N bolinhas laranja com degradê radial
+// espalhadas por igual na base, cada uma subindo e encolhendo até sumir em
+// loop, com atraso sorteado. É o mix-blend-mode:screen entre elas (ver
+// .mesa-exp-fogo-particula) que faz o miolo ficar amarelo/branco onde muitas
+// se sobrepõem — sem imagem nem forma de chama desenhada. Tudo em `em`, então
+// `fonte` (px) escala a fogueira inteira; ela fica ancorada pela BASE no
+// ponto (x,y) em % do container.
+//
+// `acesa` liga o crescimento: de `escalaInicial` parada na base até
+// `escalaFinal` deslocada `foraX/foraY` px, numa transição de `duracaoMs`.
+// Só vale depois do primeiro quadro montada (`pronta`), senão uma fogueira
+// que já nasce acesa (o fogão da mesa) pularia direto pro tamanho final.
+//
+// `espalhar` (fogueirinhas da pulsada) troca a transição por um loop CSS
+// próprio (.mesa-exp-fogo-espalhando): nasce na semente, cresce e é lançada
+// até foraX/foraY sumindo no fim, e recomeça — com `duracaoMs`/`atrasoMs`
+// sorteados por fogueira, cada uma sai num ritmo diferente.
+function FogueiraCodepen({ x, y, fonte, particulas, acesa, escalaInicial, escalaFinal, foraX = 0, foraY = 0, duracaoMs, atrasoMs = 0, espalhar = false }) {
+    const [atrasos] = useState(() => Array.from({ length: particulas }, () => Math.random()));
+    const [pronta, setPronta] = useState(false);
+    useEffect(() => {
+        const quadro = requestAnimationFrame(() => setPronta(true));
+        return () => cancelAnimationFrame(quadro);
+    }, []);
+    const crescida = pronta && acesa;
+    const estilo = espalhar
+        ? {
+            '--fora-x': `${foraX}px`,
+            '--fora-y': `${foraY}px`,
+            '--escala-inicial': escalaInicial,
+            '--escala-final': escalaFinal,
+            animationDuration: `${duracaoMs}ms`,
+            animationDelay: `${atrasoMs}ms`,
+        }
+        : {
+            transform: `translate(-50%, -100%) translate(${crescida ? foraX : 0}px, ${crescida ? foraY : 0}px) scale(${crescida ? escalaFinal : escalaInicial})`,
+            transition: `transform ${duracaoMs}ms ease-out`,
+        };
+    return (
+        <div
+            className={`mesa-exp-fogo${espalhar ? ' mesa-exp-fogo-espalhando' : ''}`}
+            style={{ left: `${x}%`, top: `${y}%`, fontSize: `${fonte}px`, ...estilo }}
+        >
+            {atrasos.map((atraso, i) => (
+                <span
+                    key={i}
+                    className="mesa-exp-fogo-particula"
+                    style={{
+                        left: `calc((100% - 5em) * ${i / particulas})`,
+                        animationDelay: `-${atraso}s`,
+                    }}
+                />
+            ))}
+        </div>
+    );
+}
+
+// 'borda' (na pulsada, por TRÁS da carta): fogueirinhas semeadas em pontos
+// aleatórios num raio em volta do centro da carta (escondidas atrás dela) —
+// cada uma cresce e é lançada pra fora numa direção sorteada até passar da
+// borda da carta, com tempo e atraso próprios, em loop enquanto a carta tá
+// grande. 'cobrindo' (na mesa, por CIMA): uma fogueira só com a base no pé
+// da carta — o "fogão" — que cresce devagar do começo ao fim da queima.
+// Posição em % da caixa da carta (110x154); o container é escalado junto
+// com a carta.
+const COPAS_FOGUEIRAS_BORDA = 18;
+const COPAS_SEMENTE_RAIO_PX = 38;
+// Quanto passa da borda da carta no fim do lançamento.
+const COPAS_LANCAMENTO_ALEM_BORDA_MIN_PX = 20;
+const COPAS_LANCAMENTO_ALEM_BORDA_MAX_PX = 60;
+
+function sortearFogueiras(modo) {
+    if (modo === 'cobrindo') {
+        return [{ x: 50, y: 104, fonte: 14, particulas: 50, escalaInicial: 0.3, escalaFinal: 1.3, duracaoMs: COPAS_QUEIMANDO_MESA_MS }];
+    }
+    return Array.from({ length: COPAS_FOGUEIRAS_BORDA }, () => {
+        const angulo = Math.random() * Math.PI * 2;
+        const cos = Math.cos(angulo);
+        const sen = Math.sin(angulo);
+        const raioSemente = Math.sqrt(Math.random()) * COPAS_SEMENTE_RAIO_PX;
+        // Distância do centro até a borda do retângulo (55x77 de meia-caixa)
+        // nessa direção — o lançamento termina sempre um pouco além dela.
+        const ateBorda = Math.min(55 / Math.max(Math.abs(cos), 1e-3), 77 / Math.max(Math.abs(sen), 1e-3));
+        const alcance = ateBorda - raioSemente
+            + COPAS_LANCAMENTO_ALEM_BORDA_MIN_PX
+            + Math.random() * (COPAS_LANCAMENTO_ALEM_BORDA_MAX_PX - COPAS_LANCAMENTO_ALEM_BORDA_MIN_PX);
+        return {
+            x: 50 + ((cos * raioSemente) / 110) * 100,
+            y: 50 + ((sen * raioSemente) / 154) * 100,
+            fonte: 4.5 + Math.random() * 2.5,
+            particulas: 16,
+            espalhar: true,
+            escalaInicial: 0.3,
+            escalaFinal: 1.3 + Math.random() * 0.6,
+            foraX: cos * alcance,
+            foraY: sen * alcance,
+            duracaoMs: 450 + Math.random() * 350,
+            atrasoMs: Math.random() * 350,
+        };
+    });
+}
+
+// `transicaoEscala`: a MESMA transição de transform da carta na fase atual,
+// pra o container encolher/crescer junto com ela (ex.: descendo da tela pra
+// mesa) em vez de pular de tamanho.
+function ChamasCopas({ modo, ativo, escala, duracaoFadeMs, transicaoEscala }) {
+    const [fogueiras] = useState(() => sortearFogueiras(modo));
+    // Só monta as fogueiras na primeira vez que acende (e não desmonta mais,
+    // pra dar tempo do fade de saída) — assim o loop de cada uma começa da
+    // semente na hora da pulsada, não no meio do ciclo.
+    const [acendeu, setAcendeu] = useState(ativo);
+    if (ativo && !acendeu) setAcendeu(true);
+    return (
+        <div
+            className="mesa-exp-copas-chamas"
+            style={{
+                opacity: ativo ? 1 : 0,
+                transform: `scale(${escala})`,
+                transition: `opacity ${duracaoFadeMs}ms ease-out, transform ${transicaoEscala}`,
+            }}
+        >
+            {acendeu && fogueiras.map((f, i) => <FogueiraCodepen key={i} acesa={ativo} {...f} />)}
+        </div>
+    );
+}
+
+// Contorno "amorfo" da mancha: pontos em volta de um círculo com raio
+// sorteado por ponto, ligados por quadráticas que passam pelos PONTOS
+// MÉDIOS (cada ponto sorteado vira só controle) — assim a borda fica
+// ondulada mas sem nenhuma quina.
+function sortearContornoAmorfo(raio, pontos) {
+    const vertices = Array.from({ length: pontos }, (_, i) => {
+        const angulo = (i / pontos) * Math.PI * 2;
+        const r = raio * (0.72 + Math.random() * 0.4);
+        return { x: Math.cos(angulo) * r, y: Math.sin(angulo) * r };
+    });
+    const medio = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    const inicio = medio(vertices[pontos - 1], vertices[0]);
+    let d = `M${inicio.x.toFixed(1)},${inicio.y.toFixed(1)}`;
+    for (let i = 0; i < pontos; i++) {
+        const ctrl = vertices[i];
+        const fim = medio(ctrl, vertices[(i + 1) % pontos]);
+        d += ` Q${ctrl.x.toFixed(1)},${ctrl.y.toFixed(1)} ${fim.x.toFixed(1)},${fim.y.toFixed(1)}`;
+    }
+    return `${d} Z`;
+}
+
+const MARCA_RAIO = 78;
+const MARCA_TAMANHO_PX = MARCA_RAIO * 2 + 30;
+// Coração centrado em (0,0), ~32x29 antes do scale — usado de máscara
+// (buraco sem carbonizar) e pro contorno em brasa em volta dele.
+const MARCA_CORACAO = 'M0,14.5 C-2,12.5 -16,3.5 -16,-4.5 C-16,-10.5 -11,-14.5 -6,-14.5 C-3,-14.5 -1,-12.5 0,-10.5 C1,-12.5 3,-14.5 6,-14.5 C11,-14.5 16,-10.5 16,-4.5 C16,3.5 2,12.5 0,14.5 Z';
+const MARCA_CORACAO_ESCALA = 1.15;
+
+let proximoIdMarca = 0;
+
+function MarcaCarbonizada({ marca }) {
+    const [ids] = useState(() => {
+        const n = ++proximoIdMarca;
+        return { grad: `mesa-exp-carbonizado-grad-${n}`, mascara: `mesa-exp-carbonizado-mascara-${n}` };
+    });
+    const [formas] = useState(() => ({
+        externa: sortearContornoAmorfo(MARCA_RAIO, 13),
+        interna: sortearContornoAmorfo(MARCA_RAIO * 0.62, 11),
+    }));
+    const meio = MARCA_TAMANHO_PX / 2;
+    const coracao = `rotate(${marca.rot}) scale(${MARCA_CORACAO_ESCALA})`;
+    return (
+        <svg
+            className="mesa-exp-carbonizado"
+            width={MARCA_TAMANHO_PX}
+            height={MARCA_TAMANHO_PX}
+            viewBox={`${-meio} ${-meio} ${MARCA_TAMANHO_PX} ${MARCA_TAMANHO_PX}`}
+            style={{
+                left: `${marca.x}%`,
+                top: `${marca.y}%`,
+                '--duracao-carbonizar': `${COPAS_QUEIMANDO_MESA_MS}ms`,
+            }}
+        >
+            <defs>
+                <radialGradient id={ids.grad}>
+                    <stop offset="0%" stopColor="#050302" stopOpacity="0.97" />
+                    <stop offset="55%" stopColor="#120a05" stopOpacity="0.92" />
+                    <stop offset="82%" stopColor="#2e1b0c" stopOpacity="0.7" />
+                    <stop offset="100%" stopColor="#3d2410" stopOpacity="0.25" />
+                </radialGradient>
+                {/* Máscara invertida: tudo branco (mostra a mancha) menos o
+                    coração preto no meio (esconde) — o feltro aparece
+                    intacto ali, como um selo. */}
+                <mask id={ids.mascara}>
+                    <rect x={-meio} y={-meio} width={MARCA_TAMANHO_PX} height={MARCA_TAMANHO_PX} fill="#fff" />
+                    <path d={MARCA_CORACAO} transform={coracao} fill="#000" />
+                </mask>
+            </defs>
+            <g mask={`url(#${ids.mascara})`}>
+                <path className="mesa-exp-carbonizado-borda" d={formas.externa} fill={`url(#${ids.grad})`} />
+                <path d={formas.interna} fill="#040201" opacity="0.8" />
+            </g>
+            <path className="mesa-exp-carbonizado-brasa" d={MARCA_CORACAO} transform={coracao} />
+        </svg>
+    );
+}
+
+function CartaCopasSimulada({ mesaRef, onCarbonizar, onFim }) {
+    const [fase, setFase] = useState('jogando');
+    const [partiu, setPartiu] = useState(false);
+    const [chamasBaixo, setChamasBaixo] = useState(false);
+    const [origem] = useState(sortearOrigemJogador);
+    const [pousoJogada] = useState(sortearPontoCentralMesa);
+    const [giroInicial] = useState(() => 360 + Math.random() * 360);
+    const [rotFinalJogada] = useState(() => Math.random() * 360);
+    // Mesma ideia de voltasZ em CartaSimulada, só que termina EM PÉ (0°) na
+    // crescida em vez de deitada — aqui não tem lâmina pra caber na tela.
+    const [voltasZ] = useState(() => 360 * Math.ceil(rotFinalJogada / 360));
+    const [rotFinalPouso] = useState(() => (Math.random() * 2 - 1) * COPAS_POUSO_ROT_MAX_GRAUS);
+    const [rotSegundoPouso] = useState(() => (Math.random() * 2 - 1) * COPAS_POUSO_ROT_MAX_GRAUS);
+    const empurraoRef = useRef({ x: 0, y: 0 });
+    const avancoRef = useRef({ x: 0, y: 0 });
+
+    useEffect(() => {
+        let cancelado = false;
+        async function coreografia() {
+            await new Promise((r) => requestAnimationFrame(r));
+            if (cancelado) return;
+            setPartiu(true);
+            await esperar(SIM_VOO_DURACAO_MS);
+            if (cancelado) return;
+
+            empurraoRef.current = calcularEmpurraoParaCentroDaTela(mesaRef, pousoJogada);
+            setFase('subindo');
+            await esperar(SIM_CRESCIDA_DURACAO_MS);
+            if (cancelado) return;
+
+            setFase('segurando');
+            await esperar(COPAS_SEGURAR_MS);
+            if (cancelado) return;
+
+            setFase('pulsando');
+            await esperar(COPAS_ATRASO_CHAMAS_MS);
+            if (cancelado) return;
+            setChamasBaixo(true);
+            await esperar(COPAS_QUEIMANDO_ALTO_MS);
+            if (cancelado) return;
+
+            setChamasBaixo(false);
+            setFase('descendo');
+            await esperar(COPAS_DESCIDA_MS);
+            if (cancelado) return;
+
+            setFase('queimando');
+            onCarbonizar({ x: pousoJogada.x, y: pousoJogada.y, rot: rotFinalPouso });
+            await esperar(COPAS_QUEIMANDO_MESA_MS);
+            if (cancelado) return;
+
+            // "Pra frente" = continuando a direção em que ela foi jogada
+            // (origem -> pouso), medida em px de tela (a mesa não é
+            // quadrada, então em % a direção sairia torta).
+            const rect = mesaRef.current?.getBoundingClientRect();
+            const dx = ((pousoJogada.x - origem.x) / 100) * (rect?.width || 1080);
+            const dy = ((pousoJogada.y - origem.y) / 100) * (rect?.height || 400);
+            const norma = Math.hypot(dx, dy) || 1;
+            avancoRef.current = { x: (dx / norma) * COPAS_AVANCO_PX, y: (dy / norma) * COPAS_AVANCO_PX };
+            setFase('levantando');
+            await esperar(SIM_LEVANTAR_DURACAO_MS);
+            if (cancelado) return;
+
+            setFase('pousando-final');
+            await esperar(SIM_POUSO_FINAL_DURACAO_MS);
+            if (cancelado) return;
+
+            setFase('pousada');
+            onFim();
+        }
+        coreografia();
+        return () => { cancelado = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- mesaRef/pousoJogada/onCarbonizar/onFim são fixos por instância (cada jogada roda uma vez só)
+    }, []);
+
+    let pos = pousoJogada;
+    let offsetX = 0;
+    let offsetY = 0;
+    let escala = SIM_VOO_ESCALA_POUSO;
+    let pitch = 0;
+    let rotZ = voltasZ + rotFinalPouso;
+    let escurecendo = false;
+    let duracaoPos = 0;
+    let easing = 'ease-in-out';
+
+    if (fase === 'jogando') {
+        pos = partiu ? pousoJogada : origem;
+        escala = partiu ? SIM_VOO_ESCALA_POUSO : SIM_VOO_ESCALA_INICIAL;
+        rotZ = partiu ? rotFinalJogada : rotFinalJogada + giroInicial;
+        duracaoPos = partiu ? SIM_VOO_DURACAO_MS : 0;
+    } else if (fase === 'subindo' || fase === 'segurando' || fase === 'pulsando') {
+        offsetX = empurraoRef.current.x;
+        offsetY = empurraoRef.current.y;
+        escala = SIM_CRESCIDA_ESCALA;
+        pitch = SIM_CRESCIDA_PITCH_GRAUS;
+        rotZ = voltasZ;
+        escurecendo = true;
+        duracaoPos = fase === 'subindo' ? SIM_CRESCIDA_DURACAO_MS : 0;
+    } else if (fase === 'descendo') {
+        duracaoPos = COPAS_DESCIDA_MS;
+        easing = 'ease-in';
+    } else if (fase === 'queimando') {
+        // parada no pouso (valores padrão acima), só o fogo por cima
+    } else if (fase === 'levantando') {
+        offsetX = avancoRef.current.x;
+        offsetY = avancoRef.current.y - FACA_LEVANTAR_PX;
+        duracaoPos = SIM_LEVANTAR_DURACAO_MS;
+    } else { // 'pousando-final' ou 'pousada'
+        offsetX = avancoRef.current.x;
+        offsetY = avancoRef.current.y;
+        rotZ = voltasZ + rotSegundoPouso;
+        duracaoPos = fase === 'pousando-final' ? SIM_POUSO_FINAL_DURACAO_MS : 0;
+    }
+
+    const chamasMesaAtivas = fase === 'queimando';
+    const transicaoEscala = `${duracaoPos}ms ${easing}`;
+    return (
+        <>
+            <div
+                className={`mesa-exp-vaza-overlay${escurecendo ? ' mesa-exp-vaza-overlay-escuro' : ''}`}
+                style={{ pointerEvents: escurecendo ? 'auto' : 'none' }}
+            />
+            <div
+                className="mesa-exp-carta-simulada"
+                style={{
+                    left: `${pos.x}%`,
+                    top: `${pos.y}%`,
+                    transition: `left ${duracaoPos}ms ${easing}, top ${duracaoPos}ms ${easing}, transform ${duracaoPos}ms ${easing}`,
+                    transform: `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px)`,
+                    zIndex: fase === 'pousada' ? Z_CARTA_SIMULADA_POUSADA : undefined,
+                }}
+            >
+                {/* Antes da carta no DOM = pinta por baixo dela. */}
+                <ChamasCopas
+                    modo="borda"
+                    ativo={chamasBaixo}
+                    escala={escala}
+                    duracaoFadeMs={chamasBaixo ? 150 : COPAS_DESCIDA_MS}
+                    transicaoEscala={transicaoEscala}
+                />
+                <div
+                    className="mesa-exp-copas-miolo"
+                    style={{
+                        transition: `transform ${duracaoPos}ms ${easing}`,
+                        transform: `scale(${escala}) rotateX(${pitch}deg) rotateZ(${rotZ}deg)`,
+                    }}
+                >
+                    <div className={`mesa-exp-copas-batida${fase === 'pulsando' ? ' mesa-exp-copas-batida-ativa' : ''}`}>
+                        <Carta rank="A" naipe="Copas" efeitoManilha />
+                    </div>
+                </div>
+                {/* Depois da carta = por cima dela. Monta quando pousa e
+                    apaga assim que ela levanta. */}
+                {(fase === 'queimando' || fase === 'levantando') && (
+                    <ChamasCopas
+                        modo="cobrindo"
+                        ativo={chamasMesaAtivas}
+                        escala={SIM_VOO_ESCALA_POUSO}
+                        duracaoFadeMs={chamasMesaAtivas ? 150 : COPAS_APAGAR_FOGO_MS}
+                        transicaoEscala="0ms"
+                    />
+                )}
+            </div>
+        </>
+    );
+}
+
 export default function MesaDanificada({ onVoltar }) {
     const [cortes, setCortes] = useState([]);
     const [facas, setFacas] = useState([]);
     const [simulacoes, setSimulacoes] = useState([]);
+    const [jogadasCopas, setJogadasCopas] = useState([]);
+    const [marcasCarbonizadas, setMarcasCarbonizadas] = useState([]);
     // Gate do botão "Simular jogada" — trava enquanto a coreografia inteira
     // (ver CartaSimulada) ainda tá rolando, pra não deixar duas brigando
     // pelo centro da tela ao mesmo tempo. As jogadas simuladas já
@@ -642,6 +1054,8 @@ export default function MesaDanificada({ onVoltar }) {
     const proximoIdCorte = useRef(0);
     const proximoIdFaca = useRef(0);
     const proximoIdSimulacao = useRef(0);
+    const proximoIdCopas = useRef(0);
+    const proximoIdMarcaCarbonizada = useRef(0);
     // Pra converter o "meio-comprimento" do corte (em px de verdade, ver
     // MESA_CORTE_METADE_COMPRIMENTO) nas duas pontas em %, precisa saber o
     // tamanho ATUAL da mesa em px (ela é responsiva — min(86vw,1080px) —
@@ -687,11 +1101,31 @@ export default function MesaDanificada({ onVoltar }) {
         setSimulacoes((atuais) => [...atuais, { id }]);
     }
 
+    // Mesmo gate da jogada de Espadas (simulandoAgora) — as duas disputam o
+    // centro da tela. Como a de Espadas, a carta de Copas fica pousada na
+    // mesa pra sempre (junto com a marca carbonizada), só o gate solta.
+    function simularCopas() {
+        if (simulandoAgora) return;
+        setSimulandoAgora(true);
+        const id = ++proximoIdCopas.current;
+        setJogadasCopas((atuais) => [...atuais, { id }]);
+    }
+
+    function aoCarbonizar(marca) {
+        const id = ++proximoIdMarcaCarbonizada.current;
+        setMarcasCarbonizadas((atuais) => [...atuais, { id, ...marca }]);
+    }
+
+    function aoTerminarCopas() {
+        setSimulandoAgora(false);
+    }
+
     return (
         <div className="mesa-exp-tela">
             <button type="button" className="mesa-exp-fechar" onClick={onVoltar}>← Voltar</button>
             <div className="mesa-exp-mesa" ref={mesaRef}>
                 <div className="mesa-exp-danos">
+                    {marcasCarbonizadas.map((marca) => <MarcaCarbonizada key={marca.id} marca={marca} />)}
                     {cortes.map((corte) => <CorteNaMesa key={corte.id} corte={corte} />)}
                 </div>
                 {facas.map((faca) => (
@@ -714,6 +1148,14 @@ export default function MesaDanificada({ onVoltar }) {
                         onFim={() => setSimulandoAgora(false)}
                     />
                 ))}
+                {jogadasCopas.map((jogada) => (
+                    <CartaCopasSimulada
+                        key={jogada.id}
+                        mesaRef={mesaRef}
+                        onCarbonizar={aoCarbonizar}
+                        onFim={aoTerminarCopas}
+                    />
+                ))}
             </div>
             <div className="mesa-exp-botoes-teste">
                 <button type="button" className="mesa-exp-cortar-botao" onClick={cortarLugarAleatorio}>
@@ -726,6 +1168,14 @@ export default function MesaDanificada({ onVoltar }) {
                     disabled={simulandoAgora}
                 >
                     🗡️ Simular jogada
+                </button>
+                <button
+                    type="button"
+                    className="mesa-exp-cortar-botao mesa-exp-copas-botao"
+                    onClick={simularCopas}
+                    disabled={simulandoAgora}
+                >
+                    ❤️‍🔥 Simular copas
                 </button>
             </div>
         </div>

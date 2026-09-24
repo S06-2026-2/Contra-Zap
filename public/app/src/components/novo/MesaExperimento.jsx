@@ -650,22 +650,28 @@ function LequeManilha({ rank }) {
 
 // `estado`: o mesmo estado bruto que novo/Partida.jsx já monta a partir dos
 // handlers de socket (ver conexao/PROTOCOLO.md) — { salaId, meuNome,
-// iniciada, jogadores, segundosParaIniciar, senha, chatAberto, mao,
+// iniciada, jogadores, ordem, segundosParaIniciar, senha, chatAberto, mao,
 // cartasRodada, numeroRodada, maosReveladas, mesa, vira, jogadorDaVez,
 // jogadorDaVezAposta, apostas, eliminados, desconectados, ultimoPlacar,
 // vencedor, vazaResultado, mensagensChat, erro }. `acoes` (opcional, ainda
 // não usado na Fatia 1): funções que chamam o servidor de verdade.
 export default function MesaExperimento({ estado, acoes, onFechar }) {
-    // "Você" sempre no assento 0 (mesmo baseline visual de sempre), mesmo
-    // que `estado.jogadores` não te liste primeiro (a ordem do roster é a
-    // de ENTRADA na sala, não tem nada a ver com o layout) — gira a lista
-    // pra começar em você, preservando a ordem relativa dos outros.
+    // Assentos na ordem de JOGO (`estado.ordem`, de novaRodadaIniciada — a
+    // vez sempre anda pra frente nela), não na de entrada na sala de
+    // `estado.jogadores`, que só serve de fallback antes da primeira rodada.
+    // "Você" sempre no assento 0 (embaixo): gira a lista pra começar em
+    // você, preservando a ordem relativa dos outros — como calcularAssentos
+    // anda em sentido horário a partir de baixo, o próximo a jogar depois
+    // de você fica à sua esquerda, e assim por diante.
     const ordemAssentos = useMemo(() => {
-        const jogadores = estado.jogadores ?? [];
+        const roster = estado.jogadores ?? [];
+        const jogadores = estado.ordem?.length
+            ? estado.ordem.map((nome) => roster.find((j) => j.nome === nome) ?? { nome })
+            : roster;
         const meuIndice = jogadores.findIndex((j) => j.nome === estado.meuNome);
         if (meuIndice <= 0) return jogadores;
         return [...jogadores.slice(meuIndice), ...jogadores.slice(0, meuIndice)];
-    }, [estado.jogadores, estado.meuNome]);
+    }, [estado.jogadores, estado.ordem, estado.meuNome]);
 
     const assentos = useMemo(() => calcularAssentos(Math.max(ordemAssentos.length, 1)), [ordemAssentos.length]);
     const huesPorAssento = useMemo(

@@ -1554,6 +1554,164 @@ button.secundario {
    próprio clip-path — sempre um "plunge" rápido, ver FACA_AFUNDAR_MS,
    mais curto que o resto) vem inline por fase — ver FacaCaindo. */
 
+/* Jogada de Copas (ver CartaCopasSimulada em MesaDanificada.jsx) — botão no
+   vermelho do naipe, mesma forma dos outros dois. */
+.mesa-exp-copas-botao {
+    background: linear-gradient(180deg, #ff6a5a, #b3122e);
+    color: #fff4e8;
+}
+
+/* Sem .carta-giro3d-miolo aqui: Copas não tem lâmina/guarda/cabo, é só a
+   carta — mesmo tamanho da .carta-exp. */
+.mesa-exp-copas-miolo {
+    position: relative;
+    width: 110px;
+    height: 154px;
+}
+
+/* Batida de coração em dois tempos (sobe forte, volta, sobe menor, volta)
+   — mesmo desenho de .carta-exp-coracao-pulsante, só que a carta inteira
+   e uma vez só. Fica num wrapper próprio porque o transform do miolo é
+   inline (escala/rotação por fase) e uma animation nele sobrescreveria. */
+.mesa-exp-copas-batida-ativa {
+    animation: mesa-exp-copas-bater .52s ease-out;
+}
+
+@keyframes mesa-exp-copas-bater {
+    0% { transform: scale(1); }
+    14% { transform: scale(1.16); }
+    28% { transform: scale(.98); }
+    42% { transform: scale(1.08); }
+    62%, 100% { transform: scale(1); }
+}
+
+/* Container das chamas — mesma caixa da carta (110x154), escalado inline
+   junto com ela. Antes da carta no DOM ('borda') = pinta por trás dela;
+   depois ('cobrindo') = por cima. */
+.mesa-exp-copas-chamas {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+/* Fogueira no estilo do "CSS Blend Mode Fire" (codepen.io/jkantner/pen/
+   gKRKKb, ver FogueiraCodepen) — mesmas medidas do original em `em`
+   (10em x 12em, bolinha de 5em subindo 10em em 1s), com o font-size vindo
+   inline pra escalar tudo junto. Ancorada pela base no ponto left/top. */
+.mesa-exp-fogo {
+    position: absolute;
+    width: 10em;
+    height: 12em;
+    transform: translate(-50%, -100%);
+    /* Cresce a partir da base (ver `escalaInicial`/`escalaFinal` em
+       FogueiraCodepen) — o fogo sobe do chão, não incha pro meio. */
+    transform-origin: 50% 100%;
+    filter: blur(.02em);
+}
+
+/* Fogueirinha da pulsada (ver sortearFogueiras modo 'borda'): nasce
+   pequena e invisível na semente atrás da carta, acende, cresce e é lançada
+   até --fora-x/--fora-y apagando no fim — e recomeça. Duração/atraso vêm
+   inline, sorteados por fogueira. `both` segura o quadro inicial (invisível)
+   durante o atraso, senão ela apareceria parada antes de sair. */
+.mesa-exp-fogo-espalhando {
+    opacity: 0;
+    animation-name: mesa-exp-fogo-espalhar;
+    animation-timing-function: ease-out;
+    animation-iteration-count: infinite;
+    animation-fill-mode: both;
+}
+
+@keyframes mesa-exp-fogo-espalhar {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -100%) translate(0, 0) scale(var(--escala-inicial));
+    }
+    15% {
+        opacity: 1;
+    }
+    70% {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+        transform: translate(-50%, -100%) translate(var(--fora-x), var(--fora-y)) scale(var(--escala-final));
+    }
+}
+
+.mesa-exp-fogo-particula {
+    position: absolute;
+    bottom: 0;
+    width: 5em;
+    height: 5em;
+    border-radius: 50%;
+    background-image: radial-gradient(rgb(255, 80, 0) 20%, rgba(255, 80, 0, 0) 70%);
+    mix-blend-mode: screen;
+    opacity: 0;
+    animation: mesa-exp-fogo-subir 1s ease-in infinite;
+}
+
+@keyframes mesa-exp-fogo-subir {
+    from {
+        opacity: 0;
+        transform: translateY(0) scale(1);
+    }
+    25% {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-10em) scale(0);
+    }
+}
+
+/* Marca carbonizada (ver MarcaCarbonizada) — nasce junto com o fogo na
+   mesa, embaixo da carta, e vai escurecendo/espalhando pelo tempo inteiro
+   da queima; quando a carta some ela já está completa. Fica pra sempre
+   (camada .mesa-exp-danos, mesma lógica dos cortes). */
+.mesa-exp-carbonizado {
+    position: absolute;
+    overflow: visible;
+    transform: translate(-50%, -50%);
+    animation: mesa-exp-carbonizar var(--duracao-carbonizar) ease-in both;
+}
+
+@keyframes mesa-exp-carbonizar {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(.55);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+.mesa-exp-carbonizado-borda {
+    filter: blur(2.5px);
+}
+
+/* Contorno do coração intacto: começa em brasa acesa e esfria até virar
+   só uma beirada queimada. */
+.mesa-exp-carbonizado-brasa {
+    fill: none;
+    stroke: #ff7a1a;
+    stroke-width: 1.4;
+    filter: drop-shadow(0 0 3px #ff5a00);
+    animation: mesa-exp-brasa-esfriar 4s ease-out forwards;
+}
+
+@keyframes mesa-exp-brasa-esfriar {
+    from {
+        stroke: #ffb347;
+        opacity: 1;
+    }
+    to {
+        stroke: #5a2208;
+        opacity: .35;
+    }
+}
+
 /* Não é mais um "cartão" de jogador — é o CAMPO/hitbox onde os elementos de
    verdade (avatar, cartas, fichas...) vão entrar depois. Sem preenchimento
    nem sombra de propósito: só a borda marca a área, o resto do espaço fica

@@ -109,6 +109,10 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
     // existir (e o listener abaixo com ele), então dependeria de um evento que
     // já passou. Broadcasts seguintes (mais gente entrando) chegam normal.
     const [jogadores, setJogadores] = useState(jogadoresIniciais ?? reconexao?.jogadores ?? []);
+    // Nomes na ordem dos assentos/de jogo (ver `ordem` em novaRodadaIniciada
+    // no PROTOCOLO.md) — null até a primeira rodada, quando a mesa ainda
+    // não tem ordem e o visual novo cai pra ordem de `jogadores`.
+    const [ordem, setOrdem] = useState(reconexao?.ordem ?? null);
     // Semeado do ack de criarSala/entrarSala (não do broadcast de
     // partidaIniciandoEm): quando os bots — ou a última entrada — lotam a
     // sala, esse broadcast sai antes desta tela existir. Broadcasts
@@ -244,6 +248,7 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
                 setJogadorDaVezAposta(null);
                 setCartasRodada(p.cartas);
                 setNumeroRodada(p.numero);
+                setOrdem(p.ordem);
                 setApostas({});
                 setMaosReveladas({});
                 registrar(`Rodada ${p.numero} (${p.cartas} carta(s))`);
@@ -758,7 +763,7 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
             <MesaExperimento
                 estado={{
                     salaId, meuNome, senha,
-                    iniciada, jogadores, segundosParaIniciar, chatAberto,
+                    iniciada, jogadores, ordem, segundosParaIniciar, chatAberto,
                     mao, cartasRodada, numeroRodada, maosReveladas,
                     mesa, vira, jogadorDaVez, jogadorDaVezAposta, apostas,
                     eliminados, desconectados, ultimoPlacar, vencedor,
