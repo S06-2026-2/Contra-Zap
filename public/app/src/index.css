@@ -1712,6 +1712,158 @@ button.secundario {
     }
 }
 
+/* Jogada de Ouros (ver CartaOurosSimulada em MesaDanificada.jsx) — botão
+   dourado, mesma forma dos outros. */
+.mesa-exp-ouros-botao {
+    background: linear-gradient(180deg, #ffe27a, #b8860b);
+    color: #3a2604;
+}
+
+/* Botão de limpar as cartas da mesa (ver limparCartas) — neutro, pra não
+   parecer mais uma jogada de naipe. */
+.mesa-exp-limpar-botao {
+    background: linear-gradient(180deg, #5b636b, #30363c);
+    color: #eef1f4;
+}
+
+.mesa-exp-ouros-miolo {
+    position: relative;
+    width: 110px;
+    height: 154px;
+}
+
+/* Picareta em coordenadas da JANELA (position:fixed), por cima do
+   escurecido (46) e da carta crescida (47). A caixa tem tamanho zero e fica
+   na pegada — o transform gira em volta dela, e o <svg> é deslocado pra
+   que a origem do viewBox caia exatamente nesse ponto. */
+.mesa-exp-picareta {
+    position: fixed;
+    width: 0;
+    height: 0;
+    z-index: 48;
+    pointer-events: none;
+    transform-origin: 0 0;
+}
+
+.mesa-exp-picareta svg {
+    position: absolute;
+    overflow: visible;
+    filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .5));
+}
+
+/* Bola branca do impacto: cresce devagar durante a câmera lenta (até 78%,
+   que é onde a queda da carta começa) e estoura sumindo quando o tempo
+   volta ao normal. Duração inline = slowmo + queda. */
+.mesa-exp-ouros-impacto {
+    position: fixed;
+    width: 150px;
+    height: 150px;
+    margin: -75px 0 0 -75px;
+    border-radius: 50%;
+    z-index: 49;
+    pointer-events: none;
+    background: radial-gradient(circle, #fff 0%, #fff 32%, rgba(255, 250, 225, .85) 48%, rgba(255, 240, 190, 0) 70%);
+    box-shadow: 0 0 40px 10px rgba(255, 255, 255, .6);
+    animation-name: mesa-exp-ouros-impactar;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+}
+
+@keyframes mesa-exp-ouros-impactar {
+    0% {
+        transform: scale(.1);
+        opacity: 1;
+    }
+    69% {
+        transform: scale(1);
+        opacity: .95;
+    }
+    100% {
+        transform: scale(1.8);
+        opacity: 0;
+    }
+}
+
+/* Cratera (ver CrateraNaMesa) — entra num soco rápido e para. Todas as
+   animações aqui são finitas: depois da entrada a cratera é estática. */
+.mesa-exp-cratera {
+    position: absolute;
+    overflow: visible;
+    transform: translate(-50%, -50%);
+    animation: mesa-exp-cratera-abrir .26s ease-out both;
+}
+
+@keyframes mesa-exp-cratera-abrir {
+    0% {
+        transform: translate(-50%, -50%) scale(.3);
+    }
+    65% {
+        transform: translate(-50%, -50%) scale(1.1);
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+/* Feltro afundado em volta do buraco — mais escuro que a mesa, por baixo
+   das fendas. */
+.mesa-exp-cratera-borda {
+    fill: #0e3321;
+    opacity: .85;
+}
+
+/* Beirada levantada pegando luz, um pouco acima da borda. */
+.mesa-exp-cratera-beirada {
+    fill: none;
+    stroke: rgba(150, 225, 170, .25);
+    stroke-width: 1.5;
+    stroke-linejoin: miter;
+    transform: translateY(-1.5px);
+}
+
+.mesa-exp-cratera-rachadura {
+    fill: #07140c;
+    opacity: .9;
+}
+
+/* Veios de ouro rachando o fundo do buraco (ver FENDAS_OURO): nascem
+   acesos e esfriam até um ouro fosco. Desligados por enquanto, junto com
+   o JSX deles.
+.mesa-exp-cratera-ouro {
+    fill: #ffcc33;
+    filter: drop-shadow(0 0 1.5px #ffb300);
+    animation: mesa-exp-cratera-esfriar 2.2s ease-out forwards;
+}
+*/
+
+@keyframes mesa-exp-cratera-esfriar {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: .6;
+    }
+}
+
+/* Onda de poeira do impacto: um anel que abre e some uma vez só. */
+.mesa-exp-cratera-onda {
+    fill: none;
+    stroke: rgba(230, 215, 170, .55);
+    stroke-width: 6;
+    animation: mesa-exp-cratera-onda .5s ease-out forwards;
+}
+
+@keyframes mesa-exp-cratera-onda {
+    from {
+        transform: scale(.6);
+        opacity: 1;
+    }
+    to {
+        transform: scale(1.7);
+        opacity: 0;
+    }
+}
+
 /* Não é mais um "cartão" de jogador — é o CAMPO/hitbox onde os elementos de
    verdade (avatar, cartas, fichas...) vão entrar depois. Sem preenchimento
    nem sombra de propósito: só a borda marca a área, o resto do espaço fica

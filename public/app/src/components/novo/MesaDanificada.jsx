@@ -1004,14 +1004,21 @@ function CartaCopasSimulada({ mesaRef, onCarbonizar, onFim }) {
                     zIndex: fase === 'pousada' ? Z_CARTA_SIMULADA_POUSADA : undefined,
                 }}
             >
-                {/* Antes da carta no DOM = pinta por baixo dela. */}
-                <ChamasCopas
-                    modo="borda"
-                    ativo={chamasBaixo}
-                    escala={escala}
-                    duracaoFadeMs={chamasBaixo ? 150 : COPAS_DESCIDA_MS}
-                    transicaoEscala={transicaoEscala}
-                />
+                {/* Antes da carta no DOM = pinta por baixo dela. Só montada
+                    da pulsada até o fim da descida (que dura o mesmo que o
+                    fade de saída) — com a carta pousada pra sempre na mesa,
+                    as centenas de partículas em loop com blend mode
+                    continuariam rodando invisíveis e acumulando a cada
+                    jogada. */}
+                {(fase === 'pulsando' || fase === 'descendo') && (
+                    <ChamasCopas
+                        modo="borda"
+                        ativo={chamasBaixo}
+                        escala={escala}
+                        duracaoFadeMs={chamasBaixo ? 150 : COPAS_DESCIDA_MS}
+                        transicaoEscala={transicaoEscala}
+                    />
+                )}
                 <div
                     className="mesa-exp-copas-miolo"
                     style={{
@@ -1039,12 +1046,440 @@ function CartaCopasSimulada({ mesaRef, onCarbonizar, onFim }) {
     );
 }
 
+// Jogada de Ouros (pedido do Henrique 2026-09-24: ouro -> mineração ->
+// picareta) — irmã de Espadas/Copas: voa até um ponto central, sobe pro
+// centro da tela com o fundo escurecendo, só que fica EM PÉ (0°) e sem
+// inclinação. Daí:
+//   segura OUROS_SEGURAR_MS -> uma picareta sobe de baixo pela direita e
+//   para ao lado da carta -> carrega o golpe devagar, girando pra trás e
+//   saindo do quadro pela direita -> volta com tudo da mesma direção e a
+//   ponta acerta a carta -> câmera lenta no impacto (quase parado, com a
+//   bola branca de impacto crescendo) -> a carta despenca na mesa bem mais
+//   rápido que as outras descem -> abre uma cratera (CrateraNaMesa, na
+//   camada de danos) com a tela tremendo -> quica pra fora dela num arco e
+//   pousa de novo — fica ali pra sempre como as outras.
+const OUROS_SEGURAR_MS = 200;
+const OUROS_PICARETA_ENTRADA_MS = 420;
+const OUROS_CARGA_MS = 650;
+const OUROS_GOLPE_MS = 110;
+const OUROS_SLOWMO_MS = 420;
+const OUROS_QUEDA_MS = 190;
+const OUROS_ASSENTAR_MS = 220;
+const OUROS_QUIQUE_MS = 460;
+const OUROS_QUIQUE_DISTANCIA_PX = 70;
+const OUROS_QUIQUE_ALTURA_PX = 50;
+const OUROS_QUIQUE_AMOSTRAS = 16;
+const OUROS_POUSO_ROT_MAX_GRAUS = 18;
+// Giro que a pancada imprime na carta durante a queda (a picareta vem da
+// direita pra esquerda, então empurra no sentido anti-horário).
+const OUROS_GIRO_QUEDA_GRAUS = -40;
+const OUROS_TREMOR_MS = 420;
+
+// Picareta desenhada com o pivô (a pegada, fim do cabo) na origem e o cabo
+// subindo pelo -y; a ponta longa aponta pra esquerda (pro lado da carta).
+// Todas as poses são rotação em volta da pegada + deslocamento dela.
+const PICARETA_PONTA = { x: -150, y: -250 };
+// O desenho é feito pequeno e escalado aqui em volta da pegada — grande o
+// bastante pro cabo quase nunca caber inteiro na tela.
+const PICARETA_ESCALA = 2.2;
+const PICARETA_CAIXA = { x: -170, y: -340, largura: 300, altura: 370 };
+// Onde a ponta acerta, relativo ao centro da carta crescida na tela.
+const OUROS_IMPACTO = { x: 55, y: -35 };
+const PICARETA_GIRO_IMPACTO = -12;
+const PICARETA_POSES = {
+    escondida: { giro: 20, dx: 200, dy: 900 },
+    parada: { giro: 8, dx: 0, dy: 0 },
+    carregada: { giro: 80, dx: 140, dy: 60 },
+    impacto: { giro: PICARETA_GIRO_IMPACTO, dx: 0, dy: 0 },
+    slowmo: { giro: PICARETA_GIRO_IMPACTO - 3, dx: -4, dy: 3 },
+    seguindo: { giro: -55, dx: -80, dy: 120 },
+};
+
+function girarPonto(p, graus) {
+    const r = (graus * Math.PI) / 180;
+    return { x: p.x * Math.cos(r) - p.y * Math.sin(r), y: p.x * Math.sin(r) + p.y * Math.cos(r) };
+}
+
+// Pegada (em px de tela) que faz a ponta cair exatamente em OUROS_IMPACTO
+// na pose de impacto — as outras poses são deslocamentos em cima dela.
+function calcularPegadaPicareta() {
+    const centro = { x: window.innerWidth * SIM_CRESCIDA_X_FRACAO, y: window.innerHeight * SIM_CRESCIDA_Y_FRACAO };
+    const ponta = girarPonto({ x: PICARETA_PONTA.x * PICARETA_ESCALA, y: PICARETA_PONTA.y * PICARETA_ESCALA }, PICARETA_GIRO_IMPACTO);
+    return {
+        pegada: { x: centro.x + OUROS_IMPACTO.x - ponta.x, y: centro.y + OUROS_IMPACTO.y - ponta.y },
+        impacto: { x: centro.x + OUROS_IMPACTO.x, y: centro.y + OUROS_IMPACTO.y },
+    };
+}
+
+function Picareta({ pegada, pose, duracaoMs, easing, visivel }) {
+    const p = PICARETA_POSES[pose];
+    return (
+        <div
+            className="mesa-exp-picareta"
+            style={{
+                left: `${pegada.x}px`,
+                top: `${pegada.y}px`,
+                transform: `translate(${p.dx}px, ${p.dy}px) rotate(${p.giro}deg) scale(${PICARETA_ESCALA})`,
+                transition: `transform ${duracaoMs}ms ${easing}, opacity ${duracaoMs}ms ease-out`,
+                opacity: visivel ? 1 : 0,
+            }}
+        >
+            <svg
+                width={PICARETA_CAIXA.largura}
+                height={PICARETA_CAIXA.altura}
+                viewBox={`${PICARETA_CAIXA.x} ${PICARETA_CAIXA.y} ${PICARETA_CAIXA.largura} ${PICARETA_CAIXA.altura}`}
+                style={{ left: `${PICARETA_CAIXA.x}px`, top: `${PICARETA_CAIXA.y}px` }}
+            >
+                <defs>
+                    <linearGradient id="mesa-exp-picareta-madeira" x1="0" x2="1">
+                        <stop offset="0%" stopColor="#7a4a1e" />
+                        <stop offset="45%" stopColor="#c98a4b" />
+                        <stop offset="100%" stopColor="#6b3f18" />
+                    </linearGradient>
+                    <linearGradient id="mesa-exp-picareta-metal" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#eef1f4" />
+                        <stop offset="55%" stopColor="#9aa3ab" />
+                        <stop offset="100%" stopColor="#5d656d" />
+                    </linearGradient>
+                </defs>
+                <rect x="-8" y="-300" width="16" height="320" rx="7" fill="url(#mesa-exp-picareta-madeira)" stroke="#3d2410" strokeWidth="1.5" />
+                {[-4, 6, 16].map((y) => (
+                    <rect key={y} x="-9" y={y - 3} width="18" height="5" rx="2" fill="#2a1a0c" opacity="0.75" />
+                ))}
+                <path
+                    d="M-150,-250 Q-70,-322 0,-322 Q60,-322 110,-262 Q55,-296 0,-290 Q-80,-290 -150,-250 Z"
+                    fill="url(#mesa-exp-picareta-metal)"
+                    stroke="#30363c"
+                    strokeWidth="2"
+                    strokeLinejoin="round"
+                />
+                <rect x="-13" y="-310" width="26" height="28" rx="3" fill="#4d545b" stroke="#2a2f34" strokeWidth="1.5" />
+            </svg>
+        </div>
+    );
+}
+
+// Contorno e rachaduras sorteados por cratera; tudo parado depois da
+// entrada (animações finitas), então dezenas delas na mesa não pesam.
+const CRATERA_RAIO = 62;
+const CRATERA_TAMANHO_PX = CRATERA_RAIO * 2 + 90;
+
+// Contorno de pedra quebrada: vértices com ângulo e raio sorteados ligados
+// por retas — quinas vivas, diferente do contorno amorfo da marca
+// carbonizada.
+function sortearContornoPoligonal(raio, pontos) {
+    const vertices = Array.from({ length: pontos }, (_, i) => {
+        const angulo = ((i + (Math.random() - 0.5) * 0.7) / pontos) * Math.PI * 2;
+        const r = raio * (0.8 + Math.random() * 0.35);
+        return `${Math.cos(angulo) * r},${Math.sin(angulo) * r}`;
+    });
+    return `M${vertices.join(' L')} Z`;
+}
+
+// Fendas saindo do centro pra fora: algumas longas e várias curtas. Cada
+// fenda é um polígono fechado — a linha central com meia-largura que afina
+// da base até a ponta, dos dois lados. Serve pras duas famílias:
+//   - FENDAS_MESA: grandes e escuras, nascem por baixo do buraco (começam
+//     dentro do fundo escuro, que pinta por cima da base) e rasgam o feltro;
+//   - FENDAS_OURO: pequenas, finas e douradas, inteiras DENTRO do fundo
+//     escuro (o menor raio possível dele é 0.78 · 0.8 ≈ 0.62 do raio).
+// Alcances em frações de CRATERA_RAIO; passo em px entre vértices.
+const FENDAS_MESA = {
+    quantidade: [11, 14], longas: 4, inicio: 0.6,
+    alcanceLonga: [1.25, 1.65], alcanceCurta: [0.95, 1.2],
+    passo: [9, 17], torcao: 0.3, base: 2.6, ponta: 0.25,
+};
+// Veios de ouro desligados por enquanto (Henrique, 2026-09-24) — pra
+// religar, descomentar este bloco, `veiosOuro` em CrateraNaMesa, o <g>
+// .mesa-exp-cratera-ouro no render dela e a regra de mesmo nome no index.css.
+// const FENDAS_OURO = {
+//     quantidade: [7, 10], longas: 3, inicio: 0.06,
+//     alcanceLonga: [0.46, 0.56], alcanceCurta: [0.22, 0.36],
+//     passo: [4, 8], torcao: 0.45, base: 1.1, ponta: 0.12,
+// };
+//
+// // Escala final dos veios de ouro inteiros (comprimento e grossura juntos).
+// const FENDAS_OURO_ESCALA = 0.9;
+
+function sortear([min, max]) {
+    return min + Math.random() * (max - min);
+}
+
+function sortearRachaduras(cfg) {
+    const n = Math.floor(sortear([cfg.quantidade[0], cfg.quantidade[1] + 1]));
+    const longas = new Set();
+    while (longas.size < Math.min(cfg.longas, n)) longas.add(Math.floor(Math.random() * n));
+    return Array.from({ length: n }, (_, i) => {
+        let a = ((i + Math.random() * 0.7) / n) * Math.PI * 2;
+        let r = CRATERA_RAIO * cfg.inicio;
+        const alcance = CRATERA_RAIO * sortear(longas.has(i) ? cfg.alcanceLonga : cfg.alcanceCurta);
+        const centro = [[Math.cos(a) * r, Math.sin(a) * r]];
+        while (r < alcance) {
+            r = Math.min(alcance, r + sortear(cfg.passo));
+            a += (Math.random() - 0.5) * cfg.torcao;
+            centro.push([Math.cos(a) * r, Math.sin(a) * r]);
+        }
+        const esquerda = [];
+        const direita = [];
+        centro.forEach(([x, y], j) => {
+            const [ax, ay] = centro[Math.max(0, j - 1)];
+            const [bx, by] = centro[Math.min(centro.length - 1, j + 1)];
+            const norma = Math.hypot(bx - ax, by - ay) || 1;
+            const t = j / (centro.length - 1);
+            const meia = cfg.base + (cfg.ponta - cfg.base) * t;
+            const px = (-(by - ay) / norma) * meia;
+            const py = ((bx - ax) / norma) * meia;
+            esquerda.push(`${(x + px).toFixed(1)},${(y + py).toFixed(1)}`);
+            direita.unshift(`${(x - px).toFixed(1)},${(y - py).toFixed(1)}`);
+        });
+        return `M${[...esquerda, ...direita].join(' L')} Z`;
+    });
+}
+
+let proximoIdCratera = 0;
+
+function CrateraNaMesa({ cratera }) {
+    const [ids] = useState(() => {
+        const n = ++proximoIdCratera;
+        return { fundo: `mesa-exp-cratera-fundo-${n}` };
+    });
+    const [formas] = useState(() => ({
+        borda: sortearContornoPoligonal(CRATERA_RAIO * 0.92, 11),
+        fundo: sortearContornoPoligonal(CRATERA_RAIO * 0.78, 9),
+        rachaduras: sortearRachaduras(FENDAS_MESA),
+        // veiosOuro: sortearRachaduras(FENDAS_OURO),
+    }));
+    const meio = CRATERA_TAMANHO_PX / 2;
+    return (
+        <svg
+            className="mesa-exp-cratera"
+            width={CRATERA_TAMANHO_PX}
+            height={CRATERA_TAMANHO_PX}
+            viewBox={`${-meio} ${-meio} ${CRATERA_TAMANHO_PX} ${CRATERA_TAMANHO_PX}`}
+            style={{ left: `${cratera.x}%`, top: `${cratera.y}%` }}
+        >
+            <defs>
+                <radialGradient id={ids.fundo}>
+                    <stop offset="0%" stopColor="#3a2709" />
+                    <stop offset="45%" stopColor="#1e1407" />
+                    <stop offset="100%" stopColor="#0d0904" />
+                </radialGradient>
+            </defs>
+            <circle className="mesa-exp-cratera-onda" r={CRATERA_RAIO} />
+            <path className="mesa-exp-cratera-borda" d={formas.borda} />
+            <path className="mesa-exp-cratera-beirada" d={formas.borda} />
+            {formas.rachaduras.map((d, i) => (
+                <path key={i} className="mesa-exp-cratera-rachadura" d={d} />
+            ))}
+            <path d={formas.fundo} fill={`url(#${ids.fundo})`} />
+            {/* <g className="mesa-exp-cratera-ouro" transform={`scale(${FENDAS_OURO_ESCALA})`}>
+                {formas.veiosOuro.map((d, i) => <path key={i} d={d} />)}
+            </g> */}
+        </svg>
+    );
+}
+
+function CartaOurosSimulada({ mesaRef, onCratera, onTremer, onFim }) {
+    const [fase, setFase] = useState('jogando');
+    const [partiu, setPartiu] = useState(false);
+    const [origem] = useState(sortearOrigemJogador);
+    const [pousoJogada] = useState(sortearPontoCentralMesa);
+    const [giroInicial] = useState(() => 360 + Math.random() * 360);
+    const [rotFinalJogada] = useState(() => Math.random() * 360);
+    const [voltasZ] = useState(() => 360 * Math.ceil(rotFinalJogada / 360));
+    const [rotFinalPouso] = useState(() => (Math.random() * 2 - 1) * OUROS_POUSO_ROT_MAX_GRAUS);
+    const [rotSegundoPouso] = useState(() => (Math.random() * 2 - 1) * OUROS_POUSO_ROT_MAX_GRAUS);
+    const empurraoRef = useRef({ x: 0, y: 0 });
+    const picaretaRef = useRef(null);
+    const quiqueRef = useRef(null);
+
+    useEffect(() => {
+        let cancelado = false;
+        async function coreografia() {
+            await new Promise((r) => requestAnimationFrame(r));
+            if (cancelado) return;
+            setPartiu(true);
+            await esperar(SIM_VOO_DURACAO_MS);
+            if (cancelado) return;
+
+            empurraoRef.current = calcularEmpurraoParaCentroDaTela(mesaRef, pousoJogada);
+            setFase('subindo');
+            await esperar(SIM_CRESCIDA_DURACAO_MS);
+            if (cancelado) return;
+
+            // A picareta monta aqui, ainda escondida abaixo da tela — o
+            // segurar serve de quadro inicial pra transição de entrada.
+            picaretaRef.current = calcularPegadaPicareta();
+            setFase('segurando');
+            await esperar(OUROS_SEGURAR_MS);
+            if (cancelado) return;
+
+            setFase('picareta-entrando');
+            await esperar(OUROS_PICARETA_ENTRADA_MS);
+            if (cancelado) return;
+
+            setFase('carregando');
+            await esperar(OUROS_CARGA_MS);
+            if (cancelado) return;
+
+            setFase('golpeando');
+            await esperar(OUROS_GOLPE_MS);
+            if (cancelado) return;
+
+            setFase('impacto');
+            await esperar(OUROS_SLOWMO_MS);
+            if (cancelado) return;
+
+            setFase('caindo');
+            await esperar(OUROS_QUEDA_MS);
+            if (cancelado) return;
+
+            setFase('cratera');
+            onCratera({ x: pousoJogada.x, y: pousoJogada.y });
+            onTremer();
+            await esperar(OUROS_ASSENTAR_MS);
+            if (cancelado) return;
+
+            // Arco do quique: x/y andam lineares até o destino e a altura
+            // soma uma parábola por cima (4·t·(1−t)), amostrada em quadros —
+            // uma transição CSS só teria uma curva pros dois eixos.
+            const angulo = Math.random() * Math.PI * 2;
+            const destinoX = Math.cos(angulo) * OUROS_QUIQUE_DISTANCIA_PX;
+            const destinoY = Math.sin(angulo) * OUROS_QUIQUE_DISTANCIA_PX;
+            const quadros = [];
+            for (let i = 0; i <= OUROS_QUIQUE_AMOSTRAS; i++) {
+                const t = i / OUROS_QUIQUE_AMOSTRAS;
+                const altura = 4 * t * (1 - t);
+                quadros.push({
+                    translate: `${destinoX * t}px ${destinoY * t - altura * OUROS_QUIQUE_ALTURA_PX}px`,
+                    scale: `${1 + altura * 0.15}`,
+                });
+            }
+            quiqueRef.current?.animate(quadros, { duration: OUROS_QUIQUE_MS, easing: 'linear', fill: 'forwards' });
+            setFase('quicando');
+            await esperar(OUROS_QUIQUE_MS);
+            if (cancelado) return;
+
+            setFase('pousada');
+            onFim();
+        }
+        coreografia();
+        return () => { cancelado = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- mesaRef/pousoJogada/onCratera/onTremer/onFim são fixos por instância (cada jogada roda uma vez só)
+    }, []);
+
+    let pos = pousoJogada;
+    let offsetX = 0;
+    let offsetY = 0;
+    let escala = SIM_VOO_ESCALA_POUSO;
+    let rotZ = voltasZ + rotFinalPouso;
+    let escurecendo = false;
+    let duracaoPos = 0;
+    let easing = 'ease-in-out';
+
+    const noAlto = ['subindo', 'segurando', 'picareta-entrando', 'carregando', 'golpeando', 'impacto'];
+    if (fase === 'jogando') {
+        pos = partiu ? pousoJogada : origem;
+        escala = partiu ? SIM_VOO_ESCALA_POUSO : SIM_VOO_ESCALA_INICIAL;
+        rotZ = partiu ? rotFinalJogada : rotFinalJogada + giroInicial;
+        duracaoPos = partiu ? SIM_VOO_DURACAO_MS : 0;
+    } else if (noAlto.includes(fase)) {
+        offsetX = empurraoRef.current.x;
+        offsetY = empurraoRef.current.y;
+        escala = SIM_CRESCIDA_ESCALA;
+        rotZ = voltasZ;
+        escurecendo = true;
+        duracaoPos = fase === 'subindo' ? SIM_CRESCIDA_DURACAO_MS : 0;
+        if (fase === 'impacto') {
+            // Câmera lenta: a pancada já empurrou, mas quase nada anda.
+            offsetX -= 4;
+            offsetY += 4;
+            rotZ = voltasZ - 3;
+            duracaoPos = OUROS_SLOWMO_MS;
+            easing = 'linear';
+        }
+    } else if (fase === 'caindo') {
+        rotZ = voltasZ + OUROS_GIRO_QUEDA_GRAUS + rotFinalPouso;
+        duracaoPos = OUROS_QUEDA_MS;
+        easing = 'cubic-bezier(.55, 0, 1, .6)';
+    } else if (fase === 'cratera') {
+        rotZ = voltasZ + OUROS_GIRO_QUEDA_GRAUS + rotFinalPouso;
+    } else { // 'quicando' ou 'pousada'
+        rotZ = voltasZ + OUROS_GIRO_QUEDA_GRAUS + rotSegundoPouso;
+        duracaoPos = fase === 'quicando' ? OUROS_QUIQUE_MS : 0;
+        easing = 'ease-out';
+    }
+
+    const picareta = picaretaRef.current;
+    const picaretaMontada = picareta && ['segurando', 'picareta-entrando', 'carregando', 'golpeando', 'impacto', 'caindo'].includes(fase);
+    const posePicareta = {
+        segurando: ['escondida', 0, 'linear'],
+        'picareta-entrando': ['parada', OUROS_PICARETA_ENTRADA_MS, 'ease-out'],
+        carregando: ['carregada', OUROS_CARGA_MS, 'ease-in-out'],
+        golpeando: ['impacto', OUROS_GOLPE_MS, 'cubic-bezier(.55, 0, 1, .45)'],
+        impacto: ['slowmo', OUROS_SLOWMO_MS, 'linear'],
+        caindo: ['seguindo', OUROS_QUEDA_MS, 'ease-out'],
+    }[fase];
+
+    return (
+        <>
+            <div
+                className={`mesa-exp-vaza-overlay${escurecendo ? ' mesa-exp-vaza-overlay-escuro' : ''}`}
+                style={{ pointerEvents: escurecendo ? 'auto' : 'none' }}
+            />
+            <div
+                className="mesa-exp-carta-simulada"
+                style={{
+                    left: `${pos.x}%`,
+                    top: `${pos.y}%`,
+                    transition: `left ${duracaoPos}ms ${easing}, top ${duracaoPos}ms ${easing}, transform ${duracaoPos}ms ${easing}`,
+                    transform: `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px)`,
+                    zIndex: fase === 'pousada' ? Z_CARTA_SIMULADA_POUSADA : undefined,
+                }}
+            >
+                <div ref={quiqueRef}>
+                    <div
+                        className="mesa-exp-ouros-miolo"
+                        style={{
+                            transition: `transform ${duracaoPos}ms ${easing}`,
+                            transform: `scale(${escala}) rotateZ(${rotZ}deg)`,
+                        }}
+                    >
+                        <Carta rank="A" naipe="Ouros" efeitoManilha />
+                    </div>
+                </div>
+            </div>
+            {picaretaMontada && (
+                <Picareta
+                    pegada={picareta.pegada}
+                    pose={posePicareta[0]}
+                    duracaoMs={posePicareta[1]}
+                    easing={posePicareta[2]}
+                    visivel={fase !== 'caindo'}
+                />
+            )}
+            {picareta && (fase === 'impacto' || fase === 'caindo') && (
+                <div
+                    className="mesa-exp-ouros-impacto"
+                    style={{
+                        left: `${picareta.impacto.x}px`,
+                        top: `${picareta.impacto.y}px`,
+                        animationDuration: `${OUROS_SLOWMO_MS + OUROS_QUEDA_MS}ms`,
+                    }}
+                />
+            )}
+        </>
+    );
+}
+
 export default function MesaDanificada({ onVoltar }) {
     const [cortes, setCortes] = useState([]);
     const [facas, setFacas] = useState([]);
     const [simulacoes, setSimulacoes] = useState([]);
     const [jogadasCopas, setJogadasCopas] = useState([]);
     const [marcasCarbonizadas, setMarcasCarbonizadas] = useState([]);
+    const [jogadasOuros, setJogadasOuros] = useState([]);
+    const [crateras, setCrateras] = useState([]);
     // Gate do botão "Simular jogada" — trava enquanto a coreografia inteira
     // (ver CartaSimulada) ainda tá rolando, pra não deixar duas brigando
     // pelo centro da tela ao mesmo tempo. As jogadas simuladas já
@@ -1056,6 +1491,9 @@ export default function MesaDanificada({ onVoltar }) {
     const proximoIdSimulacao = useRef(0);
     const proximoIdCopas = useRef(0);
     const proximoIdMarcaCarbonizada = useRef(0);
+    const proximoIdOuros = useRef(0);
+    const proximoIdCrateraMesa = useRef(0);
+    const telaRef = useRef(null);
     // Pra converter o "meio-comprimento" do corte (em px de verdade, ver
     // MESA_CORTE_METADE_COMPRIMENTO) nas duas pontas em %, precisa saber o
     // tamanho ATUAL da mesa em px (ela é responsiva — min(86vw,1080px) —
@@ -1120,11 +1558,44 @@ export default function MesaDanificada({ onVoltar }) {
         setSimulandoAgora(false);
     }
 
+    function simularOuros() {
+        if (simulandoAgora) return;
+        setSimulandoAgora(true);
+        const id = ++proximoIdOuros.current;
+        setJogadasOuros((atuais) => [...atuais, { id }]);
+    }
+
+    function aoCratera(cratera) {
+        const id = ++proximoIdCrateraMesa.current;
+        setCrateras((atuais) => [...atuais, { id, ...cratera }]);
+    }
+
+    // Tira todas as cartas jogadas da mesa e deixa só os danos (cortes,
+    // marcas carbonizadas, crateras). Uma jogada no meio da coreografia
+    // desmonta junto e nunca chama o próprio onFim, então o gate solta aqui.
+    function limparCartas() {
+        setSimulacoes([]);
+        setJogadasCopas([]);
+        setJogadasOuros([]);
+        setSimulandoAgora(false);
+    }
+
+    // Tremor amortecido na tela inteira via WAAPI — não passa por estado,
+    // então não re-renderiza nada e pode disparar de novo a qualquer hora.
+    function tremerTela() {
+        const amplitudes = [14, -12, 9, -7, 5, -3, 1, 0];
+        const quadros = amplitudes.map((a, i) => ({
+            transform: `translate(${a}px, ${(i % 2 ? 1 : -1) * Math.abs(a) * 0.7}px)`,
+        }));
+        telaRef.current?.animate(quadros, { duration: OUROS_TREMOR_MS, easing: 'ease-out' });
+    }
+
     return (
-        <div className="mesa-exp-tela">
+        <div className="mesa-exp-tela" ref={telaRef}>
             <button type="button" className="mesa-exp-fechar" onClick={onVoltar}>← Voltar</button>
             <div className="mesa-exp-mesa" ref={mesaRef}>
                 <div className="mesa-exp-danos">
+                    {crateras.map((cratera) => <CrateraNaMesa key={cratera.id} cratera={cratera} />)}
                     {marcasCarbonizadas.map((marca) => <MarcaCarbonizada key={marca.id} marca={marca} />)}
                     {cortes.map((corte) => <CorteNaMesa key={corte.id} corte={corte} />)}
                 </div>
@@ -1156,6 +1627,15 @@ export default function MesaDanificada({ onVoltar }) {
                         onFim={aoTerminarCopas}
                     />
                 ))}
+                {jogadasOuros.map((jogada) => (
+                    <CartaOurosSimulada
+                        key={jogada.id}
+                        mesaRef={mesaRef}
+                        onCratera={aoCratera}
+                        onTremer={tremerTela}
+                        onFim={() => setSimulandoAgora(false)}
+                    />
+                ))}
             </div>
             <div className="mesa-exp-botoes-teste">
                 <button type="button" className="mesa-exp-cortar-botao" onClick={cortarLugarAleatorio}>
@@ -1176,6 +1656,21 @@ export default function MesaDanificada({ onVoltar }) {
                     disabled={simulandoAgora}
                 >
                     ❤️‍🔥 Simular copas
+                </button>
+                <button
+                    type="button"
+                    className="mesa-exp-cortar-botao mesa-exp-ouros-botao"
+                    onClick={simularOuros}
+                    disabled={simulandoAgora}
+                >
+                    ⛏️ Simular ouros
+                </button>
+                <button
+                    type="button"
+                    className="mesa-exp-cortar-botao mesa-exp-limpar-botao"
+                    onClick={limparCartas}
+                >
+                    🧹 Limpar cartas
                 </button>
             </div>
         </div>
