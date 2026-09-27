@@ -285,6 +285,7 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
                     jogadores: resumoJogadores(sala),
                     segundosParaIniciar: sala.controller.inicioAgendado ? sala.controller.segundosParaIniciar : null,
                     chatAberto: sala.chatAberto,
+                    modeloBot: sala.modeloBot,
                     // Só aqui, e só pra quem criou: a senha da sala privada
                     // (sorteada pelo servidor, ver SalaManager) nunca aparece
                     // em mais nenhum ack/broadcast (nem listarSalas, nem
@@ -318,6 +319,7 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
                     jogadores: resumoJogadores(sala),
                     segundosParaIniciar: sala.controller.inicioAgendado ? sala.controller.segundosParaIniciar : null,
                     chatAberto: sala.chatAberto,
+                    modeloBot: sala.modeloBot,
                 };
             });
         });
@@ -339,6 +341,7 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
                     // "quantos segundos" também vem no ack.
                     segundosParaIniciar: sala.controller.inicioAgendado ? sala.controller.segundosParaIniciar : null,
                     chatAberto: sala.chatAberto,
+                    modeloBot: sala.modeloBot,
                 };
             });
         });
@@ -428,6 +431,7 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
                     jogadores: resumoJogadores(novaSala),
                     segundosParaIniciar: novaSala.controller.inicioAgendado ? novaSala.controller.segundosParaIniciar : null,
                     chatAberto: novaSala.chatAberto,
+                    modeloBot: novaSala.modeloBot,
                 };
             });
         });
@@ -464,6 +468,13 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
                 const player = exigirJogador();
                 salaManager.registrarAnimando(salaId, player);
                 return {};
+            });
+        });
+
+        socket.on(EventosCliente.SUGESTAO_BOT, ({ salaId } = {}, ack) => {
+            responder(ack, () => {
+                const player = exigirJogador();
+                return salaManager.sugestaoBot(salaId, player);
             });
         });
 

@@ -43,7 +43,8 @@ label {
     color: var(--texto-fraco);
 }
 
-input {
+input,
+select {
     background: #1f2028;
     border: 1px solid var(--borda);
     border-radius: 6px;

@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0c0d11; font-family: Archivo, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: #f5c451; text-decoration: none; }
+  a:hover { color: #ffdc8a; }
+  button { font-family: inherit; cursor: pointer; }
+  @keyframes cz-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  @keyframes cz-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,75,62,.55); } 50% { box-shadow: 0 0 0 10px rgba(255,75,62,0); } }
+  @keyframes cz-stamp { 0% { transform: rotate(-14deg) scale(2.4); opacity: 0; } 60% { transform: rotate(-14deg) scale(.92); opacity: 1; } 100% { transform: rotate(-14deg) scale(1); opacity: 1; } }
+  @keyframes cz-rise { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  @keyframes cz-shine { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+  /* Golpes de manilha — sprites pixelados sobre o feltro */
+  @keyframes cz-corte { 0% { transform: translate(-330px,330px) rotate(45deg); opacity: 0; } 10% { opacity: 1; } 100% { transform: translate(330px,-330px) rotate(45deg); opacity: 1; } }
+  @keyframes cz-trilha { 0% { opacity: 0; transform: rotate(-45deg) scaleX(.1); } 20% { opacity: .9; transform: rotate(-45deg) scaleX(1); } 100% { opacity: 0; transform: rotate(-45deg) scaleX(1); } }
+  @keyframes cz-choque-l { 0% { transform: translate(-340px,0); opacity: 0; } 8% { opacity: 1; } 30% { transform: translate(-44px,0); } 36% { transform: translate(-26px,0); } 44% { transform: translate(-36px,0); } 52% { transform: translate(-24px,0); } 60% { transform: translate(-34px,0); } 70% { transform: translate(-30px,0); } 100% { transform: translate(-430px,-90px); opacity: 0; } }
+  @keyframes cz-choque-r { 0% { transform: translate(340px,0); opacity: 0; } 8% { opacity: 1; } 30% { transform: translate(44px,0); } 36% { transform: translate(26px,0); } 44% { transform: translate(36px,0); } 52% { transform: translate(24px,0); } 60% { transform: translate(34px,0); } 70% { transform: translate(30px,0); } 100% { transform: translate(430px,-90px); opacity: 0; } }
+  @keyframes cz-choque-l90 { 0% { transform: translate(-340px,0) rotate(90deg); opacity: 0; } 8% { opacity: 1; } 30% { transform: translate(-44px,0) rotate(90deg); } 36% { transform: translate(-26px,0) rotate(90deg); } 44% { transform: translate(-36px,0) rotate(86deg); } 52% { transform: translate(-24px,0) rotate(92deg); } 60% { transform: translate(-34px,0) rotate(88deg); } 70% { transform: translate(-30px,0) rotate(90deg); } 100% { transform: translate(-430px,-100px) rotate(30deg); opacity: 0; } }
+  @keyframes cz-choque-r90 { 0% { transform: translate(340px,0) rotate(-90deg); opacity: 0; } 8% { opacity: 1; } 30% { transform: translate(44px,0) rotate(-90deg); } 36% { transform: translate(26px,0) rotate(-90deg); } 44% { transform: translate(36px,0) rotate(-86deg); } 52% { transform: translate(24px,0) rotate(-92deg); } 60% { transform: translate(34px,0) rotate(-88deg); } 70% { transform: translate(30px,0) rotate(-90deg); } 100% { transform: translate(430px,-100px) rotate(-30deg); opacity: 0; } }
+  @keyframes cz-cruz-l { 0% { transform: translate(-380px,-20px) rotate(90deg); opacity: 0; } 8% { opacity: 1; } 22% { transform: translate(-170px,-14px) rotate(74deg); } 30% { transform: translate(-64px,-6px) rotate(48deg); } 36% { transform: translate(-40px,-26px) rotate(45deg); } 44% { transform: translate(-54px,-14px) rotate(50deg); } 52% { transform: translate(-38px,-28px) rotate(44deg); } 60% { transform: translate(-52px,-16px) rotate(49deg); } 70% { transform: translate(-46px,-20px) rotate(47deg); } 100% { transform: translate(-430px,90px) rotate(78deg); opacity: 0; } }
+  @keyframes cz-cruz-r { 0% { transform: translate(380px,-20px) rotate(-90deg); opacity: 0; } 8% { opacity: 1; } 22% { transform: translate(170px,-14px) rotate(-74deg); } 30% { transform: translate(64px,-6px) rotate(-48deg); } 36% { transform: translate(40px,-26px) rotate(-45deg); } 44% { transform: translate(54px,-14px) rotate(-50deg); } 52% { transform: translate(38px,-28px) rotate(-44deg); } 60% { transform: translate(52px,-16px) rotate(-49deg); } 70% { transform: translate(46px,-20px) rotate(-47deg); } 100% { transform: translate(430px,90px) rotate(-78deg); opacity: 0; } }
+  /* Duelo: espada corta ouros */
+  @keyframes cz-alvo-espera { 0% { transform: scale(1); opacity: 1; } 58% { transform: scale(1.06); opacity: 1; } 62% { opacity: 0; } 100% { opacity: 0; } }
+  @keyframes cz-alvo-tremer { 0%,100% { transform: translate(0,0); } 20% { transform: translate(-4px,3px); } 45% { transform: translate(5px,-3px); } 70% { transform: translate(-3px,-2px); } }
+  @keyframes cz-golpe-corta { 0% { transform: translate(-300px,300px) rotate(135deg); opacity: 0; } 14% { opacity: 1; } 46% { transform: translate(-40px,40px) rotate(135deg); } 54% { transform: translate(40px,-40px) rotate(135deg); } 100% { transform: translate(330px,-330px) rotate(135deg); opacity: 0; } }
+  @keyframes cz-fatia-a { 0% { transform: translate(0,0) rotate(0); opacity: 1; } 100% { transform: translate(-78px,-58px) rotate(-24deg); opacity: 0; } }
+  @keyframes cz-fatia-b { 0% { transform: translate(0,0) rotate(0); opacity: 1; } 100% { transform: translate(78px,58px) rotate(24deg); opacity: 0; } }
+  @keyframes cz-risco { 0% { opacity: 0; transform: rotate(-45deg) scaleX(0); } 12% { opacity: 1; transform: rotate(-45deg) scaleX(1); } 60% { opacity: 1; } 100% { opacity: 0; transform: rotate(-45deg) scaleX(1); } }
+  /* Duelos — reações do alvo e entradas dominantes */
+  @keyframes cz-frag-rot { 0% { transform: translate(0,0) rotate(0); opacity: 1; } 70% { opacity: 1; } 100% { transform: translate(var(--dx,0px),var(--dy,0px)) rotate(var(--rot,0deg)); opacity: 0; } }
+  @keyframes cz-alvo-encolher { 0% { transform: scale(1); opacity: 1; } 70% { transform: scale(.94); opacity: 1; } 100% { transform: scale(.9); opacity: 0; } }
+  @keyframes cz-achata { 0% { transform: scale(1,1); opacity: 1; } 60% { transform: scale(1.35,.34); opacity: 1; } 100% { transform: scale(1.5,.2); opacity: 0; } }
+  @keyframes cz-marreta { 0% { transform: translate(30px,-400px) rotate(-64deg); opacity: 0; } 12% { opacity: 1; } 40% { transform: translate(6px,-40px) rotate(-16deg); } 47% { transform: translate(0,26px) rotate(4deg); } 56% { transform: translate(2px,10px) rotate(-2deg); } 68% { transform: translate(2px,16px) rotate(0deg); } 100% { transform: translate(70px,-330px) rotate(-44deg); opacity: 0; } }
+  @keyframes cz-marreta-lat { 0% { transform: translate(-420px,-120px) rotate(24deg); opacity: 0; } 12% { opacity: 1; } 44% { transform: translate(-70px,-10px) rotate(62deg); } 52% { transform: translate(-34px,6px) rotate(84deg); } 62% { transform: translate(-48px,0) rotate(74deg); } 100% { transform: translate(-260px,-180px) rotate(30deg); opacity: 0; } }
+  @keyframes cz-voa-gira { 0% { transform: translate(0,0) rotate(0); opacity: 1; } 100% { transform: translate(var(--dx,320px),var(--dy,-180px)) rotate(var(--rot,540deg)); opacity: 0; } }
+  @keyframes cz-espada-presa { 0% { transform: translate(-380px,0) rotate(90deg); opacity: 0; } 14% { opacity: 1; } 46% { transform: translate(-56px,0) rotate(90deg); } 58% { transform: translate(-34px,0) rotate(90deg); } 72% { transform: translate(-44px,0) rotate(92deg); } 99% { transform: translate(-50px,0) rotate(90deg); opacity: 1; } 100% { transform: translate(-50px,0) rotate(90deg); opacity: 0; } }
+  @keyframes cz-espada-quebra-a { 0% { transform: translate(-50px,0) rotate(90deg); opacity: 1; } 100% { transform: translate(-230px,-160px) rotate(-300deg); opacity: 0; } }
+  @keyframes cz-espada-quebra-b { 0% { transform: translate(-50px,0) rotate(90deg); opacity: 1; } 100% { transform: translate(-190px,170px) rotate(340deg); opacity: 0; } }
+  @keyframes cz-domina { 0% { transform: scale(.2); opacity: 0; } 24% { transform: scale(1.45); opacity: 1; } 38% { transform: scale(1.18); } 52% { transform: scale(1.34); } 70% { transform: scale(1.24); opacity: 1; } 100% { transform: scale(1.34); opacity: 0; } }
+  @keyframes cz-fundir { 0% { opacity: 0; transform: scale(.35); } 30% { opacity: 1; transform: scale(1.2); } 70% { transform: scale(1); } 100% { opacity: 1; transform: scale(1); } }
+  @keyframes cz-rachar-l { 0% { opacity: 1; transform: translate(0,0) rotate(0); } 100% { opacity: 0; transform: translate(-96px,70px) rotate(-28deg); } }
+  @keyframes cz-rachar-r { 0% { opacity: 1; transform: translate(0,0) rotate(0); } 100% { opacity: 0; transform: translate(96px,70px) rotate(28deg); } }
+  @keyframes cz-coracao { 0% { transform: scale(.15); opacity: 0; } 26% { transform: scale(1.35); opacity: 1; } 42% { transform: scale(.94); } 58% { transform: scale(1.14); } 78% { transform: scale(1.02); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }
+  @keyframes cz-onda { 0% { transform: scale(.15); opacity: .95; } 100% { transform: scale(2.8); opacity: 0; } }
+  @keyframes cz-bonk { 0% { transform: translate(150px,-360px) rotate(-78deg); opacity: 0; } 10% { opacity: 1; } 44% { transform: translate(18px,-30px) rotate(-10deg); } 52% { transform: translate(6px,16px) rotate(8deg); } 62% { transform: translate(10px,4px) rotate(0deg); } 76% { transform: translate(10px,6px) rotate(2deg); } 100% { transform: translate(90px,-240px) rotate(-46deg); opacity: 0; } }
+  @keyframes cz-gema { 0% { transform: scale(.2) rotate(-46deg); opacity: 0; } 28% { transform: scale(1.28) rotate(14deg); opacity: 1; } 44% { transform: scale(1) rotate(-8deg); } 62% { transform: scale(1.1) rotate(5deg); } 82% { transform: scale(1.04) rotate(0deg); opacity: 1; } 100% { transform: scale(1.2) rotate(0deg); opacity: 0; } }
+  @keyframes cz-frag { 0% { transform: translate(0,0); opacity: 1; } 100% { transform: translate(var(--dx,0px),var(--dy,0px)); opacity: 0; } }
+  @keyframes cz-clarao { 0% { opacity: 0; } 14% { opacity: .9; } 100% { opacity: 0; } }
+  @keyframes cz-varrer { 0% { opacity: .95; transform: translateX(-130%) skewX(-16deg); } 100% { opacity: 0; transform: translateX(130%) skewX(-16deg); } }
+  @keyframes cz-tremor { 0%,100% { transform: translate(0,0); } 18% { transform: translate(-7px,4px); } 36% { transform: translate(6px,-5px); } 54% { transform: translate(-5px,-3px); } 72% { transform: translate(4px,4px); } 88% { transform: translate(-2px,1px); } }
+</style>
+</helmet>
+
+<svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+  <sc-for list="{{ filtrosPixel }}" as="fp" hint-placeholder-count="8">
+    <filter id="{{ fp.id }}" x="-2%" y="-2%" width="104%" height="104%" colorInterpolationFilters="sRGB">
+      <feFlood x="{{ fp.meio }}" y="{{ fp.meio }}" width="2" height="2"></feFlood>
+      <feComposite width="{{ fp.tam }}" height="{{ fp.tam }}"></feComposite>
+      <feTile result="grade"></feTile>
+      <feComposite in="SourceGraphic" in2="grade" operator="in"></feComposite>
+      <feMorphology operator="dilate" radius="{{ fp.meio }}"></feMorphology>
+    </filter>
+  </sc-for>
+  <filter id="cz-grao" x="-2%" y="-2%" width="104%" height="104%" colorInterpolationFilters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="1" seed="3" x="0" y="0" width="220" height="220" stitchTiles="stitch" result="grTile"></feTurbulence>
+    <feTile in="grTile" result="grBruto"></feTile>
+    <feColorMatrix in="grBruto" type="matrix" values="0.333 0.333 0.333 0 0 0.333 0.333 0.333 0 0 0.333 0.333 0.333 0 0 0 0 0 0 1" result="grLum"></feColorMatrix>
+    <feComponentTransfer in="grLum" result="grFinal">
+      <feFuncR type="linear" slope="{{ graoK }}" intercept="{{ graoC }}"></feFuncR>
+      <feFuncG type="linear" slope="{{ graoK }}" intercept="{{ graoC }}"></feFuncG>
+      <feFuncB type="linear" slope="{{ graoK }}" intercept="{{ graoC }}"></feFuncB>
+      <feFuncA type="linear" slope="0" intercept="1"></feFuncA>
+    </feComponentTransfer>
+    <feBlend mode="soft-light" in="grFinal" in2="SourceGraphic" result="grMix"></feBlend>
+    <feComposite in="grMix" in2="SourceGraphic" operator="in"></feComposite>
+  </filter>
+</svg>
+
+<div style="position:fixed;right:14px;bottom:14px;z-index:80;width:250px;max-width:calc(100vw - 28px);border-radius:16px;border:2px solid #2e313d;background:rgba(18,20,26,.97);box-shadow:0 12px 30px rgba(0,0,0,.6);overflow:hidden">
+  <button type="button" onClick="{{ alternarPainel }}" style="width:100%;display:flex;align-items:center;gap:9px;padding:12px 14px;min-height:46px;border:0;background:transparent;color:#f3ead6;text-align:left" style-hover="background:#1c1f28">
+    <span style="font-family:Silkscreen,monospace;font-size:10px;color:#f5c451">FILTRO DE TELA</span>
+    <span style="margin-left:auto;font-family:Silkscreen,monospace;font-size:10px;color:#6f7488">{{ resumoFiltro }}</span>
+    <span style="font-family:Silkscreen,monospace;font-size:11px;color:#6f7488">{{ setaPainel }}</span>
+  </button>
+
+  <sc-if value="{{ painelAberto }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;flex-direction:column;gap:13px;padding:4px 14px 15px;max-height:60vh;overflow:auto;border-top:2px solid #23252f">
+      <div>
+        <div style="font-family:Silkscreen,monospace;font-size:9px;color:#6f7488;margin-bottom:7px">EFEITO</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          <sc-for list="{{ efeitos }}" as="e" hint-placeholder-count="8">
+            <button type="button" onClick="{{ e.escolher }}" style="font-family:Silkscreen,monospace;font-size:9px;padding:8px 9px;border-radius:8px;border:2px solid {{ e.borda }};background:{{ e.fundo }};color:{{ e.cor }}" style-hover="border-color:#4a4f60">{{ e.nome }}</button>
+          </sc-for>
+        </div>
+      </div>
+
+      <sc-for list="{{ sliders }}" as="s" hint-placeholder-count="4">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-family:Silkscreen,monospace;font-size:9px;color:#8d93a6">{{ s.rotulo }}</span>
+            <span style="margin-left:auto;font-family:Silkscreen,monospace;font-size:10px;color:{{ s.corValor }}">{{ s.texto }}</span>
+          </div>
+          <input type="range" min="{{ s.min }}" max="{{ s.max }}" step="1" value="{{ s.valor }}" onChange="{{ s.mudar }}" style="width:100%;accent-color:#f5c451;height:22px" />
+        </div>
+      </sc-for>
+
+      <sc-for list="{{ checks }}" as="c" hint-placeholder-count="2">
+        <button type="button" onClick="{{ c.alternar }}" style="display:flex;align-items:center;gap:9px;padding:8px;min-height:40px;border-radius:9px;border:2px solid #262935;background:transparent;color:#8d93a6;text-align:left" style-hover="border-color:#4a4f60;color:#f3ead6">
+          <span style="width:17px;height:17px;flex:none;border-radius:5px;border:2px solid #0c0d11;background:{{ c.marca }}"></span>
+          <span style="font-size:12px">{{ c.rotulo }}</span>
+        </button>
+      </sc-for>
+
+      <button type="button" onClick="{{ limparFiltros }}" style="font-family:Silkscreen,monospace;font-size:9px;min-height:40px;border-radius:9px;border:2px solid #2e313d;background:transparent;color:#6f7488" style-hover="color:#ff4b3e;border-color:#ff4b3e">RESETAR TUDO</button>
+      <div style="font-size:11px;color:#4a4f60;line-height:1.5">Só visual e só pra você — não muda nada na partida nem no que os outros veem.</div>
+    </div>
+  </sc-if>
+</div>
+
+<div style="min-height:100vh;background:radial-gradient(120% 90% at 50% 0%,#1b1d26 0%,#0c0d11 65%);color:#f3ead6;padding:0 0 40px;filter:{{ filtroCss }}">
+  <sc-if value="{{ temScanlines }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;z-index:75;pointer-events:none;mix-blend-mode:multiply;background:{{ scanlineBg }};opacity:{{ scanlineOp }}"></div>
+  </sc-if>
+
+  <div style="position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 20px;background:rgba(12,13,17,.9);backdrop-filter:blur(8px);border-bottom:2px solid #23252f">
+    <div style="font-family:Silkscreen,monospace;font-size:16px;letter-spacing:1px;color:#ff4b3e;text-shadow:2px 2px 0 #5c1712">CONTRA ZAP</div>
+    <button type="button" onClick="{{ alternarSom }}" data-som="mudo" style="margin-left:auto;display:flex;align-items:center;gap:7px;font-family:Silkscreen,monospace;font-size:9px;padding:10px 12px;min-height:44px;border-radius:10px;border:2px solid {{ somBorda }};background:#191b23;color:{{ somCor }}" style-hover="border-color:#f5c451">
+      <span style="width:9px;height:9px;border-radius:2px;background:{{ somCor }}"></span>{{ somRotulo }}
+    </button>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <sc-for list="{{ abas }}" as="t" hint-placeholder-count="6">
+        <button type="button" onClick="{{ t.ir }}" data-som="aba" style="font-family:Silkscreen,monospace;font-size:10px;padding:10px 12px;min-height:44px;border-radius:10px;border:2px solid {{ t.borda }};background:#191b23;color:{{ t.cor }}" style-hover="border-color:#4a4f60;color:#f3ead6">{{ t.rotulo }}</button>
+      </sc-for>
+    </div>
+  </div>
+
+  <sc-if value="{{ redeCaiu }}" hint-placeholder-val="{{ false }}">
+    <div style="position:sticky;top:68px;z-index:55;display:flex;align-items:center;justify-content:center;gap:10px;padding:11px 16px;background:#5c1712;border-bottom:2px solid #ff4b3e;animation:cz-rise .2s ease-out">
+      <span style="width:10px;height:10px;border-radius:50%;background:#ff4b3e;animation:cz-pulse 1.2s ease-in-out infinite"></span>
+      <span style="font-family:Silkscreen,monospace;font-size:10px;color:#ffd9d5">CONEXÃO PERDIDA — TENTANDO RECONECTAR</span>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isMesa }}" hint-placeholder-val="{{ true }}">
+  <div data-screen-label="Mesa de partida" style="max-width:1180px;margin:0 auto;padding:18px 16px 0">
+
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px">
+      <div style="font-family:Silkscreen,monospace;font-size:12px;color:#6f7488">SALA <span style="color:#f3ead6">A7F2</span></div>
+      <div style="height:18px;width:2px;background:#2e313d"></div>
+      <div style="font-family:Silkscreen,monospace;font-size:12px;color:#6f7488">RODADA <span style="color:#f3ead6">4</span> · <span style="color:#f3ead6">3</span> CARTAS</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-left:auto;padding:7px 12px;border-radius:999px;border:2px solid #3a2f16;background:#1e1a10">
+        <span style="font-family:Silkscreen,monospace;font-size:10px;color:#f5c451">MANILHA</span>
+        <span style="font-family:Silkscreen,monospace;font-size:14px;color:#f3ead6">{{ manilha }}</span>
+      </div>
+    </div>
+
+    <div style="{{ gridMesa }}">
+      <sc-for list="{{ oponentes }}" as="op" hint-placeholder-count="5">
+        <div style="grid-area:{{ op.area }};position:relative;width:100%;min-width:0;max-width:150px;justify-self:center;display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 6px;border-radius:16px;border:2px solid #262935;background:linear-gradient(180deg,#1a1c25,#14161d)">
+
+          <sc-if value="{{ op.falando }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);max-width:170px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:7px 10px;border-radius:12px;border:2px solid #3d9be9;background:#0f2233;color:#cfe6fb;font-size:12px;font-weight:600;animation:cz-rise .25s ease-out">{{ op.fala }}</div>
+          </sc-if>
+
+          <div style="display:flex;gap:3px">
+            <sc-for list="{{ op.versos }}" as="v" hint-placeholder-count="3">
+              <div style="width:clamp(12px,3vw,26px);height:clamp(18px,4.4vw,38px);border-radius:5px;border:2px solid #0c0d11;background:repeating-linear-gradient(45deg,#8b2018 0 4px,#a52a20 4px 8px);box-shadow:0 2px 0 #000"></div>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:6px;width:100%;min-width:0">
+            <div style="width:clamp(22px,4.6vw,30px);height:clamp(22px,4.6vw,30px);flex:none;border-radius:8px;border:2px solid #0c0d11;background:{{ op.cor }};display:flex;align-items:center;justify-content:center;font-family:Silkscreen,monospace;font-size:11px;color:#0c0d11">{{ op.inicial }}</div>
+            <div style="min-width:0;flex:1">
+              <div style="font-size:clamp(11px,2.2vw,13px);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ op.nome }}</div>
+              <div style="font-family:Silkscreen,monospace;font-size:9px;color:#ff4b3e;letter-spacing:1px">{{ op.vidas }}</div>
+            </div>
+          </div>
+
+          <div style="display:flex;justify-content:center;align-items:center;gap:4px;flex-wrap:wrap;width:100%;padding:5px 6px;border-radius:9px;background:#0f1016;border:1px solid #262935">
+            <span style="font-family:Silkscreen,monospace;font-size:8px;color:#6f7488">APOSTA</span>
+            <span style="font-family:Silkscreen,monospace;font-size:12px;color:#f5c451">{{ op.aposta }}</span>
+            <span style="font-family:Silkscreen,monospace;font-size:8px;color:#6f7488">FEZ</span>
+            <span style="font-family:Silkscreen,monospace;font-size:12px;color:#7fd6a5">{{ op.feitas }}</span>
+          </div>
+
+          <sc-if value="{{ op.daVez }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;inset:-3px;border-radius:18px;border:3px solid #f5c451;pointer-events:none;animation:cz-pulse 1.4s ease-in-out infinite"></div>
+          </sc-if>
+
+          <sc-if value="{{ op.morto }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;inset:0;border-radius:16px;background:rgba(9,10,13,.78);display:flex;align-items:center;justify-content:center">
+              <div style="font-family:Silkscreen,monospace;font-size:13px;color:#ff4b3e;border:3px solid #ff4b3e;border-radius:8px;padding:6px 10px;transform:rotate(-14deg);animation:cz-stamp .45s cubic-bezier(.2,1.4,.4,1) both">FORA</div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+
+    <div style="grid-area:{{ areaFelt }};position:relative;height:100%;min-width:0;border-radius:200px/90px;border:3px solid #0a0b0e;background:radial-gradient(70% 90% at 50% 40%,#2a6a55 0%,#1a4739 60%,#123328 100%);box-shadow:inset 0 0 80px rgba(0,0,0,.55),0 18px 40px rgba(0,0,0,.5);padding:26px 20px;min-height:250px;display:flex;align-items:center;justify-content:center">
+      <div style="position:absolute;inset:16px;border:2px dashed rgba(243,234,214,.12);border-radius:180px/80px;pointer-events:none"></div>
+
+      <div style="position:absolute;top:22px;left:14%;display:flex;flex-direction:column;align-items:center;gap:6px">
+        <div style="width:52px;height:74px;border-radius:8px;border:2px solid #0c0d11;background:#f3ead6;color:{{ vira.cor }};display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(-8deg);box-shadow:0 4px 0 rgba(0,0,0,.4)">
+          <span style="font-family:Silkscreen,monospace;font-size:18px;line-height:1">{{ vira.valor }}</span>
+          <span style="font-size:16px;line-height:1">{{ vira.naipe }}</span>
+        </div>
+        <div style="font-family:Silkscreen,monospace;font-size:9px;color:rgba(243,234,214,.55)">VIRA</div>
+      </div>
+
+      <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;align-items:flex-end;animation:var(--cz-tremor,none)">
+        <sc-for list="{{ mesa }}" as="j" hint-placeholder-count="3">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px;animation:cz-rise .2s ease-out">
+            <div style="width:84px;height:120px;border-radius:12px;border:3px solid #0c0d11;background:#f6efe0;box-shadow:0 8px 0 rgba(0,0,0,.35);position:relative;display:flex;align-items:center;justify-content:center">
+              <span style="font-family:Silkscreen,monospace;font-size:40px;color:{{ j.cor }}">{{ j.valor }}</span>
+              <span style="position:absolute;top:6px;left:8px;font-size:15px;color:{{ j.cor }}">{{ j.naipe }}</span>
+              <span style="position:absolute;bottom:6px;right:8px;font-size:15px;color:{{ j.cor }};transform:rotate(180deg)">{{ j.naipe }}</span>
+            </div>
+            <div style="font-family:Silkscreen,monospace;font-size:9px;color:rgba(243,234,214,.75)">{{ j.jogador }}</div>
+          </div>
+        </sc-for>
+        <sc-if value="{{ mesaVazia }}" hint-placeholder-val="{{ false }}">
+          <div style="font-family:Silkscreen,monospace;font-size:11px;color:rgba(243,234,214,.35)">MESA VAZIA</div>
+        </sc-if>
+      </div>
+
+      <sc-if value="{{ golpeAtivo }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;inset:0;border-radius:200px/90px;overflow:hidden;pointer-events:none;z-index:6;image-rendering:pixelated">
+          <sc-for list="{{ golpeCamadas }}" as="cm" hint-placeholder-count="0">
+            <div style="{{ cm.estilo }}"></div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ mostrarVaza }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;inset:0;border-radius:200px/90px;background:rgba(7,20,16,.86);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;animation:cz-rise .2s ease-out">
+          <div style="font-family:Silkscreen,monospace;font-size:11px;letter-spacing:3px;color:#7fd6a5">VAZA FECHADA</div>
+          <div style="display:flex;align-items:center;gap:18px">
+            <div style="width:96px;height:138px;border-radius:14px;border:3px solid #0c0d11;background:#f6efe0;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 6px rgba(245,196,81,.25),0 0 44px rgba(245,196,81,.5);animation:cz-float 2s ease-in-out infinite">
+              <span style="font-family:Silkscreen,monospace;font-size:46px;color:{{ vazaCarta.cor }}">{{ vazaCarta.valor }}</span>
+            </div>
+            <div>
+              <div style="font-family:Silkscreen,monospace;font-size:22px;color:#f5c451;text-shadow:3px 3px 0 #5a4210">{{ vazaVencedor }}</div>
+              <div style="font-size:14px;color:rgba(243,234,214,.7);margin-top:6px">levou a vaza — {{ vazaTotal }} no total</div>
+            </div>
+          </div>
+          <button type="button" onClick="{{ fecharVaza }}" style="font-family:Silkscreen,monospace;font-size:10px;min-height:44px;padding:12px 20px;border-radius:12px;border:3px solid #0c0d11;background:#f5c451;color:#2b1d02;box-shadow:0 4px 0 #8a6410" style-hover="background:#ffdc8a">CONTINUAR</button>
+        </div>
+      </sc-if>
+    </div>
+    </div>
+
+    <div style="display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-top:20px">
+      <div style="display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-radius:16px;border:2px solid #2e313d;background:#171922;min-width:190px">
+        <div style="display:flex;align-items:center;gap:9px">
+          <div style="width:34px;height:34px;border-radius:9px;border:2px solid #0c0d11;background:#f5c451;display:flex;align-items:center;justify-content:center;font-family:Silkscreen,monospace;font-size:13px;color:#0c0d11">V</div>
+          <div>
+            <div style="font-size:14px;font-weight:700">Você</div>
+            <div style="font-family:Silkscreen,monospace;font-size:11px;color:#ff4b3e;letter-spacing:2px">{{ minhasVidas }}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <div style="flex:1;text-align:center;padding:6px;border-radius:9px;background:#0f1016;border:1px solid #262935">
+            <div style="font-family:Silkscreen,monospace;font-size:9px;color:#6f7488">APOSTA</div>
+            <div style="font-family:Silkscreen,monospace;font-size:15px;color:#f5c451">{{ minhaAposta }}</div>
+          </div>
+          <div style="flex:1;text-align:center;padding:6px;border-radius:9px;background:#0f1016;border:1px solid #262935">
+            <div style="font-family:Silkscreen,monospace;font-size:9px;color:#6f7488">FEZ</div>
+            <div style="font-family:Silkscreen,monospace;font-size:15px;color:#7fd6a5">{{ minhasFeitas }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:280px">
+        <div style="font-family:Silkscreen,monospace;font-size:10px;color:#6f7488;margin-bottom:8px">{{ dicaMao }}</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <sc-for list="{{ mao }}" as="c" hint-placeholder-count="3">
+            <button type="button" onClick="{{ c.jogar }}" data-som="mudo" style="width:92px;height:132px;border-radius:14px;border:3px solid #0c0d11;background:#f6efe0;position:relative;padding:0;box-shadow:0 7px 0 rgba(0,0,0,.45);transition:transform .12s ease,box-shadow .12s ease" style-hover="transform:translateY(-10px);box-shadow:0 14px 0 rgba(0,0,0,.45),0 0 30px rgba(245,196,81,.35)" style-active="transform:translateY(-2px)">
+              <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Silkscreen,monospace;font-size:44px;color:{{ c.cor }}">{{ c.valor }}</span>
+              <span style="position:absolute;top:7px;left:9px;font-size:16px;color:{{ c.cor }}">{{ c.naipe }}</span>
+              <span style="position:absolute;bottom:7px;right:9px;font-size:16px;color:{{ c.cor }};transform:rotate(180deg)">{{ c.naipe }}</span>
+              <sc-if value="{{ c.manilha }}" hint-placeholder-val="{{ false }}">
+                <span style="position:absolute;bottom:8px;left:8px;font-family:Silkscreen,monospace;font-size:8px;padding:3px 5px;border-radius:5px;background:#f5c451;color:#2b1d02">MANILHA</span>
+              </sc-if>
+            </button>
+          </sc-for>
+          <sc-if value="{{ maoVazia }}" hint-placeholder-val="{{ false }}">
+            <div style="font-family:Silkscreen,monospace;font-size:11px;color:#4a4f60;padding:20px 0">SEM CARTAS</div>
+          </sc-if>
+        </div>
+      </div>
+
+      <sc-if value="{{ fasePalpite }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:14px;border-radius:16px;border:2px solid #3a2f16;background:#1c1810;animation:cz-rise .2s ease-out">
+          <div style="font-family:Silkscreen,monospace;font-size:10px;color:#f5c451;margin-bottom:10px">QUANTAS VAZAS VOCÊ FAZ?</div>
+          <div style="display:flex;gap:8px">
+            <sc-for list="{{ palpites }}" as="p" hint-placeholder-count="4">
+              <button type="button" onClick="{{ p.escolher }}" data-som="aposta" style="width:52px;height:52px;border-radius:12px;border:3px solid #0c0d11;background:#f6efe0;color:#2b1d02;font-family:Silkscreen,monospace;font-size:18px;box-shadow:0 4px 0 rgba(0,0,0,.45)" style-hover="background:#f5c451">{{ p.n }}</button>
+            </sc-for>
+          </div>
+          <div style="font-size:12px;color:#7a7360;margin-top:9px;max-width:230px">Errar o palpite tira coração — pra mais ou pra menos.</div>
+        </div>
+      </sc-if>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px;padding:10px 12px;border-radius:14px;border:2px solid #262935;background:#12141a">
+      <span style="font-family:Silkscreen,monospace;font-size:9px;color:#6f7488">GOLPE DE MANILHA</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <sc-for list="{{ golpes }}" as="g" hint-placeholder-count="4">
+          <button type="button" onClick="{{ g.tocar }}" data-som="mudo" style="min-width:46px;min-height:44px;padding:0 12px;border-radius:11px;border:2px solid #2e313d;background:#171922;color:{{ g.cor }};font-size:19px;line-height:1" style-hover="border-color:#f5c451;background:#1e2129">{{ g.naipe }}</button>
+        </sc-for>
+      </div>
+      <button type="button" onClick="{{ limparReinante }}" data-som="mudo" style="margin-left:auto;font-family:Silkscreen,monospace;font-size:9px;min-height:44px;padding:0 12px;border-radius:11px;border:2px solid #262935;background:#171922;color:#6f7488" style-hover="border-color:#f5c451;color:#cfd3de">NOVA VAZA</button>
+      <button type="button" onClick="{{ alternarAnula }}" data-som="mudo" style="font-family:Silkscreen,monospace;font-size:9px;min-height:44px;padding:0 14px;border-radius:11px;border:2px solid {{ anulaBorda }};background:{{ anulaFundo }};color:{{ anulaCor }}">{{ anulaRotulo }}</button>
+    </div>
+
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-top:18px">
+    <div style="flex:1;min-width:260px;display:flex;gap:8px;flex-wrap:wrap">
+      <sc-for list="{{ frasesProntas }}" as="f" hint-placeholder-count="4">
+        <button type="button" onClick="{{ f.enviar }}" data-som="chat" style="font-size:13px;font-weight:600;padding:10px 14px;min-height:44px;border-radius:999px;border:2px solid #2e313d;background:#171922;color:#8d93a6" style-hover="border-color:#3d9be9;color:#cfe6fb">{{ f.texto }}</button>
+      </sc-for>
+    </div>
+
+    <div style="width:270px;flex:1 1 260px;max-height:190px;overflow:auto;padding:12px 14px;border-radius:14px;border:2px solid #262935;background:#12141a">
+      <div style="font-family:Silkscreen,monospace;font-size:9px;color:#6f7488;margin-bottom:9px">LOG DA PARTIDA</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <sc-for list="{{ log }}" as="l" hint-placeholder-count="5">
+          <div style="font-size:12.5px;color:{{ l.cor }};line-height:1.4;text-wrap:pretty">{{ l.txt }}</div>
+        </sc-for>
+      </div>
+    </div>
+    </div>
+
+    <sc-if value="{{ expulso }}" hint-placeholder-val="{{ false }}">
+      <div style="position:fixed;inset:0;z-index:70;background:rgba(8,9,12,.88);display:flex;align-items:center;justify-content:center;padding:20px;animation:cz-rise .2s ease-out">
+        <div style="max-width:400px;width:100%;text-align:center;padding:26px;border-radius:20px;border:3px solid #ff4b3e;background:#16171e">
+          <div style="font-family:Silkscreen,monospace;font-size:15px;color:#ff4b3e;margin-bottom:12px">VOCÊ SAIU DA MESA</div>
+          <div style="font-size:14px;color:#8d93a6;margin-bottom:20px;text-wrap:pretty">Ficou tempo demais sem jogar e perdeu o turno. Sua vaga continua reservada — volte antes que a partida acabe.</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button type="button" onClick="{{ voltarPartida }}" style="flex:1;min-width:140px;font-family:Silkscreen,monospace;font-size:11px;min-height:52px;border-radius:14px;border:3px solid #0c0d11;background:#ff4b3e;color:#fff2ef;box-shadow:0 5px 0 #7d1f18" style-hover="background:#ff6a5f">RECONECTAR</button>
+            <button type="button" onClick="{{ verLobby }}" style="min-width:120px;font-family:Silkscreen,monospace;font-size:11px;min-height:52px;padding:0 16px;border-radius:14px;border:3px solid #0c0d11;background:#2a2d38;color:#cfd3de;box-shadow:0 5px 0 #16181f" style-hover="background:#353948">SALAS</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Login" style="max-width:440px;margin:0 auto;padding:56px 16px 0">
+    <div style="text-align:center;margin-bottom:26px">
+      <div style="font-family:Silkscreen,monospace;font-size:34px;color:#f3ead6;text-shadow:4px 4px 0 #ff4b3e;line-height:1.2">CONTRA<br />ZAP</div>
+      <div style="font-size:14px;color:#6f7488;margin-top:10px">fodinha online — não erre o palpite</div>
+    </div>
+
+    <div style="padding:20px;border-radius:20px;border:2px solid #262935;background:linear-gradient(180deg,#1a1c25,#14161d);display:flex;flex-direction:column;gap:14px">
+
+      <sc-if value="{{ etapaNome }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:14px;animation:cz-rise .2s ease-out">
+          <div>
+            <div style="font-family:Silkscreen,monospace;font-size:10px;color:#6f7488;margin-bottom:8px">SEU NOME</div>
+            <div style="padding:15px;border-radius:12px;border:2px solid #f5c451;background:#0f1016;font-size:16px;color:#f3ead6">{{ nomeDigitado }}<span style="color:#f5c451">|</span></div>
+          </div>
+          <button type="button" onClick="{{ irSenha }}" style="font-family:Silkscreen,monospace;font-size:12px;min-height:54px;border-radius:14px;border:3px solid #0c0d11;background:#f5c451;color:#2b1d02;box-shadow:0 5px 0 #8a6410" style-hover="background:#ffdc8a">CONTINUAR</button>
+          <div style="display:flex;gap:8px">
+            <button type="button" onClick="{{ irOferta }}" style="flex:1;font-size:12px;min-height:44px;border-radius:10px;border:2px solid #2e313d;background:transparent;color:#6f7488" style-hover="color:#f3ead6">ver estado: nome novo</button>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ etapaSenha }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:14px;animation:cz-rise .2s ease-out">
+          <div style="font-size:14px;color:#8d93a6;text-wrap:pretty">Esse nome já é registrado. Confirme que é você, <span style="color:#f3ead6;font-weight:700">{{ nomeDigitado }}</span>.</div>
+          <div>
+            <div style="font-family:Silkscreen,monospace;font-size:10px;color:#6f7488;margin-bottom:8px">SENHA</div>
+            <div style="padding:15px;border-radius:12px;border:2px solid #f5c451;background:#0f1016;font-size:18px;color:#f3ead6;letter-spacing:5px">••••••••</div>
+          </div>
+          <button type="button" onClick="{{ entrarJogo }}" style="font-family:Silkscreen,monospace;font-size:12px;min-height:54px;border-radius:14px;border:3px solid #0c0d11;background:#f5c451;color:#2b1d02;box-shadow:0 5px 0 #8a6410" style-hover="background:#ffdc8a">ENTRAR</button>
+          <button type="button" onClick="{{ voltarNome }}" style="font-size:13px;min-height:44px;border-radius:10px;border:2px solid #2e313d;background:transparent;color:#8d93a6" style-hover="color:#f3ead6">Voltar</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ etapaOferta }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:14px;animation:cz-rise .2s ease-out">
+          <div style="font-size:15px;color:#f3ead6;text-wrap:pretty">"{{ nomeDigitado }}" ainda não tem conta. Quer registrar esse nome?</div>
+          <button type="button" onClick="{{ irNovaSenha }}" style="font-family:Silkscreen,monospace;font-size:12px;min-height:54px;border-radius:14px;border:3px solid #0c0d11;background:#f5c451;color:#2b1d02;box-shadow:0 5px 0 #8a6410" style-hover="background:#ffdc8a">SIM, REGISTRAR</button>
+          <button type="button" onClick="{{ entrarJogo }}" style="font-family:Silkscreen,monospace;font-size:11px;min-height:50px;border-radius:14px;border:3px solid #0c0d11;background:#2a2d38;color:#cfd3de;box-shadow:0 5px 0 #16181f" style-hover="background:#353948">NÃO, SÓ JOGAR</button>
+          <div style="font-size:12px;color:#6f7488;text-align:center">Como convidado, seu nome some quando a sessão acabar.</div>
+          <button type="button" onClick="{{ voltarNome }}" style="font-size:13px;min-height:44px;border-radius:10px;border:2px solid #2e313d;background:transparent;color:#8d93a6" style-hover="color:#f3ead6">Voltar</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ etapaNovaSenha }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:14px;animation:cz-rise .2s ease-out">
+          <div style="font-size:15px;color:#f3ead6">Escolha uma senha pra registrar "{{ nomeDigitado }}".</div>
+          <div>
+            <div style="font-family:Silkscreen,monospace;font-size:10px;color:#6f7488;margin-bottom:8px">NOVA SENHA</div>
+            <div style="padding:15px;border-radius:12px;border:2px solid #7fd6a5;background:#0f1016;font-size:18px;color:#f3ead6;letter-spacing:5px">••••••</div>
+          </div>
+          <button type="button" onClick="{{ entrarJogo }}" style="font-family:Silkscreen,monospace;font-size:12px;min-height:54px;border-radius:14px;border:3px solid #0c0d11;background:#7fd6a5;color:#06251a;box-shadow:0 5px 0 #245c42" style-hover="background:#9ce8bd">CADASTRAR</button>
+          <button type="button" onClick="{{ voltarNome }}" style="font-size:13px;min-height:44px;border-radius:10px;border:2px solid #2e313d;background:transparent;color:#8d93a6" style-hover="color:#f3ead6">Voltar</button>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isEspera }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Sala de espera" style="max-width:760px;margin:0 auto;padding:26px 16px 0">
+    <div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:20px">
+      <div>
+        <div style="font-family:Silkscreen,monospace;font-size:26px;color:#f3ead6;text-shadow:3px 3px 0 #f5c451">SALA {{ esperaSala }}</div>
+        <div style="font-size:14px;color:#6f7488;margin-top:6px">Esperando a mesa encher — {{ esperaVagas }} jogadores.</div>
+      </div>
+      <div style="margin-left:auto;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 20px;border-radius:16px;border:3px solid #3a2f16;background:#1c1810">
+        <span style="font-family:Silkscreen,monospace;font-size:9px;color:#a08b52">COMEÇA EM</span>
+        <span style="font-family:Silkscreen,monospace;font-size:30px;color:#f5c451;line-height:1">{{ esperaContagem }}</span>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-bottom:16px">
+      <sc-for list="{{ assentosEspera }}" as="a" hint-placeholder-count="6">
+        <div style="display:flex;align-items:center;gap:11px;padding:12px;border-radius:14px;border:2px solid {{ a.borda }};background:{{ a.fundo }}">
+          <div style="width:38px;height:38px;flex:none;border-radius:10px;border:2px solid #0c0d11;background:{{ a.cor }};display:flex;align-items:center;justify-content:center;font-family:Silkscreen,monospace;font-size:14px;color:#0c0d11">{{ a.inicial }}</div>
+          <div style="min-width:0">
+            <div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#f3ead6">{{ a.nome }}</div>
+            <div style="font-family:Silkscreen,monospace;font-size:9px;color:{{ a.corRotulo }};margin-top:3px">{{ a.rotulo }}</div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+      <sc-for list="{{ regrasEspera }}" as="r" hint-placeholder-count="4">
+        <div style="display:flex;align-items:center;gap:8px;padding:9px 13px;border-radius:999px;border:2px solid #262935;background:#14161d">
+          <span style="font-family:Silkscreen,monospace;font-size:9px;color:#6f7488">{{ r.k }}</span>
+          <span style="font-family:Silkscreen,monospace;font-size:12px;color:#f3ead6">{{ r.v }}</span>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button type="button" onClick="{{ forcarInicio }}" style="flex:1;min-width:200px;font-family:Silkscreen,monospace;font-size:12px;min-height:56px;border-radius:14px;border:3px solid #0c0d11;background:#ff4b3e;color:#fff2ef;box-shadow:0 5px 0 #7d1f18" style-hover="background:#ff6a5f">FORÇAR INÍCIO AGORA</button>
+      <button type="button" onClick="{{ verLobby }}" style="min-width:150px;font-family:Silkscreen,monospace;font-size:11px;min-height:56px;padding:0 18px;border-radius:14px;border:3px solid #0c0d11;background:#2a2d38;color:#cfd3de;box-shadow:0 5px 0 #16181f" style-hover="background:#353948">SAIR DA SALA</button>
+    </div>
+    <div style="font-size:12px;color:#6f7488;margin-top:10px">Só o dono da sala pode forçar o início antes da mesa encher.</div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isFim }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Fim de partida" style="max-width:620px;margin:0 auto;padding:40px 16px 0">
+    <div style="text-align:center;margin-bottom:26px">
+      <div style="font-family:Silkscreen,monospace;font-size:11px;letter-spacing:4px;color:#6f7488;margin-bottom:12px">FIM DE PARTIDA</div>
+      <div style="display:inline-flex;flex-direction:column;align-items:center;gap:14px;padding:26px 36px;border-radius:22px;border:3px solid #f5c451;background:linear-gradient(180deg,#241d0c,#16140e);box-shadow:0 0 50px rgba(245,196,81,.25)">
+        <div style="width:104px;height:148px;border-radius:14px;border:3px solid #0c0d11;background:#f6efe0;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 0 rgba(0,0,0,.45);animation:cz-float 2.4s ease-in-out infinite">
+          <span style="font-family:Silkscreen,monospace;font-size:50px;color:#c0392b">A</span>
+        </div>
+        <div style="font-family:Silkscreen,monospace;font-size:28px;color:#f5c451;text-shadow:3px 3px 0 #5a4210">{{ campeao }}</div>
+        <div style="font-size:14px;color:#a08b52">último com coração na mesa</div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:22px">
+      <sc-for list="{{ podio }}" as="p" hint-placeholder-count="3">
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;border:2px solid #262935;background:#14161d">
+          <span style="font-family:Silkscreen,monospace;font-size:13px;color:#6f7488;width:28px">{{ p.pos }}</span>
+          <span style="font-size:15px;font-weight:700;color:#f3ead6">{{ p.nome }}</span>
+          <span style="margin-left:auto;font-size:12px;color:#6f7488">{{ p.detalhe }}</span>
+        </div>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{ souDonoFim }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button type="button" onClick="{{ pedirRevanche }}" style="flex:1;min-width:200px;font-family:Silkscreen,monospace;font-size:12px;min-height:56px;border-radius:14px;border:3px solid #0c0d11;background:#f5c451;color:#2b1d02;box-shadow:0 5px 0 #8a6410" style-hover="background:#ffdc8a">JOGAR DE NOVO</button>
+        <button type="button" onClick="{{ verLobby }}" style="min-width:150px;font-family:Silkscreen,monospace;font-size:11px;min-height:56px;padding:0 18px;border-radius:14px;border:3px solid #0c0d11;background:#2a2d38;color:#cfd3de;box-shadow:0 5px 0 #16181f" style-hover="background:#353948">VOLTAR ÀS SALAS</button>
+      </div>
+      <div style="font-size:12px;color:#6f7488;margin-top:10px">Você é o dono — criar a revanche convida todo mundo que ficou.</div>
+    </sc-if>
+
+    <sc-if value="{{ recebeuConvite }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:16px;border-radius:16px;border:2px solid #3d9be9;background:#0f2233;animation:cz-rise .2s ease-out">
+        <div style="font-size:15px;color:#cfe6fb;margin-bottom:12px"><span style="font-weight:700">{{ conviteDe }}</span> está te chamando pra outra partida.</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button type="button" onClick="{{ pedirRevanche }}" style="flex:1;min-width:130px;font-family:Silkscreen,monospace;font-size:12px;min-height:52px;border-radius:14px;border:3px solid #0c0d11;background:#3d9be9;color:#04121d;box-shadow:0 5px 0 #17435f" style-hover="background:#63b4f5">BORA</button>
+          <button type="button" onClick="{{ recusarConvite }}" style="min-width:120px;font-family:Silkscreen,monospace;font-size:11px;min-height:52px;padding:0 18px;border-radius:14px;border:3px solid #0c0d11;background:#2a2d38;color:#cfd3de;box-shadow:0 5px 0 #16181f" style-hover="background:#353948">AGORA NÃO</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <button type="button" onClick="{{ alternarConvite }}" style="margin-top:14px;font-size:12px;min-height:44px;width:100%;border-radius:10px;border:2px solid #2e313d;background:transparent;color:#4a4f60" style-hover="color:#8d93a6">alternar: dono / convidado</button>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isLobby }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Lobby de salas" style="max-width:1000px;margin:0 auto;padding:26px 16px 0">
+    <div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:22px">
+      <div>
+        <div style="font-family:Silkscreen,monospace;font-size:26px;color:#f3ead6;text-shadow:3px 3px 0 #ff4b3e">SALAS ABERTAS</div>
+        <div style="font-size:14px;color:#6f7488;margin-top:6px">Entre numa mesa ou abra a sua.</div>
+      </div>
+      <button type="button" onClick="{{ verCriar }}" style="margin-left:auto;font-family:Silkscreen,monospace;font-size:11px;min-height:48px;padding:14px 20px;border-radius:14px;border:3px solid #0c0d11;background:#ff4b3e;color:#fff2ef;box-shadow:0 5px 0 #7d1f18" style-hover="background:#ff6a5f">+ CRIAR SALA</button>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 16px;margin-bottom:14px;border-radius:16px;border:2px solid #3d9be9;background:#0f2233">
+      <div style="flex:1;min-width:190px">
+        <div style="font-family:Silkscreen,monospace;font-size:11px;color:#cfe6fb">VOCÊ SAIU DA SALA {{ reconectarSala }}</div>
+        <div style="font-size:13px;color:#8db4d4;margin-top:4px">Sua vaga na partida continua reservada.</div>
+      </div>
+      <button type="button" onClick="{{ verMesa }}" style="font-family:Silkscreen,monospace;font-size:11px;min-height:46px;padding:12px 18px;border-radius:12px;border:3px solid #0c0d11;background:#3d9be9;color:#04121d;box-shadow:0 4px 0 #17435f" style-hover="background:#63b4f5">RECONECTAR</button>
+    </div>
+
+    <button type="button" onClick="{{ partidaRapida }}" style="width:100%;font-family:Silkscreen,monospace;font-size:13px;min-height:60px;margin-bottom:16px;border-radius:16px;border:3px solid #0c0d11;background:linear-gradient(180deg,#7fd6a5,#4fae7c);color:#06251a;box-shadow:0 5px 0 #245c42" style-hover="filter:brightness(1.08)">PARTIDA RÁPIDA</button>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">
+      <sc-for list="{{ salas }}" as="s" hint-placeholder-count="6">
+        <div style="padding:16px;border-radius:18px;border:2px solid #262935;background:linear-gradient(180deg,#1a1c25,#14161d);display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-family:Silkscreen,monospace;font-size:15px;color:#f3ead6">{{ s.nome }}</div>
+            <div style="margin-left:auto;font-family:Silkscreen,monospace;font-size:11px;padding:5px 9px;border-radius:7px;background:#0f1016;border:1px solid #2e313d;color:{{ s.corVagas }}">{{ s.vagas }}</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <sc-for list="{{ s.tags }}" as="t" hint-placeholder-count="2">
+              <span style="font-family:Silkscreen,monospace;font-size:9px;padding:5px 8px;border-radius:6px;border:1px solid #2e313d;color:#8d93a6">{{ t }}</span>
+            </sc-for>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <sc-for list="{{ s.assentos }}" as="a" hint-placeholder-count="6">
+              <div style="width:26px;height:26px;border-radius:7px;border:2px solid #0c0d11;background:{{ a.cor }};display:flex;align-items:center;justify-content:center;font-family:Silkscreen,monospace;font-size:10px;color:#0c0d11">{{ a.inicial }}</div>
+            </sc-for>
+          </div>
+          <button type="button" onClick="{{ s.entrar }}" style="font-family:Silkscreen,monospace;font-size:11px;min-height:46px;border-radius:12px;border:3px solid #0c0d11;background:{{ s.corBotao }};color:#0c0d11;box-shadow:0 4px 0 rgba(0,0,0,.5)" style-hover="filter:brightness(1.12)">{{ s.acao }}</button>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isCriar }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Criar sala" style="max-width:660px;margin:0 auto;padding:26px 16px 0">
+    <div style="font-family:Silkscreen,monospace;font-size:24px;color:#f3ead6;text-shadow:3px 3px 0 #3d9be9;margin-bottom:6px">NOVA MESA</div>
+    <div style="font-size:14px;color:#6f7488;margin-bottom:22px">Configure e chame a galera.</div>
+
+    <div style="display:flex;flex-direction:column;gap:14px;padding:18px;border-radius:20px;border:2px solid #262935;background:linear-gradient(180deg,#1a1c25,#14161d)">
+
+      <div>
+        <div style="font-family:Silkscreen,monospace;font-size:10px;color:#6f7488;margin-bottom:8px">NOME DA SALA</div>
+        <div style="padding:14px;border-radius:12px;border:2px solid #2e313d;background:#0f1016;font-size:15px;color:#f3ead6">Mesa do Henrique</div>
+      </div>
+
+      <div>
+        <div style="font-family:Silkscreen,monospace;font-size:10px;color:#6f7488;margin-bottom:8px">JOGADORES</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <sc-for list="{{ opcoesJogadores }}" as="o" hint-placeholder-count="5">
+            <button type="button" onClick="{{ o.escolher }}" style="min-width:56px;min-height:48px;border-radius:12px;border:3px solid #0c0d11;background:{{ o.fundo }};color:{{ o.texto }};font-family:Silkscreen,monospace;font-size:16px;box-shadow:0 4px 0 rgba(0,0,0,.5)" style-hover="filter:brightness(1.15)">{{ o.n }}</button>
+          </sc-for>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-family:Silkscreen,monospace;font-size:10px;color:#6f7488;margin-bottom:8px">BOTS PRA COMPLETAR</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <sc-for list="{{ opcoesBots }}" as="o" hint-placeholder-count="4">
+            <button type="button" onClick="{{ o.escolher }}" style="min-width:56px;min-height:48px;border-radius:12px;border:3px solid #0c0d11;background:{{ o.fundo }};color:{{ o.texto }};font-family:Silkscreen,monospace;font-size:16px;box-shadow:0 4px 0 rgba(0,0,0,.5)" style-hover="filter:brightness(1.15)">{{ o.n }}</button>
+          </sc-for>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-family:Silkscreen,monospace;font-size:10px;color:#6f7488;margin-bottom:8px">CARTAS NA 1ª RODADA</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <sc-for list="{{ opcoesCartas }}" as="o" hint-placeholder-count="5">
+            <button type="button" onClick="{{ o.escolher }}" style="min-width:56px;min-height:48px;border-radius:12px;border:3px solid #0c0d11;background:{{ o.fundo }};color:{{ o.texto }};font-family:Silkscreen,monospace;font-size:16px;box-shadow:0 4px 0 rgba(0,0,0,.5)" style-hover="filter:brightness(1.15)">{{ o.n }}</button>
+          </sc-for>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-family:Silkscreen,monospace;font-size:10px;color:#6f7488;margin-bottom:8px">CORAÇÕES INICIAIS</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <sc-for list="{{ opcoesVidas }}" as="o" hint-placeholder-count="3">
+            <button type="button" onClick="{{ o.escolher }}" style="min-height:48px;padding:0 16px;border-radius:12px;border:3px solid #0c0d11;background:{{ o.fundo }};color:{{ o.texto }};font-family:Silkscreen,monospace;font-size:14px;letter-spacing:2px;box-shadow:0 4px 0 rgba(0,0,0,.5)" style-hover="filter:brightness(1.15)">{{ o.rotulo }}</button>
+          </sc-for>
+        </div>
+      </div>
+
+      <sc-for list="{{ chaves }}" as="k" hint-placeholder-count="4">
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;border:2px solid #2e313d;background:#0f1016">
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:700;color:#f3ead6">{{ k.titulo }}</div>
+            <div style="font-size:12px;color:#6f7488;margin-top:2px">{{ k.desc }}</div>
+          </div>
+          <button type="button" onClick="{{ k.alternar }}" style="width:62px;height:34px;flex:none;border-radius:999px;border:3px solid #0c0d11;background:{{ k.trilho }};position:relative;padding:0">
+            <span style="position:absolute;top:2px;left:{{ k.pos }};width:22px;height:22px;border-radius:50%;background:#0c0d11;transition:left .15s ease"></span>
+          </button>
+        </div>
+      </sc-for>
+
+      <button type="button" onClick="{{ verMesa }}" style="margin-top:4px;font-family:Silkscreen,monospace;font-size:12px;min-height:56px;border-radius:14px;border:3px solid #0c0d11;background:#ff4b3e;color:#fff2ef;box-shadow:0 5px 0 #7d1f18" style-hover="background:#ff6a5f">ABRIR MESA</button>
+    </div>
+  </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;telaInicial&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;login&quot;,&quot;lobby&quot;,&quot;criar&quot;,&quot;espera&quot;,&quot;mesa&quot;,&quot;fim&quot;],&quot;default&quot;:&quot;mesa&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;assentos&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:6,&quot;min&quot;:3,&quot;max&quot;:6,&quot;tsType&quot;:&quot;number&quot;},&quot;momento&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;normal&quot;,&quot;vaza&quot;,&quot;eliminacao&quot;,&quot;queda&quot;,&quot;expulso&quot;],&quot;default&quot;:&quot;normal&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Estados&quot;},&quot;mostrarChat&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Estados&quot;},&quot;golpeVelocidade&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1,&quot;min&quot;:0.5,&quot;max&quot;:2,&quot;step&quot;:0.1,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Golpes&quot;},&quot;golpeEscala&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1,&quot;min&quot;:0.6,&quot;max&quot;:1.8,&quot;step&quot;:0.1,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Golpes&quot;},&quot;volumeSom&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:0.7,&quot;min&quot;:0,&quot;max&quot;:1,&quot;step&quot;:0.05,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Som&quot;}}">
+const NAIPES = [
+  { g: "\u2666", cor: "#c0392b" },
+  { g: "\u2660", cor: "#1c1f26" },
+  { g: "\u2665", cor: "#c0392b" },
+  { g: "\u2663", cor: "#1c1f26" },
+];
+const CORES = ["#f5c451", "#3d9be9", "#7fd6a5", "#e07be0", "#ff9d5c"];
+const NOMES = ["Henrique", "Bea", "Lucas", "Nina", "Tob"];
+const CARTA = (valor, n) => ({ valor, naipe: NAIPES[n].g, cor: NAIPES[n].cor });
+// Mesmas chaves do objeto FILTROS em public/app/src/components/Partida.jsx
+const FILTROS = {
+  nenhum: "",
+  pixelado: "url(#cz-pixelar)",
+  gameboy: "url(#cz-pixelar) grayscale(1) sepia(1) saturate(2.4) hue-rotate(55deg) contrast(1.25) brightness(1)",
+  crt: "saturate(1.6) contrast(1.35) brightness(1.12)",
+  sepia: "sepia(0.85) contrast(1.1)",
+  negativo: "invert(1) hue-rotate(180deg)",
+  cinza: "grayscale(1) contrast(1.15)",
+  desfoque: "blur(2px)",
+};
+const USA_PIXEL = new Set(["pixelado", "gameboy"]);
+const oponentesTodosEmCima = (n) => Array.from({ length: n }, () => "auto");
+
+// ---- Golpes de manilha: sprites de pixel art desenhados em box-shadow ----
+const TINTA = {
+  D: "#0a0b0e", W: "#e8f1f7", G: "#f5c451", g: "#8a6410",
+  H: "#ff4b3e", h: "#ff8f86", L: "#c98a4b", l: "#e8b072", Y: "#f5c451",
+};
+const SPRITES = {
+  "\u2660": [
+    "...D...", "..DWD..", "..DWD..", "..DWD..", "..DWD..", "..DWD..",
+    "..DWD..", "..DWD..", "..DWD..", "..DWD..", "..DWD..", "..DWD..",
+    ".DDDDD.", ".DGGGD.", ".DDDDD.", "...G...", "..DGD..", "..DgD..", "...D...",
+  ],
+  "\u2665": [
+    ".DDD.DDD.", "DHhHDHHHD", "DHHHHHHHD", "DHHHHHHHD",
+    ".DHHHHHD.", "..DHHHD..", "...DHD...", "....D....",
+  ],
+  "\u2663": [
+    "..DDD..", ".DlllD.", "DlllWlD", "DlllllD", "DlllllD",
+    ".DlllD.", ".DlllD.", "..DlD..", "..DlD..", "..DlD..", "..DlD..",
+    "..DgD..", "..DgD..", "..DDD..",
+  ],
+  "\u2666": [
+    "....D....", "...DYD...", "..DYWYD..", ".DYYYYYD.",
+    "DYYYYYYYD", ".DYYYYYD.", "..DYYYD..", "...DYD...", "....D....",
+  ],
+};
+const FORCA = { "\u2666": 1, "\u2660": 2, "\u2665": 3, "\u2663": 4 };
+const BRILHO = { "\u2660": "#e8f1f7", "\u2665": "#ff4b3e", "\u2663": "#e8b072", "\u2666": "#f5c451" };
+
+// filtro(x, y, largura, altura) permite recortar o sprite no próprio grid de
+// pixels (metades de um coração rachado, fatias de um ouro cortado).
+const sprite = (naipe, e, anim, extra, filtro) => {
+  const mapa = SPRITES[naipe];
+  const cols = mapa[0].length, rows = mapa.length;
+  const px = [];
+  mapa.forEach((linha, y) => {
+    for (let x = 0; x < linha.length; x++) {
+      const cor = TINTA[linha[x]];
+      if (cor && (!filtro || filtro(x, y, cols, rows))) px.push(`${x * e}px ${y * e}px 0 0 ${cor}`);
+    }
+  });
+  const w = cols * e, h = rows * e;
+  return {
+    estilo: `position:absolute;left:50%;top:50%;width:${e}px;height:${e}px;margin-left:${-w / 2}px;margin-top:${-h / 2}px;box-shadow:${px.join(",")};opacity:0;transform-origin:${w / 2}px ${h / 2}px;animation:${anim};will-change:transform,opacity;${extra || ""}`,
+  };
+};
+// Parte um sprite numa grade de blocos e devolve cada pedaço voando pra fora —
+// o alvo se despedaça mantendo os próprios pixels, não vira poeira genérica.
+const pedacos = (naipe, e, cols, rows, dur, atraso, alcance, extraPorPeca) => {
+  const fora = [];
+  for (let by = 0; by < rows; by++) {
+    for (let bx = 0; bx < cols; bx++) {
+      const ang = Math.atan2(by - (rows - 1) / 2 || 0.2, bx - (cols - 1) / 2 || 0.2);
+      const d = alcance * (0.6 + ((bx * 7 + by * 13) % 40) / 100);
+      const rot = ((bx + by) % 2 ? 1 : -1) * (120 + ((bx * 31 + by * 17) % 160));
+      fora.push(
+        sprite(
+          naipe, e,
+          `cz-frag-rot ${dur}ms steps(7) ${atraso + ((bx + by) % 3) * 24}ms forwards`,
+          `--dx:${Math.round(Math.cos(ang) * d)}px;--dy:${Math.round(Math.sin(ang) * d - 20)}px;--rot:${rot}deg;${extraPorPeca || ""}`,
+          (x, y, c, r) =>
+            Math.min(cols - 1, Math.floor((x / c) * cols)) === bx &&
+            Math.min(rows - 1, Math.floor((y / r) * rows)) === by
+        )
+      );
+    }
+  }
+  return fora;
+};
+const quadrados = (n, cor, tam, dur, atraso, alcance) =>
+  Array.from({ length: n }, (_, i) => {
+    const a = (i / n) * Math.PI * 2 + (i % 3) * 0.5;
+    const d = alcance * (0.5 + ((i * 37) % 50) / 100);
+    return {
+      estilo: `position:absolute;left:50%;top:50%;width:${tam}px;height:${tam}px;margin:${-tam / 2}px 0 0 ${-tam / 2}px;background:${cor};opacity:0;--dx:${Math.round(Math.cos(a) * d)}px;--dy:${Math.round(Math.sin(a) * d)}px;animation:cz-frag ${dur}ms steps(5) ${atraso}ms forwards`,
+    };
+  });
+const clarao = (cor, dur, atraso) => ({
+  estilo: `position:absolute;inset:0;opacity:0;background:radial-gradient(45% 60% at 50% 50%,${cor} 0%,rgba(0,0,0,0) 72%);animation:cz-clarao ${dur}ms steps(4) ${atraso}ms forwards`,
+});
+const onda = (cor, dur, atraso) => ({
+  estilo: `position:absolute;left:50%;top:50%;width:150px;height:150px;margin:-75px 0 0 -75px;border:6px solid ${cor};border-radius:50%;opacity:0;animation:cz-onda ${dur}ms steps(6) ${atraso}ms forwards`,
+});
+
+class Component extends DCLogic {
+  state = {
+    tela: null,
+    mao: [CARTA("K", 1), CARTA("7", 0), CARTA("A", 2)],
+    mesa: [
+      { jogador: "Henrique", ...CARTA("Q", 3) },
+      { jogador: "Bea", ...CARTA("4", 0) },
+    ],
+    aposta: null,
+    jogadores: 6,
+    bots: 1,
+    vidas: 3,
+    cartasRodada1: 3,
+    flags: { chat: false },
+    estreito: false,
+    painelAberto: false,
+    efeito: "nenhum",
+    pixel: 3,
+    grao: 0,
+    graoColorido: false,
+    graoAnimado: false,
+    curvatura: 0,
+    scanlines: 0,
+    scanlinePasso: 3,
+    aberracao: 0,
+    etapa: "nome",
+    nome: "",
+    contagem: 12,
+    recebeuConvite: false,
+    vazaFechada: false,
+    golpe: null,
+    testarAnula: false,
+    somLigado: true,
+  };
+
+  somDoGolpe(naipe, modo) {
+    const base = { "\u2660": "espada", "\u2665": "copas", "\u2663": "paus", "\u2666": "ouros" }[naipe];
+    if (!base) return null;
+    return modo === "anula" ? base + "Anula" : base;
+  }
+
+  // Cada manilha tem seu golpe. Modo "anula" = duas manilhas iguais se cancelam.
+  camadasGolpe(naipe, modo, supera) {
+    const vel = this.props.golpeVelocidade ?? 1;
+    const t = (ms) => Math.round(ms / vel);
+    const e = Math.max(3, Math.round(6 * (this.props.golpeEscala ?? 1) * (supera ? 1.3 : 1)));
+    const luz = BRILHO[naipe];
+    const cam = [];
+    if (supera) {
+      cam.push({
+        estilo: `position:absolute;inset:-10%;background:linear-gradient(90deg,rgba(0,0,0,0) 0%,${luz} 45%,rgba(255,255,255,.9) 50%,${luz} 55%,rgba(0,0,0,0) 100%);opacity:.9;animation:cz-varrer ${t(320)}ms steps(6) forwards`,
+      });
+      cam.push(clarao("rgba(255,255,255,.75)", t(240), 0));
+    }
+    const atr = supera ? t(90) : 0;
+
+    if (naipe === "\u2660" && modo === "solo") {
+      cam.push({
+        estilo: `position:absolute;left:50%;top:50%;width:520px;height:${Math.max(6, e)}px;margin:${-e / 2}px 0 0 -260px;background:linear-gradient(90deg,rgba(232,241,247,0),#e8f1f7 55%,rgba(255,255,255,.95));transform-origin:50% 50%;animation:cz-trilha ${t(420)}ms steps(5) ${atr}ms forwards`,
+      });
+      cam.push(sprite(naipe, e, `cz-corte ${t(360)}ms steps(9) ${atr}ms forwards`));
+      cam.push(...quadrados(9, "#e8f1f7", e, t(360), atr + t(150), 150));
+    } else if (naipe === "\u2665" && modo === "solo") {
+      cam.push(onda("#ff4b3e", t(520), atr + t(120)));
+      cam.push(sprite(naipe, Math.round(e * 2.4), `cz-coracao ${t(720)}ms steps(8) ${atr}ms forwards`, "filter:drop-shadow(0 0 14px rgba(255,75,62,.55))"));
+      cam.push(...quadrados(10, "#ff8f86", e, t(420), atr + t(220), 190));
+    } else if (naipe === "\u2663" && modo === "solo") {
+      cam.push(sprite(naipe, Math.round(e * 2), `cz-bonk ${t(780)}ms steps(10) ${atr}ms forwards`));
+      cam.push(onda("rgba(233,205,160,.85)", t(400), atr + t(340)));
+      cam.push(...quadrados(12, "#c98a4b", e, t(420), atr + t(340), 170));
+    } else if (naipe === "\u2666" && modo === "solo") {
+      cam.push(clarao("rgba(245,196,81,.85)", t(420), atr + t(180)));
+      cam.push(sprite(naipe, Math.round(e * 2.4), `cz-gema ${t(760)}ms steps(9) ${atr}ms forwards`, "filter:drop-shadow(0 0 16px rgba(245,196,81,.6))"));
+      cam.push(...quadrados(14, "#fff3c4", e, t(520), atr + t(200), 200));
+    } else if (modo === "anula") {
+      const gira = naipe === "\u2660" || naipe === "\u2663";
+      const dur = t(1000);
+      const bate = t(360);
+      // Espadas se cruzam em X (lâminas pressionadas), os outros naipes vêm na horizontal.
+      const cruzam = naipe === "\u2660";
+      const kfL = cruzam ? "cz-cruz-l" : gira ? "cz-choque-l90" : "cz-choque-l";
+      const kfR = cruzam ? "cz-cruz-r" : gira ? "cz-choque-r90" : "cz-choque-r";
+      const esc = Math.round(e * (cruzam ? 1.45 : gira ? 1.7 : 2));
+      cam.push(sprite(naipe, esc, `${kfL} ${dur}ms steps(16) ${atr}ms forwards`));
+      cam.push(sprite(naipe, esc, `${kfR} ${dur}ms steps(16) ${atr}ms forwards`));
+      cam.push(clarao("rgba(255,255,255,.9)", t(300), atr + bate));
+      cam.push(...quadrados(16, luz, e, t(520), atr + bate, 210));
+      if (naipe === "\u2665") {
+        cam.push(sprite(naipe, Math.round(e * 2.4), `cz-fundir ${t(260)}ms steps(5) ${atr + bate}ms forwards`));
+        cam.push(sprite(naipe, Math.round(e * 2.4), `cz-rachar-l ${t(380)}ms steps(6) ${atr + t(660)}ms forwards`, "clip-path:inset(0 50% 0 0)"));
+        cam.push(sprite(naipe, Math.round(e * 2.4), `cz-rachar-r ${t(380)}ms steps(6) ${atr + t(660)}ms forwards`, "clip-path:inset(0 0 0 50%)"));
+      }
+      if (naipe === "\u2666") cam.push(...quadrados(18, "#f5c451", e, t(600), atr + t(420), 260));
+      if (naipe === "\u2663") cam.push(onda("rgba(233,205,160,.85)", t(460), atr + bate));
+      if (naipe === "\u2660") cam.push(...quadrados(10, "#ffffff", Math.max(2, e - 2), t(300), atr + bate + t(60), 120));
+    }
+    return { camadas: cam, dur: (modo === "anula" ? t(1150) : t(900)) + atr, bate: atr + t(modo === "anula" ? 360 : 340) };
+  }
+
+  // Duelos: a manilha mais forte destrói a que estava ganhando.
+  // Cada par tem coreografia própria — o alvo reage, apanha e se desfaz.
+  camadasDuelo(novo, antigo) {
+    const vel = this.props.golpeVelocidade ?? 1;
+    const t = (ms) => Math.round(ms / vel);
+    const e = Math.max(3, Math.round(6 * (this.props.golpeEscala ?? 1)));
+    const alvo = Math.round(e * 2.4);
+    const glow = { "\u2666": "rgba(245,196,81,.45)", "\u2660": "rgba(232,241,247,.45)", "\u2665": "rgba(255,75,62,.5)" };
+    const cam = [];
+    const par = novo + antigo;
+
+    // Alvo esperando o golpe: fica na mesa e estremece pouco antes do impacto.
+    const porAlvo = (bate, kf) =>
+      sprite(antigo, alvo, `${kf || `cz-alvo-espera ${bate + t(40)}ms steps(4) forwards`}, cz-alvo-tremer ${t(200)}ms steps(3) ${Math.max(0, bate - t(200))}ms 1`, `filter:drop-shadow(0 0 12px ${glow[antigo] || "rgba(255,255,255,.4)"})`);
+
+    if (par === "\u2660\u2666") {
+      // Espada corta o ouro exatamente na diagonal da lâmina.
+      const bate = t(520);
+      cam.push(porAlvo(bate));
+      cam.push(sprite(novo, Math.round(e * 1.8), `cz-golpe-corta ${t(620)}ms steps(14) forwards`));
+      cam.push({
+        estilo: `position:absolute;left:50%;top:50%;width:560px;height:${Math.max(4, e - 1)}px;margin:${-(e - 1) / 2}px 0 0 -280px;background:linear-gradient(90deg,rgba(255,255,255,0),#ffffff 50%,rgba(255,255,255,0));transform-origin:50% 50%;animation:cz-risco ${t(420)}ms steps(6) ${bate - t(60)}ms forwards`,
+      });
+      cam.push(clarao("rgba(255,255,255,.8)", t(220), bate - t(20)));
+      const meio = (c, r) => (c + r) / 2;
+      cam.push(sprite(antigo, alvo, `cz-fatia-a ${t(520)}ms steps(8) ${bate}ms forwards`, null, (x, y, c, r) => x + y < meio(c, r)));
+      cam.push(sprite(antigo, alvo, `cz-fatia-b ${t(520)}ms steps(8) ${bate}ms forwards`, null, (x, y, c, r) => x + y >= meio(c, r)));
+      cam.push(...quadrados(16, "#f5c451", e, t(520), bate + t(40), 220));
+      cam.push(...quadrados(8, "#e8f1f7", Math.max(2, e - 2), t(300), bate, 130));
+      return { camadas: cam, dur: bate + t(620), bate, sfx: "duelo_espada_ouros" };
+    }
+
+    if (par === "\u2665\u2666") {
+      // Coração pulsa atrás e a onda de energia desintegra o diamante.
+      const bate = t(440);
+      cam.push(porAlvo(bate, `cz-alvo-espera ${bate + t(20)}ms steps(3) forwards`));
+      cam.push(sprite(novo, Math.round(e * 3), `cz-domina ${t(900)}ms steps(11) forwards`, "filter:drop-shadow(0 0 18px rgba(255,75,62,.6))"));
+      cam.push(onda("#ff4b3e", t(520), bate - t(120)));
+      cam.push(onda("rgba(255,143,134,.8)", t(460), bate - t(20)));
+      cam.push(clarao("rgba(255,75,62,.7)", t(260), bate - t(40)));
+      cam.push(...pedacos(antigo, alvo, 3, 3, t(560), bate, 230));
+      cam.push(...quadrados(14, "#f5c451", e, t(520), bate + t(40), 250));
+      return { camadas: cam, dur: t(1000), bate, sfx: "duelo_copas_ouros" };
+    }
+
+    if (par === "\u2665\u2660") {
+      // A espada avança, o coração a segura no ar e ela se parte em duas.
+      const bate = t(560);
+      cam.push(sprite(antigo, Math.round(e * 1.9), `cz-espada-presa ${bate}ms steps(12) forwards`, "filter:drop-shadow(0 0 10px rgba(232,241,247,.4))"));
+      cam.push(sprite(novo, Math.round(e * 3), `cz-domina ${t(1000)}ms steps(12) ${t(120)}ms forwards`, "filter:drop-shadow(0 0 18px rgba(255,75,62,.6))"));
+      cam.push(clarao("rgba(255,75,62,.75)", t(280), bate));
+      cam.push(onda("#ff4b3e", t(560), bate));
+      // Lâmina partida: metade de cima gira pra cima, punho cai.
+      const cortar = (cima) => (x, y, c, r) => (cima ? y < r * 0.45 : y >= r * 0.45);
+      cam.push(sprite(antigo, Math.round(e * 1.9), `cz-espada-quebra-a ${t(520)}ms steps(8) ${bate}ms forwards`, null, cortar(true)));
+      cam.push(sprite(antigo, Math.round(e * 1.9), `cz-espada-quebra-b ${t(520)}ms steps(8) ${bate}ms forwards`, null, cortar(false)));
+      cam.push(...quadrados(14, "#e8f1f7", e, t(480), bate, 200));
+      return { camadas: cam, dur: t(1180), bate, sfx: "duelo_copas_espada" };
+    }
+
+    if (par === "\u2663\u2666") {
+      // Porrete desce em cheio e esmaga o diamante contra o feltro.
+      const bate = t(470);
+      cam.push(porAlvo(bate, `cz-achata ${t(300)}ms steps(5) ${bate}ms both`));
+      cam.push(sprite(novo, Math.round(e * 2.1), `cz-marreta ${t(900)}ms steps(12) forwards`));
+      cam.push(clarao("rgba(233,205,160,.7)", t(240), bate));
+      cam.push(onda("rgba(233,205,160,.85)", t(420), bate));
+      cam.push(...pedacos(antigo, alvo, 3, 2, t(540), bate + t(120), 240, "filter:drop-shadow(0 0 6px rgba(245,196,81,.5))"));
+      cam.push(...quadrados(16, "#c98a4b", e, t(460), bate, 200));
+      return { camadas: cam, dur: t(1050), bate, sfx: "duelo_paus_ouros" };
+    }
+
+    if (par === "\u2663\u2660") {
+      // Pancada lateral: a espada é rebatida girando pra fora da mesa.
+      const bate = t(520);
+      cam.push(porAlvo(bate, `cz-alvo-espera ${bate + t(20)}ms steps(3) forwards`));
+      cam.push(sprite(novo, Math.round(e * 2.1), `cz-marreta-lat ${t(920)}ms steps(12) forwards`));
+      cam.push(clarao("rgba(255,255,255,.7)", t(220), bate));
+      cam.push(sprite(antigo, alvo, `cz-voa-gira ${t(560)}ms steps(9) ${bate}ms forwards`, "--dx:420px;--dy:-210px;--rot:760deg"));
+      cam.push(...quadrados(12, "#e8f1f7", e, t(420), bate, 190));
+      cam.push(...quadrados(10, "#c98a4b", Math.max(2, e - 1), t(460), bate + t(40), 150));
+      return { camadas: cam, dur: t(1120), bate, sfx: "duelo_paus_espada" };
+    }
+
+    if (par === "\u2663\u2665") {
+      // Pancada seca no coração: ele achata e racha em duas metades.
+      const bate = t(470);
+      cam.push(porAlvo(bate, `cz-achata ${t(260)}ms steps(4) ${bate}ms both`));
+      cam.push(sprite(novo, Math.round(e * 2.1), `cz-marreta ${t(900)}ms steps(12) forwards`));
+      cam.push(clarao("rgba(255,75,62,.7)", t(240), bate));
+      cam.push(onda("rgba(255,143,134,.8)", t(420), bate + t(40)));
+      cam.push(sprite(antigo, alvo, `cz-rachar-l ${t(480)}ms steps(7) ${bate + t(180)}ms forwards`, null, (x, y, c) => x < c / 2));
+      cam.push(sprite(antigo, alvo, `cz-rachar-r ${t(480)}ms steps(7) ${bate + t(180)}ms forwards`, null, (x, y, c) => x >= c / 2));
+      cam.push(...quadrados(16, "#ff4b3e", e, t(500), bate, 210));
+      cam.push(...quadrados(10, "#c98a4b", Math.max(2, e - 1), t(420), bate, 150));
+      return { camadas: cam, dur: t(1150), bate, sfx: "duelo_paus_copas" };
+    }
+
+    return null;
+  }
+
+  dispararGolpe(naipe, modo) {
+    if (!SPRITES[naipe]) return;
+    const supera = !!this.state.golpe;
+    clearTimeout(this.golpeT);
+    clearTimeout(this.tremorT);
+    this.setState({ golpe: null });
+    // rAF não dispara em aba/iframe sem pintura — setTimeout garante o golpe.
+    let armado = false;
+    const montar = () => {
+      if (armado) return;
+      armado = true;
+      const reinante = this.naipeVencendo;
+      const bateu = modo === "solo" && reinante && FORCA[naipe] > FORCA[reinante];
+      const duelo = bateu ? this.camadasDuelo(naipe, reinante) : null;
+      const info = duelo || this.camadasGolpe(naipe, modo, supera);
+      this.setState({ golpe: { camadas: info.camadas } });
+      if (duelo) {
+        this.tocarSom(info.sfx);
+      } else {
+        if (supera) this.tocarSom("supera");
+        const sfx = this.somDoGolpe(naipe, modo);
+        if (sfx) this.tocarSom(sfx);
+      }
+      this.naipeVencendo = modo === "anula" ? null : naipe;
+      if (naipe === "\u2663" || duelo) {
+        this.tremorT = setTimeout(() => this.tremer(), info.bate);
+      }
+      this.golpeT = setTimeout(() => this.setState({ golpe: null }), info.dur);
+    };
+    requestAnimationFrame(montar);
+    setTimeout(montar, 32);
+  }
+
+  tremer() {
+    const raiz = document.documentElement;
+    raiz.style.setProperty("--cz-tremor", "cz-tremor 380ms steps(3)");
+    clearTimeout(this.limparTremorT);
+    this.limparTremorT = setTimeout(() => raiz.style.removeProperty("--cz-tremor"), 400);
+  }
+
+  corações(n, max) {
+    return "\u2665".repeat(n) + "\u2661".repeat(Math.max(0, max - n));
+  }
+
+  medir = () => {
+    const estreito = window.innerWidth < 640;
+    if (estreito !== this.state.estreito) this.setState({ estreito });
+  };
+
+  componentDidMount() {
+    this.antMomento = this.props.momento ?? "normal";
+    this.antTela = this.state.tela ?? this.props.telaInicial ?? "mesa";
+    this.antVaza = this.state.vazaFechada || this.antMomento === "vaza";
+    this.antVolume = this.props.volumeSom ?? 0.7;
+    this.medir();
+    window.addEventListener("resize", this.medir);
+    this.timer = setInterval(() => {
+      this.setState((s) => {
+        const prox = s.contagem > 0 ? s.contagem - 1 : 15;
+        const tela = s.tela ?? this.props.telaInicial ?? "mesa";
+        if (tela === "espera" && prox > 0) this.tocarSom(prox <= 5 ? "tiqueFinal" : "tique");
+        return { contagem: prox };
+      });
+    }, 1000);
+
+    // Motor de som carregado sob demanda; o AudioContext só acorda no
+    // primeiro clique (política de autoplay dos navegadores).
+    import("./som.js")
+      .then((m) => {
+        this.som = new m.default();
+        this.som.defVolume(this.props.volumeSom ?? 0.7);
+      })
+      .catch(() => {});
+    this.ouvinteSom = (ev) => {
+      const alvo = ev.target.closest && ev.target.closest("button, input, [data-som]");
+      if (!alvo) return;
+      const marca = alvo.closest("[data-som]");
+      const nome = marca ? marca.getAttribute("data-som") : "clique";
+      if (nome !== "mudo") this.tocarSom(nome);
+    };
+    document.addEventListener("click", this.ouvinteSom, true);
+  }
+
+  // O runtime não garante prevProps/prevState, então guardamos o anterior aqui.
+  componentDidUpdate() {
+    const momento = this.props.momento ?? "normal";
+    const tela = this.state.tela ?? this.props.telaInicial ?? "mesa";
+    const vaza = this.state.vazaFechada || momento === "vaza";
+    const volume = this.props.volumeSom ?? 0.7;
+
+    if (vaza && !this.antVaza) {
+      this.tocarSom("vaza");
+      this.naipeVencendo = null; // vaza nova recomeça sem manilha reinando
+    }
+    if (momento !== this.antMomento) {
+      if (momento === "eliminacao") this.tocarSom("eliminado");
+      if (momento === "queda") this.tocarSom("erro");
+    }
+    if (tela === "fim" && this.antTela !== "fim") this.tocarSom("vitoria");
+    if (this.som && volume !== this.antVolume) this.som.defVolume(volume);
+
+    this.antVaza = vaza;
+    this.antMomento = momento;
+    this.antTela = tela;
+    this.antVolume = volume;
+  }
+
+  tocarSom(nome) {
+    if (this.som && this.state.somLigado) this.som.tocar(nome);
+  }
+
+  componentWillUnmount() {
+    clearInterval(this.timer);
+    clearTimeout(this.golpeT);
+    clearTimeout(this.tremorT);
+    clearTimeout(this.limparTremorT);
+    window.removeEventListener("resize", this.medir);
+    document.removeEventListener("click", this.ouvinteSom, true);
+  }
+
+  filtros() {
+    const s = this.state;
+    const num = (k) => (e) => this.setState({ [k]: Number(e.target.value) });
+    const bool = (k) => () => this.setState({ [k]: !s[k] });
+
+    const sliders = [];
+    if (USA_PIXEL.has(s.efeito)) {
+      sliders.push({ rotulo: "TAMANHO DO PIXEL", chave: "pixel", min: 2, max: 16, valor: s.pixel, texto: s.pixel + "px" });
+    }
+    sliders.push({ rotulo: "GRÃO / DITHER", chave: "grao", min: 0, max: 100, valor: s.grao, texto: s.grao || "off" });
+    sliders.push({ rotulo: "CRT · CURVATURA", chave: "curvatura", min: 0, max: 100, valor: s.curvatura, texto: s.curvatura || "off" });
+    sliders.push({ rotulo: "CRT · SCANLINES", chave: "scanlines", min: 0, max: 100, valor: s.scanlines, texto: s.scanlines || "off" });
+    if (s.scanlines > 0) {
+      const d = s.scanlinePasso <= 4 ? "finas" : s.scanlinePasso >= 10 ? "grossas" : "médias";
+      sliders.push({ rotulo: "CRT · LINHA", chave: "scanlinePasso", min: 2, max: 16, valor: s.scanlinePasso, texto: s.scanlinePasso + "px " + d });
+    }
+    sliders.push({ rotulo: "CRT · ABERRAÇÃO", chave: "aberracao", min: 0, max: 100, valor: s.aberracao, texto: s.aberracao || "off" });
+
+    const checks = s.grao > 0
+      ? [
+          { rotulo: "ruído colorido (RGB)", ligado: s.graoColorido, chave: "graoColorido" },
+          { rotulo: 'animar (grão "fervendo")', ligado: s.graoAnimado, chave: "graoAnimado" },
+        ]
+      : [];
+
+    const ab = s.aberracao > 0 ? Math.max(1, Math.round((s.aberracao / 100) * 3)) : 0;
+    const cadeia = [
+      (FILTROS[s.efeito] || "").replace("#cz-pixelar", "#cz-pixelar-" + s.pixel),
+      s.grao > 0 ? "url(#cz-grao)" : "",
+      s.curvatura > 0 ? "contrast(" + (1 + s.curvatura / 260).toFixed(3) + ")" : "",
+      ab > 0 ? "drop-shadow(" + ab + "px 0 0 rgba(255,0,60,.45)) drop-shadow(-" + ab + "px 0 0 rgba(0,180,255,.45))" : "",
+    ].filter(Boolean).join(" ");
+
+    const ativos = [
+      s.efeito !== "nenhum" ? s.efeito : null,
+      s.grao > 0 ? "grão" : null,
+      s.curvatura > 0 || s.scanlines > 0 || s.aberracao > 0 ? "crt" : null,
+    ].filter(Boolean);
+
+    return {
+      painelAberto: s.painelAberto,
+      alternarPainel: () => this.setState({ painelAberto: !s.painelAberto }),
+      setaPainel: s.painelAberto ? "\u25be" : "\u25b8",
+      resumoFiltro: ativos.length ? ativos.join(" + ") : "off",
+      efeitos: Object.keys(FILTROS).map((nome) => ({
+        nome,
+        fundo: s.efeito === nome ? "#f5c451" : "#181a22",
+        cor: s.efeito === nome ? "#2b1d02" : "#8d93a6",
+        borda: s.efeito === nome ? "#f5c451" : "#262935",
+        escolher: () => this.setState({ efeito: nome }),
+      })),
+      sliders: sliders.map((sl) => ({
+        ...sl,
+        corValor: sl.texto === "off" ? "#4a4f60" : "#f5c451",
+        mudar: num(sl.chave),
+      })),
+      checks: checks.map((c) => ({
+        rotulo: c.rotulo,
+        marca: c.ligado ? "#7fd6a5" : "#22252f",
+        alternar: bool(c.chave),
+      })),
+      limparFiltros: () => this.setState({
+        efeito: "nenhum", pixel: 3, grao: 0, graoColorido: false, graoAnimado: false,
+        curvatura: 0, scanlines: 0, scanlinePasso: 3, aberracao: 0,
+      }),
+      filtroCss: cadeia || "none",
+      // Um <filter> por tamanho: a Chrome não reavalia feTile/feFlood quando
+      // só o atributo muda, então o id precisa carregar o tamanho.
+      filtrosPixel: Array.from({ length: 15 }, (_, i) => {
+        const tam = i + 2;
+        return { id: "cz-pixelar-" + tam, tam, meio: tam / 2 };
+      }),
+      graoK: (s.grao / 100) * 2,
+      graoC: 0.5 - s.grao / 100,
+      temScanlines: s.scanlines > 0,
+      scanlineOp: (s.scanlines / 100) * 0.75,
+      scanlineBg:
+        "repeating-linear-gradient(180deg,rgba(0,0,0,.85) 0px,rgba(0,0,0,.85) 1px,transparent 1px,transparent " +
+        s.scanlinePasso + "px)",
+    };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const tela = s.tela ?? this.props.telaInicial ?? "mesa";
+    const momento = this.props.momento ?? "normal";
+    const nOponentes = Math.max(2, Math.min(5, (this.props.assentos ?? 6) - 1));
+
+    const jaJogou = (nome) => s.mesa.some((j) => j.jogador === nome);
+    // Assentos em volta da mesa: à sua esquerda, topo, à sua direita.
+    const AREAS = { 2: ["l", "r"], 3: ["l", "tc", "r"], 4: ["l", "tl", "tr", "r"], 5: ["l", "tl", "tc", "tr", "r"] };
+    // Em telas estreitas os assentos laterais não cabem: todos vão pra cima
+    // do feltro, que passa a ocupar a linha inteira.
+    const areas = s.estreito ? oponentesTodosEmCima(nOponentes) : (AREAS[nOponentes] || AREAS[5]);
+    const maxVersos = s.estreito ? 2 : 3;
+
+    const oponentes = NOMES.slice(0, nOponentes).map((nome, i) => {
+      const hp = i === 1 ? 1 : i === 3 && momento === "eliminacao" ? 0 : i === 3 ? 1 : 3;
+      return {
+      nome,
+      area: areas[i],
+      inicial: nome[0],
+      cor: CORES[i % CORES.length],
+      vidas: this.corações(hp, 3),
+      versos: [0, 1, 2].slice(0, Math.min(maxVersos, jaJogou(nome) ? 2 : 3)),
+      aposta: [1, 0, 2, 1, 0][i],
+      feitas: [1, 0, 0, 1, 0][i],
+      daVez: i === 2 && !s.vazaFechada && momento !== "eliminacao",
+      morto: hp === 0,
+      falando: i === 0 && (this.props.mostrarChat ?? true),
+      fala: "boa sorte, vai precisar",
+      };
+    });
+
+    const frases = ["Boa!", "Vai nessa", "Tá osso", "Sem chance", "Bom jogo"].map((texto) => ({
+      texto,
+      enviar: () => {},
+    }));
+
+    const palpites = [0, 1, 2, 3].map((n) => ({
+      n,
+      escolher: () => this.setState({ aposta: n }),
+    }));
+
+    const vazaAtiva = s.vazaFechada || momento === "vaza";
+
+    const salas = [
+      { nome: "A7F2", ocupados: 4, total: 6, tags: ["CHAT ABERTO", "3 CARTAS"] },
+      { nome: "B31K", ocupados: 5, total: 6, tags: ["CHAT ABERTO", "3 CARTAS"] },
+      { nome: "TR9M", ocupados: 2, total: 4, tags: ["1 BOT", "2 CARTAS"] },
+      { nome: "K7QP", ocupados: 3, total: 6, tags: ["5 CARTAS"] },
+      { nome: "X2LD", ocupados: 1, total: 4, tags: ["2 BOTS", "CHAT ABERTO"] },
+      { nome: "M8VC", ocupados: 3, total: 4, tags: ["3 CARTAS"] },
+    ].map((sala) => {
+      const cheia = sala.ocupados >= sala.total;
+      return {
+        nome: sala.nome,
+        tags: sala.tags,
+        vagas: sala.ocupados + "/" + sala.total,
+        corVagas: cheia ? "#ff4b3e" : "#7fd6a5",
+        acao: cheia ? "SALA CHEIA" : "ENTRAR",
+        corBotao: cheia ? "#4a4f60" : "#f5c451",
+        entrar: () => this.setState({ tela: "mesa" }),
+        assentos: Array.from({ length: sala.total }, (_, i) => ({
+          cor: i < sala.ocupados ? CORES[i % CORES.length] : "#22252f",
+          inicial: i < sala.ocupados ? (NOMES[i % NOMES.length] || "P")[0] : "",
+        })),
+      };
+    });
+
+    const seletor = (valores, atual, chave, rotular) =>
+      valores.map((n) => ({
+        n,
+        rotulo: rotular ? rotular(n) : String(n),
+        fundo: n === atual ? "#f5c451" : "#1a1c25",
+        texto: n === atual ? "#2b1d02" : "#8d93a6",
+        escolher: () => this.setState({ [chave]: n }),
+      }));
+
+    const chave = (id, titulo, desc) => ({
+      titulo,
+      desc,
+      trilho: s.flags[id] ? "#7fd6a5" : "#22252f",
+      pos: s.flags[id] ? "30px" : "2px",
+      alternar: () => this.setState({ flags: { ...s.flags, [id]: !s.flags[id] } }),
+    });
+
+    const ABAS = [
+      ["login", "LOGIN"], ["lobby", "SALAS"], ["criar", "CRIAR"],
+      ["espera", "ESPERA"], ["mesa", "MESA"], ["fim", "FIM"],
+    ];
+
+    return {
+      isMesa: tela === "mesa",
+      isLobby: tela === "lobby",
+      isCriar: tela === "criar",
+      isLogin: tela === "login",
+      isEspera: tela === "espera",
+      isFim: tela === "fim",
+      abas: ABAS.map(([id, rotulo]) => ({
+        rotulo,
+        cor: tela === id ? "#f3ead6" : "#8d93a6",
+        borda: tela === id ? "#f5c451" : "#2e313d",
+        ir: () => this.setState({ tela: id }),
+      })),
+      redeCaiu: momento === "queda",
+      gridMesa: s.estreito
+        ? "display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:auto;gap:8px;align-items:stretch"
+        : "display:grid;grid-template-columns:repeat(5,minmax(0,1fr));grid-template-rows:auto minmax(230px,auto);grid-template-areas:'l tl tc tr r' 'l felt felt felt r';gap:clamp(4px,1vw,10px);align-items:center",
+      areaFelt: s.estreito ? "auto/1/auto/3" : "felt",
+      versosVisiveis: s.estreito ? 2 : 3,
+      verMesa: () => this.setState({ tela: "mesa" }),
+      verLobby: () => this.setState({ tela: "lobby" }),
+      verCriar: () => this.setState({ tela: "criar" }),
+      verEspera: () => this.setState({ tela: "espera" }),
+      verFim: () => this.setState({ tela: "fim" }),
+      verLogin: () => this.setState({ tela: "login" }),
+
+      manilha: "J",
+      vira: CARTA("10", 1),
+      oponentes,
+      mesa: s.mesa,
+      mesaVazia: s.mesa.length === 0,
+      mao: s.mao.map((c, i) => ({
+        ...c,
+        manilha: c.valor === "K",
+        jogar: () => {
+          // Manilha toca só o golpe — o estalo da carta ficaria por baixo.
+          if (c.valor !== "K") this.tocarSom("carta");
+          this.setState((st) => ({
+            mao: st.mao.filter((_, j) => j !== i),
+            mesa: [...st.mesa, { jogador: "Você", ...c }],
+          }));
+          if (c.valor !== "K") return;
+          const naMesa = s.mesa.filter((j) => j.valor === "K").map((j) => j.naipe);
+          this.dispararGolpe(c.naipe, naMesa.includes(c.naipe) ? "anula" : "solo");
+        },
+      })),
+      maoVazia: s.mao.length === 0,
+      dicaMao: s.aposta === null ? "SUA MÃO — APOSTE PRIMEIRO" : "SUA VEZ — CLIQUE NUMA CARTA",
+      minhasVidas: this.corações(2, 3),
+      minhaAposta: s.aposta === null ? "—" : s.aposta,
+      minhasFeitas: 1,
+      fasePalpite: s.aposta === null,
+      palpites,
+      frasesProntas: frases,
+
+      somLigado: s.somLigado,
+      somRotulo: s.somLigado ? "SOM ON" : "SOM OFF",
+      somCor: s.somLigado ? "#f5c451" : "#6f7488",
+      somBorda: s.somLigado ? "#3a2f16" : "#262935",
+      alternarSom: () => {
+        const ligado = !s.somLigado;
+        this.setState({ somLigado: ligado });
+        if (ligado && this.som) {
+          this.som.ativo = true;
+          this.som.acordar();
+          this.som.tocar("aba");
+        }
+      },
+
+      golpeAtivo: !!s.golpe && !vazaAtiva,
+      golpeCamadas: s.golpe ? s.golpe.camadas : [],
+      golpes: ["\u2660", "\u2665", "\u2663", "\u2666"].map((n) => ({
+        naipe: n,
+        cor: n === "\u2665" || n === "\u2666" ? "#ff6a5f" : "#cfd3de",
+        tocar: () => this.dispararGolpe(n, s.testarAnula ? "anula" : "solo"),
+      })),
+      alternarAnula: () => this.setState((st) => ({ testarAnula: !st.testarAnula })),
+      limparReinante: () => {
+        this.naipeVencendo = null;
+        this.tocarSom("aba");
+      },
+      anulaRotulo: s.testarAnula ? "ANULA\u00c7\u00c3O" : "GOLPE SIMPLES",
+      anulaBorda: s.testarAnula ? "#f5c451" : "#2e313d",
+      anulaFundo: s.testarAnula ? "#3a2f16" : "#171922",
+      anulaCor: s.testarAnula ? "#f5c451" : "#6f7488",
+
+      mostrarVaza: vazaAtiva,
+      vazaCarta: CARTA("3", 3),
+      vazaVencedor: "LUCAS",
+      vazaTotal: 2,
+      fecharVaza: () => this.setState({ vazaFechada: false }),
+
+      salas,
+      opcoesJogadores: seletor([2, 3, 4, 5, 6], s.jogadores, "jogadores"),
+      opcoesBots: seletor([0, 1, 2, 3], s.bots, "bots"),
+      opcoesVidas: seletor([3, 5, 7], s.vidas, "vidas", (n) => "\u2665".repeat(n)),
+      opcoesCartas: seletor([1, 2, 3, 4, 5], s.cartasRodada1, "cartasRodada1"),
+      chaves: [chave("chat", "Chat aberto", "Além das frases prontas, libera texto livre na mesa.")],
+      partidaRapida: () => this.setState({ tela: "espera" }),
+      reconectarSala: "A7F2",
+
+      etapaNome: s.etapa === "nome",
+      etapaSenha: s.etapa === "senha",
+      etapaOferta: s.etapa === "oferta",
+      etapaNovaSenha: s.etapa === "novaSenha",
+      nomeDigitado: s.nome || "henrique",
+      irEtapa: (e) => this.setState({ etapa: e }),
+      irSenha: () => this.setState({ etapa: "senha" }),
+      irOferta: () => this.setState({ etapa: "oferta" }),
+      irNovaSenha: () => this.setState({ etapa: "novaSenha" }),
+      voltarNome: () => this.setState({ etapa: "nome" }),
+      entrarJogo: () => this.setState({ tela: "lobby" }),
+
+      esperaSala: "A7F2",
+      esperaVagas: "4/6",
+      esperaContagem: s.contagem,
+      esperaContando: s.contagem > 0,
+      esperaSouDono: true,
+      assentosEspera: Array.from({ length: 6 }, (_, i) => {
+        const ocupado = i < 4;
+        const bot = i === 3;
+        return {
+          nome: ocupado ? (i === 0 ? "Você" : bot ? "BOT-1" : NOMES[i - 1]) : "aguardando",
+          inicial: ocupado ? (i === 0 ? "V" : bot ? "B" : NOMES[i - 1][0]) : "?",
+          cor: ocupado ? (bot ? "#4a4f60" : CORES[i % CORES.length]) : "#22252f",
+          rotulo: i === 0 ? "DONO DA SALA" : bot ? "BOT" : ocupado ? "PRONTO" : "VAGA LIVRE",
+          corRotulo: i === 0 ? "#f5c451" : ocupado ? "#7fd6a5" : "#4a4f60",
+          fundo: ocupado ? "#1a1c25" : "#121319",
+          borda: ocupado ? "#262935" : "#1e2029",
+        };
+      }),
+      regrasEspera: [
+        { k: "CARTAS NA 1ª RODADA", v: String(s.cartasRodada1) },
+        { k: "CORAÇÕES", v: "\u2665".repeat(s.vidas) },
+        { k: "CHAT", v: s.flags.chat ? "ABERTO" : "FRASES" },
+        { k: "BOTS", v: "1" },
+      ],
+      forcarInicio: () => this.setState({ tela: "mesa" }),
+
+      campeao: "LUCAS",
+      podio: [
+        { pos: "2º", nome: "Você", detalhe: "eliminado na rodada 9" },
+        { pos: "3º", nome: "Bea", detalhe: "eliminada na rodada 7" },
+        { pos: "4º", nome: "Nina", detalhe: "eliminada na rodada 5" },
+      ],
+      souDonoFim: !s.recebeuConvite,
+      conviteDe: "Lucas",
+      pedirRevanche: () => this.setState({ tela: "espera" }),
+      alternarConvite: () => this.setState({ recebeuConvite: !s.recebeuConvite }),
+      recusarConvite: () => this.setState({ tela: "lobby" }),
+
+      ...this.filtros(),
+
+      log: [
+        { txt: "Lucas levou a vaza com 3\u2663", cor: "#7fd6a5" },
+        { txt: "Você jogou Q\u2666", cor: "#8d93a6" },
+        { txt: "Bea apostou 0 vazas", cor: "#8d93a6" },
+        { txt: "Nina perdeu 1 \u2665 (errou o palpite)", cor: "#ff4b3e" },
+        { txt: "Rodada 4 — 3 cartas, manilha J", cor: "#f5c451" },
+      ],
+      expulso: momento === "expulso",
+      voltarPartida: () => this.setState({ tela: "mesa" }),
+    };
+  }
+}
+</script>
+</body>
+</html>

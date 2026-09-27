@@ -243,8 +243,8 @@ a exceção "mesma conta é permitida", isso quebraria a restauração de sessã
 toda vez em `npm run dev`.
 
 ### `criarSala`
-Payload: `{ numberPlayers?: number, roundStart?: number, randomShuffle?: boolean, maxDeck?: number, seed?: number, botNumber?: number, chatAberto?: boolean, privada?: boolean }`
-(todos opcionais — default vem do `SalaManager`: 4 / 1 / true / 50 / — / 0 / false / false)
+Payload: `{ numberPlayers?: number, roundStart?: number, randomShuffle?: boolean, maxDeck?: number, seed?: number, botNumber?: number, modeloBot?: string, chatAberto?: boolean, privada?: boolean }`
+(todos opcionais — default vem do `SalaManager`: 4 / 1 / true / 50 / — / 0 / `'classico'` / false / false)
 `numberPlayers` precisa ser inteiro entre 2 e 6; `roundStart` inteiro entre
 1 e 10 (o teto evita montar milhares de baralhos e estourar a memória);
 `maxDeck` inteiro entre 1 e 50 — máximo de baralhos de 40 cartas que a
@@ -277,9 +277,15 @@ Bots não têm socket: não aparecem em `jogadorPorSocket`, nunca desconectam
 nem reconectam, e cada turno deles é decidido por `bots/BotBrain.js` e
 jogado depois de uma pausa de `atrasoBotMs` (2s por padrão), sem esperar
 `tempoTurnoMs` (ver `PlayerGame.bot`).
+`modeloBot` escolhe QUAL bot decide essas jogadas — um dos ids de
+`bots/modelosBot.js`: `'iniciante'` (heurístico, sem rede), `'classico'`
+(rede noite1_G, o bot de antes desta opção existir), `'veterano'` (noite1_H)
+ou `'campeao'` (slot01). Vale pra sala inteira: todo `Bot` dela e também
+o automático de quem cair ou for expulso (ver `reconectar`). Qualquer outro
+valor, `CONFIGURACAO_INVALIDA`. É herdado por "jogar de novo".
 Pré-condição: socket já mandou `entrar` com sucesso.
 Ack sucesso: `{ ok: true, salaId, numberPlayers, jogadores: [{ nome, adm }],
-segundosParaIniciar: number | null, chatAberto: boolean, senha: string | null }`.
+segundosParaIniciar: number | null, chatAberto: boolean, modeloBot: string, senha: string | null }`.
 `senha` só vem preenchida quando `privada` é `true` (senão `null`) — é a
 ÚNICA vez que ela aparece numa resposta do servidor; o front deve mostrar
 pro criador (ex.: junto do código da sala na tela de espera) pra ele
@@ -303,7 +309,7 @@ traz `{ salaId }` dela; reconecte ou `desista` antes).
 Payload: `{}`
 Pré-condição: socket já mandou `entrar`/`cadastrar`/`entrarComoConvidado`.
 Ack sucesso: mesmo formato de `criarSala`/`entrarSala` — `{ ok: true, salaId,
-numberPlayers, jogadores, segundosParaIniciar: number | null, chatAberto }`.
+numberPlayers, jogadores, segundosParaIniciar: number | null, chatAberto, modeloBot }`.
 Erros possíveis: `NAO_IDENTIFICADO`, `JA_EM_PARTIDA` (você já tem assento
 numa partida em andamento — ver `criarSala`), mais os que `entrarSala` pode
 devolver quando cai no caminho de entrar numa sala já existente
@@ -326,7 +332,8 @@ nenhuma mudança — `partidaRapida` é só um atalho por cima do mesmo
 Payload: `{ salaId: string, senha?: string }`
 Pré-condição: socket já mandou `entrar` com sucesso.
 Ack sucesso: `{ ok: true, salaId, numberPlayers, jogadores,
-segundosParaIniciar: number | null, chatAberto: boolean }`. O socket já dá
+segundosParaIniciar: number | null, chatAberto: boolean, modeloBot: string }`.
+`modeloBot` é o bot escolhido por quem criou (ver `criarSala`). O socket já dá
 `join` na sala; todos os membros (incluindo quem entrou) recebem
 `listaJogadores` atualizado. Se
 essa entrada lotar a sala, o início automático é agendado (ver
@@ -344,7 +351,7 @@ dela; reconecte ou `desista` antes).
 ### `listarSalas`
 Payload: `{}`
 Pré-condição: socket já mandou `entrar` com sucesso.
-Ack sucesso: `{ ok: true, salas: [{ salaId, numberPlayers, jogadoresAtual, chatAberto, privada }] }`
+Ack sucesso: `{ ok: true, salas: [{ salaId, numberPlayers, jogadoresAtual, chatAberto, privada, modeloBot }] }`
 — só salas **abertas** (não iniciadas e não cheias). Sala cheia ou já
 iniciada simplesmente não aparece na lista. `privada: true` só avisa que
 `entrarSala` vai exigir `senha` batendo — a senha em si nunca aparece aqui
@@ -425,9 +432,9 @@ partida dessa sala precisa ter terminado de verdade (não só começado — ver
 chamar.
 Ack sucesso: mesmo formato de `criarSala`/`entrarSala` — `{ ok: true,
 salaId, numberPlayers, jogadores, segundosParaIniciar: number | null,
-chatAberto }`, só que `salaId` aqui já é o da sala **nova**. A sala nova
+chatAberto, modeloBot }`, só que `salaId` aqui já é o da sala **nova**. A sala nova
 nasce com exatamente a mesma config da que terminou (`numberPlayers`,
-`roundStart`, `randomShuffle`, `maxDeck`, `botNumber`, `chatAberto`) e o adm já entra
+`roundStart`, `randomShuffle`, `maxDeck`, `botNumber`, `modeloBot`, `chatAberto`) e o adm já entra
 nela, do mesmo jeito que `criarSala` — ela fica esperando gente lotar, igual
 qualquer sala nova.
 Além do ack, todo mundo que ainda estava na sala antiga (broadcast em
@@ -592,6 +599,21 @@ de verdade), ninguém vira adm — mas nesse caso a sala inteira já é removida
 do sistema no mesmo instante (ver parágrafo acima), então não sobra ninguém
 pra se importar.
 
+### `sugestaoBot`
+
+Request: `{ salaId }`
+Response (ack): `{ ok: true, tipo: 'aposta', valor, modeloBot }` na vez de
+apostar, ou `{ ok: true, tipo: 'carta', indice, carta, modeloBot }` na vez
+de jogar (`indice` 0-based na mão, `carta` no mesmo formato de `suaMao`).
+
+"Dica do bot": o que o bot da sala (`modeloBot`, escolhido em `criarSala`)
+faria no seu lugar agora — é a mesma decisão que `bots/BotBrain.js` tomaria
+se o seu turno estourasse `tempoTurnoMs`. **Não joga nada**: a vez continua
+sua e você ainda precisa mandar `apostar`/`jogarCarta`. A decisão é
+determinística, então pedir de novo na mesma vez dá a mesma resposta. Só
+existe na sua vez; fora dela: `NAO_E_SUA_VEZ`. Outros erros:
+`SALA_NAO_ENCONTRADA`, `SALA_NAO_INICIADA`.
+
 ### `reconectar`
 Payload: `{ salaId: string }`
 Pré-condição: socket já mandou `entrar` (de novo — reconectar não dispensa
@@ -615,7 +637,8 @@ estava fora:
 - `jogadores`: o roster da sala com a flag `adm` — o ack de `reconectar` não
   dispara `listaJogadores`, então sem isto a tela remontada ficaria sem
   lista de jogadores até o próximo evento que a mexa.
-- `ordem`: a ordem dos assentos, mesmo conteúdo de `novaRodadaIniciada`.
+- `ordem`: os nomes na ordem dos assentos — a mesma lista de
+  `novaRodadaIniciada` (ver a tabela de eventos de partida).
 - `mao` / `cartasRodada` / `numeroRodada`: a mão atual, quantas cartas tem a
   rodada (pro limite do input de aposta) e o número dela.
 - `suaVez`/`jogadorDaVez` e `suaVezDaAposta`/`jogadorDaVezAposta`: de quem é
@@ -723,7 +746,7 @@ adicionado:
 
 | Evento | Payload (além de `salaId`) |
 |---|---|
-| `novaRodadaIniciada` | `{ numero, cartas, ordem: string[] }` — `ordem`: nomes na ordem dos assentos (sorteada no início da partida e fixa até o fim, eliminados inclusos); a vez sempre anda pra frente nela, só muda quem abre cada rodada |
+| `novaRodadaIniciada` | `{ numero, cartas, ordem }` — `ordem` é a lista de nomes na ordem dos assentos em volta da mesa: sorteada no início da partida e fixa até o fim (eliminado continua no lugar dele). A vez sempre anda pra frente nessa lista — só quem começa gira a cada rodada —, então é com ela que o front desenha a mesa em ordem de jogo (a ordem de `jogadores`/`listaJogadores` é a de entrada na sala, não a de jogo) |
 | `suaMao` **(privado)** | `{ mao: string[] }` — só a mão de quem recebe |
 | `maosReveladas` **(privado)** | `{ maos: [{ jogador, mao: string[] }] }` — conjunto de mãos que ESTE jogador pode ver; ver seção "Rodada de 1 carta" abaixo |
 | `manilhaVirada` | `{ vira, viraValor }` |
@@ -826,7 +849,7 @@ de conexão, não do jogo), então chega igual na sala de espera e na partida.
 | `JA_AUTENTICADO` | `entrar`/`cadastrar`/`entrarComoConvidado`/`retomarSessao` tentando virar OUTRA conta num socket que já é alguém (ver "Reautenticação num socket já autenticado") — a mesma conta de novo é permitida, não cai aqui |
 | `MUITAS_TENTATIVAS` | `verificarNome` acima do teto por IP (20 a cada 5 minutos), `entrar` com 5 falhas (senha errada/usuário inexistente) em 20 minutos, **ou** `cadastrar` com 10 tentativas (sucesso incluso) em 10 minutos, tudo pelo mesmo IP — ver `conexao/rateLimiter.js`. Espere a janela passar |
 | `NOME_INVALIDO` | `entrarSala` com nome já em uso *nessa sala* |
-| `CONFIGURACAO_INVALIDA` | `criarSala` com `numberPlayers`/`roundStart`/`maxDeck`/`botNumber` fora do intervalo aceito (`roundStart` 1 a 10, `maxDeck` 1 a 50), `roundStart` que não cabe em `maxDeck` baralhos com a mesa cheia, `seed` que não é inteiro não-negativo, ou `chatAberto`/`randomShuffle`/`privada` que não é boolean |
+| `CONFIGURACAO_INVALIDA` | `criarSala` com `numberPlayers`/`roundStart`/`maxDeck`/`botNumber` fora do intervalo aceito (`roundStart` 1 a 10, `maxDeck` 1 a 50), `roundStart` que não cabe em `maxDeck` baralhos com a mesa cheia, `seed` que não é inteiro não-negativo, `modeloBot` fora do catálogo de `bots/modelosBot.js`, ou `chatAberto`/`randomShuffle`/`privada` que não é boolean |
 | `LIMITE_DE_SALAS` | `criarSala`/`partidaRapida` com o teto global de salas simultâneas já atingido — barreira de sanidade, tenta de novo mais tarde |
 | `LIMITE_DE_SALAS_POR_JOGADOR` | `criarSala`/`partidaRapida` por quem já é adm de salas ativas (não finalizadas) demais ao mesmo tempo — teto por pessoa (4), complementar ao global. Feche (`sairSala`) ou termine alguma antes |
 | `SALA_NAO_ENCONTRADA` | `entrarSala`/`forcarInicio`/`sairSala`/`jogarCarta`/`reconectar` com `salaId` que não existe |
@@ -840,7 +863,7 @@ de conexão, não do jogo), então chega igual na sala de espera e na partida.
 | `NAO_ESTA_NA_SALA` | `sairSala` por quem não está (mais) naquela sala; `reconectar`/`chat`/`desistir` por quem não faz parte da partida/sala |
 | `VAGA_EXPIRADA` | `reconectar` numa vaga que já passou de `tempoReservaMs` desde que virou bot, sem ninguém voltar, **ou** que o jogador liberou via `desistir` (ver "Expiração de vaga reservada" abaixo) |
 | `NAO_AUTORIZADO` | `forcarInicio` por quem não é o adm da sala |
-| `NAO_E_SUA_VEZ` | `jogarCarta`/`apostar` fora da sua vez |
+| `NAO_E_SUA_VEZ` | `jogarCarta`/`apostar`/`sugestaoBot` fora da sua vez |
 | `CARTA_INVALIDA` | `jogarCarta` com `indice` que não existe na mão de quem mandou |
 | `APOSTA_INVALIDA` | `apostar` com `valor` fora de `[0, número de cartas da rodada]` |
 | `APOSTA_FECHA_RODADA` | `apostar` pelo último da rodada com `valor` que fecharia a soma de todo mundo no número de cartas (não se aplica na rodada de 1 carta) |

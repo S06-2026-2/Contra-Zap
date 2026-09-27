@@ -5,7 +5,11 @@ import Partida from './components/Partida.jsx';
 import LoginNovo from './components/novo/Login.jsx';
 import LobbyNovo from './components/novo/Lobby.jsx';
 import PartidaNovo from './components/novo/Partida.jsx';
-import SeletorFrente, { lerFrenteSalva, salvarFrente } from './components/SeletorFrente.jsx';
+import LoginArcade from './components/arcade/Login.jsx';
+import LobbyArcade from './components/arcade/Lobby.jsx';
+import PartidaArcade from './components/arcade/Partida.jsx';
+import Casca from './components/arcade/Casca.jsx';
+import SeletorFrente, { lerFrenteSalva } from './components/SeletorFrente.jsx';
 import { assinarConexao, chamar, obterConexao, socket } from './socket.js';
 import { avisarSessaoRetomada, lerSessaoSalva, limparSessaoSalva, salvarSessao } from './sessao.js';
 
@@ -18,8 +22,13 @@ import { avisarSessaoRetomada, lerSessaoSalva, limparSessaoSalva, salvarSessao }
 // dele já diverge um pouco: tem um botão extra (só numa sala de teste solo,
 // você + bots) que troca pro visual novo de verdade (ver `visualNovo` em
 // components/novo/Partida.jsx e components/novo/MesaExperimento.jsx).
+//
+// "arcade" é a terceira casca (ver design_handoff_frente_arcade/README.md e
+// components/arcade/) — mesmas props das outras duas, mais `conectado`: ela
+// desenha a própria faixa de conexão perdida, então o banner global some.
 const FRENTES = {
     novo: { Login: LoginNovo, Lobby: LobbyNovo, Partida: PartidaNovo },
+    arcade: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaArcade },
     debugging: { Login, Lobby, Partida },
 };
 
@@ -29,10 +38,13 @@ const FRENTES = {
 // compartilhado entre abas (localStorage) nem entre sessões do navegador
 // (cookie persistente).
 export default function App() {
-    // null = ainda não escolheu (mostra SeletorFrente antes de tudo o mais,
-    // inclusive antes do Login). Lembrada por navegador via localStorage —
-    // ver SeletorFrente.jsx.
+    // Lembrada por navegador via localStorage; sem nada salvo, abre na
+    // arcade (ver SeletorFrente.jsx).
     const [frente, setFrente] = useState(lerFrenteSalva);
+    // true enquanto o SeletorFrente estiver aberto por cima de tudo (ver
+    // trocarFrente) — `frente` continua valendo pra marcar a atual e pra
+    // voltar sem escolher nada.
+    const [escolhendoFrente, setEscolhendoFrente] = useState(false);
     const [player, setPlayer] = useState(null); // { nome, token }
     const [sala, setSala] = useState(null); // { salaId, jogadoresIniciais } ou { salaId, reconexao }
     // salaId de uma partida em andamento em que ainda temos assento mas cujo
@@ -153,19 +165,37 @@ export default function App() {
         setSala({ salaId, jogadoresIniciais, segundosParaIniciar, chatAberto, senha });
     }
 
-    // Trocar de front na Lobby (ver botão "🔄" nela) não mexe em player/sala
-    // — só qual casca visual monta a partir daqui, a sessão e a vaga
-    // continuam as mesmas. Volta pro SeletorFrente (em vez de alternar
-    // direto entre duas opções) porque agora tem uma terceira frente.
+    // Trocar de front (botão "🔄" na Lobby, e no Login da arcade) não mexe
+    // em player/sala — só qual casca visual monta a partir daqui, a sessão e
+    // a vaga continuam as mesmas.
     function trocarFrente() {
-        setFrente(null);
+        setEscolhendoFrente(true);
     }
 
-    if (!frente) {
-        return <SeletorFrente onEscolher={setFrente} />;
+    if (escolhendoFrente) {
+        return (
+            <SeletorFrente
+                atual={frente}
+                onEscolher={(escolhida) => {
+                    setFrente(escolhida);
+                    setEscolhendoFrente(false);
+                }}
+                onVoltar={() => setEscolhendoFrente(false)}
+                conectado={conectado}
+            />
+        );
     }
 
     if (restaurandoSessao) {
+        if (frente === 'arcade') {
+            return (
+                <Casca conectado={conectado}>
+                    <div className="az-tela az-tela-login">
+                        <div className="az-px az-vazio">CARREGANDO...</div>
+                    </div>
+                </Casca>
+            );
+        }
         return (
             <div className="cartao">
                 <p>Carregando...</p>
@@ -174,10 +204,13 @@ export default function App() {
     }
 
     const { Login: TelaLogin, Lobby: TelaLobby, Partida: TelaPartida } = FRENTES[frente];
+    const ehArcade = frente === 'arcade';
+    // Só a arcade recebe (as outras ignorariam) — ver FRENTES acima.
+    const propsConexao = ehArcade ? { conectado } : {};
 
     let tela;
     if (!player) {
-        tela = <TelaLogin onAutenticado={autenticar} />;
+        tela = <TelaLogin onAutenticado={autenticar} onTrocarFrente={trocarFrente} {...propsConexao} />;
     } else if (!sala) {
         tela = (
             <TelaLobby
@@ -189,6 +222,7 @@ export default function App() {
                     setSala({ salaId, reconexao });
                 }}
                 onTrocarFrente={trocarFrente}
+                {...propsConexao}
             />
         );
     } else {
@@ -214,6 +248,7 @@ export default function App() {
                     setSala(null);
                 }}
                 onEntrouNaSala={entrarNaSala}
+                {...propsConexao}
             />
         );
     }
@@ -221,10 +256,10 @@ export default function App() {
     return (
         <>
             <div className="badge-frente">
-                {frente === 'novo' ? '✨ Novo' : '🐞 Debugging'}
+                {frente === 'novo' ? '✨ Novo' : ehArcade ? '👾 Arcade' : '🐞 Debugging'}
             </div>
             {/* Independe da tela atual — some sozinho quando 'connect' disparar de novo (ver socket.js) */}
-            {!conectado && (
+            {!conectado && !ehArcade && (
                 <div className="banner-conexao">
                     🔌 Conexão perdida — tentando reconectar...
                 </div>

@@ -7,6 +7,7 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import { GameController } from '../game/GameController.js';
 import { Bot } from '../bots/Bot.js';
+import { MODELOS_BOT, MODELO_BOT_PADRAO, modeloBotPorId } from '../bots/modelosBot.js';
 import { CodigosErro } from './eventos.js';
 import { montarMensagemChat, ErroChat } from './chat/chat.js';
 import { CHAT_COOLDOWN_MS } from './chat/mensagensChat.js';
@@ -66,7 +67,7 @@ function gerarSenhaSala() {
     return String(randomInt(0, 10000)).padStart(4, '0');
 }
 
-function validarConfig({ numberPlayers, roundStart, botNumber, chatAberto, randomShuffle, maxDeck, seed, privada }) {
+function validarConfig({ numberPlayers, roundStart, botNumber, modeloBot, chatAberto, randomShuffle, maxDeck, seed, privada }) {
     if (!Number.isInteger(numberPlayers) || numberPlayers < NUMERO_JOGADORES_MIN || numberPlayers > NUMERO_JOGADORES_MAX) {
         throw new ErroSala(
             CodigosErro.CONFIGURACAO_INVALIDA,
@@ -102,6 +103,12 @@ function validarConfig({ numberPlayers, roundStart, botNumber, chatAberto, rando
         throw new ErroSala(
             CodigosErro.CONFIGURACAO_INVALIDA,
             `botNumber deve ser um número inteiro entre 0 e ${numberPlayers - 1}.`
+        );
+    }
+    if (!modeloBotPorId(modeloBot)) {
+        throw new ErroSala(
+            CodigosErro.CONFIGURACAO_INVALIDA,
+            `modeloBot deve ser um destes: ${MODELOS_BOT.map(m => m.id).join(', ')}.`
         );
     }
     if (typeof chatAberto !== 'boolean') {
@@ -151,6 +158,7 @@ class Sala {
             randomShuffle: config.randomShuffle,
             maxDeck: config.maxDeck,
             botNumber: config.botNumber ?? 0,
+            modeloBot: config.modeloBot ?? MODELO_BOT_PADRAO,
             chatAberto: this.chatAberto,
             // Não guarda a senha: "jogar de novo" (ver SalaManager.jogarDeNovo)
             // recria com privada igual, mas sorteia uma senha NOVA — não faz
@@ -160,6 +168,7 @@ class Sala {
     }
 
     get numberPlayers() { return this.controller.numberPlayers; }
+    get modeloBot() { return this.controller.modeloBot; }
     get jogadores() { return this.controller.jogadores; }
     get iniciada() { return this.controller.game !== null; }
 }
@@ -236,6 +245,9 @@ export class SalaManager {
         const numberPlayers = config.numberPlayers ?? 4;
         const roundStart = config.roundStart ?? 1;
         const botNumber = config.botNumber ?? 0;
+        // Vale pros bots de verdade E pro automático de quem cair/for
+        // expulso — mesmo numa sala sem nenhum Bot o id é validado e guardado.
+        const modeloBot = config.modeloBot ?? MODELO_BOT_PADRAO;
         const chatAberto = config.chatAberto ?? false;
         const randomShuffle = config.randomShuffle ?? true;
         const maxDeck = config.maxDeck ?? MAX_DECK_SEM_LIMITE;
@@ -244,7 +256,7 @@ export class SalaManager {
         // carta-por-carta da anterior.
         const seed = config.seed;
         const privada = config.privada ?? false;
-        validarConfig({ numberPlayers, roundStart, botNumber, chatAberto, randomShuffle, maxDeck, seed, privada });
+        validarConfig({ numberPlayers, roundStart, botNumber, modeloBot, chatAberto, randomShuffle, maxDeck, seed, privada });
 
         this._exigirSemPartidaEmAndamento(player);
         this._exigirAbaixoDoTetoDeSalas(player);
@@ -257,6 +269,7 @@ export class SalaManager {
             maxDeck,
             seed,
             botNumber,
+            modeloBot,
             chatAberto,
             privada,
             tempoTurnoMs: this.tempoTurnoMs,
@@ -461,6 +474,25 @@ export class SalaManager {
         return sala;
     }
 
+    // "Dica do bot" (ver GameController.sugestaoBot): o que o bot da sala
+    // faria no lugar do jogador na vez dele. Não muda nada na partida.
+    // NAO_E_SUA_VEZ fora da vez dele (de apostar ou de jogar).
+    sugestaoBot(salaId, player) {
+        const sala = this.salas.get(salaId);
+        if (!sala) {
+            throw new ErroSala(CodigosErro.SALA_NAO_ENCONTRADA, `Sala "${salaId}" não existe.`);
+        }
+        if (!sala.iniciada) {
+            throw new ErroSala(CodigosErro.SALA_NAO_INICIADA, 'A partida desta sala ainda não começou.');
+        }
+
+        const sugestao = sala.controller.sugestaoBot(player.id);
+        if (!sugestao) {
+            throw new ErroSala(CodigosErro.NAO_E_SUA_VEZ, 'Só dá pra pedir a dica do bot na sua vez.');
+        }
+        return { ...sugestao, modeloBot: sala.modeloBot };
+    }
+
     // Reencaixa um jogador numa partida já em andamento depois de uma
     // desconexão — diferente de entrarSala, que é só pra sala de espera.
     // Reaproveita os mesmos códigos de erro de sala inexistente/não
@@ -630,6 +662,7 @@ export class SalaManager {
                 jogadoresAtual: sala.jogadores.length,
                 chatAberto: sala.chatAberto,
                 privada: sala.privada,
+                modeloBot: sala.modeloBot,
             }));
     }
 

@@ -58,6 +58,8 @@ test('reconectar', async (t) => {
         const estado = await voltou.ok(EventosCliente.RECONECTAR, { salaId });
 
         assert.equal(estado.salaId, salaId);
+        // Mesma ordem de assentos que o novaRodadaIniciada anunciou.
+        assert.deepEqual(estado.ordem, adm.recebidos(EventosServidor.NOVA_RODADA_INICIADA).at(0).ordem);
         assert.deepEqual(estado.mao, maoOriginal);
         assert.equal(estado.cartasRodada, 3);
         assert.equal(estado.chatAberto, false);

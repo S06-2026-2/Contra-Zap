@@ -41,6 +41,28 @@ test('início da partida', async (t) => {
         }
     });
 
+    await t.test('novaRodadaIniciada traz a ordem dos assentos, igual pra todos', async () => {
+        const { clientes } = await partidaEmAndamento(servidor, { humanos: 3 });
+
+        const ordens = clientes.map(cliente => cliente.recebidos(EventosServidor.NOVA_RODADA_INICIADA).at(0).ordem);
+        // Todo mundo da mesa, cada um uma vez — a ordem em si é sorteada.
+        assert.deepEqual([...ordens[0]].sort(), clientes.map(cliente => cliente.nome).sort());
+        for (const ordem of ordens) assert.deepEqual(ordem, ordens[0]);
+    });
+
+    await t.test('a vez de apostar anda pra frente na ordem dos assentos', async () => {
+        const { salaId, clientes } = await partidaEmAndamento(servidor, { humanos: 3, roundStart: 2 });
+        const [observador] = clientes;
+        const ordem = observador.recebidos(EventosServidor.NOVA_RODADA_INICIADA).at(0).ordem;
+
+        const primeiro = await observador.esperar(EventosServidor.TURNO_APOSTA);
+        await donoDoTurno(clientes, primeiro).ok(EventosCliente.APOSTAR, { salaId, valor: 0 });
+        const segundo = await observador.esperar(EventosServidor.TURNO_APOSTA);
+
+        const i = ordem.indexOf(primeiro.jogador);
+        assert.equal(segundo.jogador, ordem[(i + 1) % ordem.length]);
+    });
+
     await t.test('suaMao é privado: cada um recebe só a própria mão', async () => {
         const { clientes } = await partidaEmAndamento(servidor, { humanos: 2, roundStart: 3 });
         const [a, b] = clientes;
@@ -316,7 +338,8 @@ test('jogarDeNovo', async (t) => {
 
     // Uma partida inteira, do início ao jogoFinalizado.
     async function partidaTerminada() {
-        const sala = await partidaEmAndamento(servidor, { humanos: 2 });
+        // modeloBot fora do default só pra provar que "jogar de novo" herda.
+        const sala = await partidaEmAndamento(servidor, { humanos: 2, modeloBot: 'iniciante' });
         const parar = sala.clientes.map(cliente => jogarSozinho(cliente, sala.salaId));
         await sala.clientes[0].esperar(EventosServidor.JOGO_FINALIZADO, { timeoutMs: 60_000 });
         parar.forEach(fn => fn());
@@ -336,6 +359,7 @@ test('jogarDeNovo', async (t) => {
 
         assert.notEqual(resposta.salaId, salaId);
         assert.equal(resposta.numberPlayers, 2); // mesma config da que terminou
+        assert.equal(resposta.modeloBot, 'iniciante');
         assert.deepEqual(resposta.jogadores.map(j => j.nome), [adm.nome]);
 
         // Quem ficou na sala antiga recebe o convite com o id da sala nova.
@@ -357,5 +381,64 @@ test('jogarDeNovo', async (t) => {
     await t.test('SALA_NAO_ENCONTRADA com salaId inexistente', async () => {
         const cliente = await convidado(servidor);
         await cliente.erro(EventosCliente.JOGAR_DE_NOVO, { salaId: 'NAOEXISTE' }, CodigosErro.SALA_NAO_ENCONTRADA);
+    });
+});
+
+test('sugestaoBot', async (t) => {
+    const servidor = await subirServidor(TURNO_FOLGADO);
+    t.after(() => servidor.fechar());
+
+    await t.test('na vez de apostar, devolve um valor válido sem registrar aposta', async () => {
+        const { salaId, clientes } = await partidaEmAndamento(servidor, { humanos: 2, roundStart: 3, modeloBot: 'campeao' });
+        const turno = await clientes[0].esperar(EventosServidor.TURNO_APOSTA);
+        const daVez = donoDoTurno(clientes, turno);
+
+        const dica = await daVez.ok(EventosCliente.SUGESTAO_BOT, { salaId });
+        assert.equal(dica.tipo, 'aposta');
+        assert.equal(dica.modeloBot, 'campeao');
+        assert.ok(Number.isInteger(dica.valor) && dica.valor >= 0 && dica.valor <= 3);
+        // Determinística: pedir de novo na mesma vez dá a mesma resposta.
+        assert.equal((await daVez.ok(EventosCliente.SUGESTAO_BOT, { salaId })).valor, dica.valor);
+        // Só dica: a vez continua dele e nenhuma aposta saiu.
+        assert.equal(daVez.recebidos(EventosServidor.APOSTA_FEITA).length, 0);
+        await daVez.ok(EventosCliente.APOSTAR, { salaId, valor: dica.valor });
+    });
+
+    await t.test('na vez de jogar, devolve uma carta da mão sem jogar', async () => {
+        const { salaId, clientes } = await partidaEmAndamento(servidor, { humanos: 2, roundStart: 3 });
+        for (let i = 0; i < clientes.length; i++) {
+            const turno = await clientes[0].esperar(EventosServidor.TURNO_APOSTA);
+            await donoDoTurno(clientes, turno).ok(EventosCliente.APOSTAR, { salaId, valor: 0 });
+        }
+        const daVez = donoDoTurno(clientes, await clientes[0].esperar(EventosServidor.TURNO_JOGADOR));
+        const mao = daVez.recebidos(EventosServidor.SUA_MAO).at(-1).mao;
+
+        const dica = await daVez.ok(EventosCliente.SUGESTAO_BOT, { salaId });
+        assert.equal(dica.tipo, 'carta');
+        assert.equal(dica.modeloBot, 'classico'); // default de criarSala
+        assert.equal(dica.carta, mao[dica.indice]);
+        assert.equal(daVez.recebidos(EventosServidor.CARTA_JOGADA).length, 0);
+
+        await daVez.ok(EventosCliente.JOGAR_CARTA, { salaId, indice: dica.indice });
+        const jogada = await daVez.esperar(EventosServidor.CARTA_JOGADA, { filtro: dados => dados.jogador === daVez.nome });
+        assert.equal(jogada.carta, dica.carta);
+    });
+
+    await t.test('NAO_E_SUA_VEZ pra quem não tem o turno', async () => {
+        const { salaId, clientes } = await partidaEmAndamento(servidor, { humanos: 2, roundStart: 3 });
+        const turno = await clientes[0].esperar(EventosServidor.TURNO_APOSTA);
+        const foraDaVez = clientes.find(cliente => cliente.nome !== turno.jogador);
+        await foraDaVez.erro(EventosCliente.SUGESTAO_BOT, { salaId }, CodigosErro.NAO_E_SUA_VEZ);
+    });
+
+    await t.test('SALA_NAO_INICIADA numa sala que ainda não começou', async () => {
+        const dono = await convidado(servidor);
+        const { salaId } = await dono.ok(EventosCliente.CRIAR_SALA, { numberPlayers: 4 });
+        await dono.erro(EventosCliente.SUGESTAO_BOT, { salaId }, CodigosErro.SALA_NAO_INICIADA);
+    });
+
+    await t.test('SALA_NAO_ENCONTRADA com salaId inexistente', async () => {
+        const dono = await convidado(servidor);
+        await dono.erro(EventosCliente.SUGESTAO_BOT, { salaId: 'NAOEXISTE' }, CodigosErro.SALA_NAO_ENCONTRADA);
     });
 });

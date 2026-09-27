@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { MODELOS_BOT, MODELO_BOT_PADRAO } from '../../../../bots/modelosBot.js';
 import { chamar } from '../socket.js';
 
 const INTERVALO_ATUALIZACAO_MS = 10_000;
@@ -11,6 +12,7 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
     const [numberPlayers, setNumberPlayers] = useState(4);
     const [roundStart, setRoundStart] = useState(1);
     const [botNumber, setBotNumber] = useState(0);
+    const [modeloBot, setModeloBot] = useState(MODELO_BOT_PADRAO);
     const [chatAberto, setChatAberto] = useState(false);
     const [privada, setPrivada] = useState(false);
     const [reconectando, setReconectando] = useState(false);
@@ -70,6 +72,7 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
                 numberPlayers: Number(numberPlayers),
                 roundStart: Number(roundStart),
                 botNumber: Number(botNumber),
+                modeloBot,
                 chatAberto,
                 privada,
             });
@@ -239,6 +242,18 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
                             value={botNumber}
                             onChange={(e) => setBotNumber(e.target.value)}
                         />
+                    </label>
+                    <label>
+                        Qual bot
+                        <select
+                            value={modeloBot}
+                            onChange={(e) => setModeloBot(e.target.value)}
+                            title={MODELOS_BOT.find((m) => m.id === modeloBot)?.descricao}
+                        >
+                            {MODELOS_BOT.map((m) => (
+                                <option key={m.id} value={m.id} title={m.descricao}>{m.nome}</option>
+                            ))}
+                        </select>
                     </label>
                     <label style={{ flexDirection: 'row', alignItems: 'center', gap: '6px' }}>
                         <input

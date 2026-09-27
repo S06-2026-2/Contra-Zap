@@ -200,7 +200,7 @@ var EVENTOS = [
   { nome:'cadastrar',           payload:{ nome:'novoJogador', senha:'senha123' },               dica:'Nome e senha com 3+ caracteres. Já deixa autenticado.' },
   { nome:'entrarComoConvidado', payload:{ nome:'visitante' },                                   dica:'Sem senha, nada gravado no banco. Serve para tudo depois.' },
   { nome:'retomarSessao',       payload:{ token:'cole-aqui-o-token-de-um-entrar' },             dica:'Devolve sempre um token NOVO. Serve para F5 e para queda de rede.' },
-  { nome:'criarSala',           payload:{ numberPlayers:2, botNumber:1, chatAberto:true },      dica:'Com numberPlayers 2 e botNumber 1 você joga sozinho contra um bot.' },
+  { nome:'criarSala',           payload:{ numberPlayers:2, botNumber:1, modeloBot:'campeao', chatAberto:true }, dica:'Com numberPlayers 2 e botNumber 1 você joga sozinho contra um bot. modeloBot: iniciante, classico, veterano ou campeao.' },
   { nome:'partidaRapida',       payload:{},                                                     dica:'Fila compartilhada: entra na sala aberta ou cria uma.' },
   { nome:'entrarSala',          payload:{ salaId:'' },                                          dica:'Precisa de outra aba/cliente para simular o segundo jogador.' },
   { nome:'listarSalas',         payload:{},                                                     dica:'Só salas abertas — cheia ou iniciada não aparece.' },
@@ -211,6 +211,7 @@ var EVENTOS = [
   { nome:'jogarDeNovo',         payload:{ salaId:'' },                                          dica:'Só o adm, e só depois de jogoFinalizado.' },
   { nome:'apostar',             payload:{ salaId:'', valor:1 },                                 dica:'Só na sua vez (turnoAposta). A soma das apostas não pode fechar no número de cartas.' },
   { nome:'jogarCarta',          payload:{ salaId:'', indice:0 },                                dica:'Só na sua vez (turnoJogador). indice é 0-based, veja sua mão em suaMao.' },
+  { nome:'sugestaoBot',         payload:{ salaId:'' },                                          dica:'Só na sua vez: o que o bot da sala apostaria/jogaria no seu lugar. Não joga nada.' },
   { nome:'reconectar',          payload:{ salaId:'' },                                          dica:'Só para partida já iniciada. Devolve a mão e de quem é a vez.' },
   { nome:'minhaSalaAtiva',      payload:{},                                                     dica:'Descobre a partida em andamento sem saber o salaId.' },
   { nome:'chat',                payload:{ salaId:'', tipo:'restrita', id:1 },                   dica:"tipo 'restrita' usa id 1 a 4 e sempre funciona; 'aberta' exige chatAberto e usa texto." }

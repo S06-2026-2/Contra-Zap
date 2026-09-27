@@ -27,9 +27,13 @@ const ATRASO_BOT_MS_SALA_ABANDONADA = 50;
 const DISTRIBUICAO_FOLGA_MS = 800;
 
 export class GameController extends EventEmitter {
-    constructor({ numberPlayers, roundStart, randomShuffle, maxDeck, seed, tempoTurnoMs, limiteInatividadeMs, atrasoBotMs, tempoReservaMs, pausaVazaMs, pausaRodadaMs, limiteSeguraMs, limiteSeguraTotalMs, duracaoDistribuicaoMs } = {}) {
+    constructor({ numberPlayers, roundStart, randomShuffle, maxDeck, seed, modeloBot, tempoTurnoMs, limiteInatividadeMs, atrasoBotMs, tempoReservaMs, pausaVazaMs, pausaRodadaMs, limiteSeguraMs, limiteSeguraTotalMs, duracaoDistribuicaoMs } = {}) {
         super();
         this.numberPlayers = numberPlayers || 4;
+        // Qual bot decide as jogadas automáticas desta sala (id de
+        // bots/modelosBot.js). Só bots/BotBrain.js lê; undefined = modelo
+        // padrão. A validação do id é da camada de sala (SalaManager).
+        this.modeloBot = modeloBot;
         this.roundStart = roundStart || 1;
         this.randomShuffle = randomShuffle;
         // Máximo de baralhos por rodada (ver Game.proximaRodada). Sem valor na
@@ -257,7 +261,7 @@ export class GameController extends EventEmitter {
 
         this.numeroRodada = 1;
         this.rodada = this.game.newRodada();
-        this.emit('novaRodadaIniciada', { numero: this.numeroRodada, cartas: this.rodada.round, ordem: this._ordemDosAssentos() });
+        this.emit('novaRodadaIniciada', { numero: this.numeroRodada, cartas: this.rodada.round, ordem: this._ordemAssentos() });
 
         // A partir daqui a partida roda em segundo plano, pausando pra
         // esperar cada jogada real (ver _aguardarJogada/jogarCarta) — pode
@@ -815,6 +819,28 @@ export class GameController extends EventEmitter {
         return { ok: true };
     }
 
+    // "Dica do bot": o que o bot desta sala (modeloBot) faria no lugar de
+    // `playerId` AGORA, sem jogar nada — mesma chamada ao bots/BotBrain.js
+    // que o automático faria no timeout (_decidirApostaAutomatica /
+    // escolherCarta), então a dica é exatamente a jogada que ele faria. Só
+    // responde na vez do próprio jogador (aposta OU carta); fora disso
+    // devolve null. A decisão é determinística (argmax), então pedir de novo
+    // na mesma vez dá a mesma resposta.
+    sugestaoBot(playerId) {
+        if (!this.game || this._finalizada) return null;
+        const jogador = this.jogadores.find(j => j.id === playerId);
+        if (!jogador) return null;
+
+        if (this._apostaEsperada?.jogadorId === playerId) {
+            return { tipo: 'aposta', valor: this._decidirApostaAutomatica(jogador) };
+        }
+        if (this._jogadaEsperada?.jogadorId === playerId) {
+            const indice = escolherCarta(jogador, this);
+            return { tipo: 'carta', indice, carta: jogador.mao[indice]?.toString() ?? null };
+        }
+        return null;
+    }
+
     // Estado pra alguém que estava fora reencaixar numa partida já em
     // andamento e remontar a tela inteira sem depender dos broadcasts que já
     // passaram enquanto ele estava desconectado: a própria mão, de quem é a
@@ -824,12 +850,13 @@ export class GameController extends EventEmitter {
     // rodada, quem morreu, quem está no automático e — se a partida já
     // acabou — o vencedor. null se esse playerId não faz parte de uma partida
     // em andamento aqui (sala ainda não começou, ou ele nunca esteve nela).
-    // Nomes na ordem dos assentos da mesa (game.ordemOriginal: o sorteio de
-    // setstartsequence, fixo a partida inteira e sem tirar os eliminados) —
-    // a vez sempre anda pra frente nela, só muda quem abre cada rodada. O
-    // front usa pra sentar os jogadores em volta da mesa na ordem em que
-    // jogam, em vez da ordem em que entraram na sala.
-    _ordemDosAssentos() {
+    // Nomes na ordem dos assentos em volta da mesa — a sorteada no início da
+    // partida (Game.ordemOriginal), que nunca muda nem encolhe: eliminado
+    // continua no lugar dele. A vez sempre anda pra frente nesta lista (quem
+    // começa gira a cada rodada, ver Game.girarOrdem), então é o que o front
+    // precisa pra desenhar a mesa em ordem de jogo, sem depender da ordem
+    // de entrada na sala.
+    _ordemAssentos() {
         return this.game.ordemOriginal.map(j => j.nome);
     }
 
@@ -862,7 +889,8 @@ export class GameController extends EventEmitter {
             // então sem isto a tela remontada fica sem lista de jogadores até
             // o próximo evento que a mexa (novoAdm, alguém entrando/saindo).
             jogadores: this.jogadores.map(j => ({ nome: j.nome, adm: j.adm })),
-            ordem: this._ordemDosAssentos(),
+            // Mesma lista do novaRodadaIniciada (ver _ordemAssentos).
+            ordem: this._ordemAssentos(),
             mao: jogador.mao.map(c => c.toString()),
             cartasRodada: this.rodada.round,
             numeroRodada: this.numeroRodada,
@@ -1142,6 +1170,6 @@ export class GameController extends EventEmitter {
 
         this.numeroRodada++;
         this.rodada = this.game.proximaRodada();
-        this.emit('novaRodadaIniciada', { numero: this.numeroRodada, cartas: this.rodada.round, ordem: this._ordemDosAssentos() });
+        this.emit('novaRodadaIniciada', { numero: this.numeroRodada, cartas: this.rodada.round, ordem: this._ordemAssentos() });
     }
 }
