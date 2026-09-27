@@ -731,14 +731,17 @@ button.secundario {
     z-index: 40;
 }
 
-/* Chat (item do checklist) — botão circular fixo no canto inferior
-   esquerdo; column-reverse pra a linha painel+histórico (2º filho no JSX)
-   desenhar ACIMA do botão (1º filho), crescendo pra cima conforme o feed
-   cresceria num chat de verdade, sem empurrar o botão de lugar. */
+/* Chat (item do checklist) — bola no canto inferior esquerdo, grande e
+   cortada pelas bordas de baixo e da esquerda da tela (o container começa
+   CHAT_RECORTE fora do quadro), com a barra das fichas saindo de trás dela
+   (ver BarraFichas). column-reverse pra a linha painel+histórico (2º
+   filho no JSX) desenhar ACIMA da bola (1º filho), crescendo pra cima
+   conforme o feed cresceria num chat de verdade, sem empurrar a bola de
+   lugar. z-index acima da barra (38). */
 .mesa-exp-chat {
     position: fixed;
-    bottom: 16px;
-    left: 16px;
+    bottom: -24px;
+    left: -24px;
     z-index: 42;
     display: flex;
     flex-direction: column-reverse;
@@ -746,25 +749,58 @@ button.secundario {
     gap: 10px;
 }
 
+/* Madeira com aro de ouro (degradê no border-box). Ícone no centro do
+   círculo inteiro — o centro fica dentro da parte visível da bola. */
 .mesa-exp-chat-botao {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
+    box-sizing: border-box;
+    width: 104px;
+    height: 104px;
     padding: 0;
-    font-size: 22px;
-    line-height: 1;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    background:
+        radial-gradient(circle at 62% 38%, #4a2e19 0%, #2e1c10 55%, #1a1009 100%) padding-box,
+        linear-gradient(45deg, #c8861a, #ffd75e 55%, #fff4c2) border-box;
+    box-shadow: inset 0 0 0 6px rgba(0, 0, 0, .28), inset 0 0 0 7px rgba(255, 215, 94, .25), 4px -4px 16px rgba(0, 0, 0, .55);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, .45);
+    transition: filter .2s ease;
+}
+.mesa-exp-chat-icone {
+    fill: #1a1009;
+    stroke: #ffd75e;
+    stroke-width: 1.8;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 3px rgba(255, 215, 94, .35));
+    transition: transform .2s ease, filter .2s ease;
+}
+.mesa-exp-chat-icone circle {
+    fill: #ffd75e;
+    stroke: none;
+}
+.mesa-exp-chat-botao:hover .mesa-exp-chat-icone {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 6px rgba(255, 215, 94, .8));
+}
+.mesa-exp-chat-botao[aria-expanded="true"] {
+    filter: drop-shadow(0 0 8px rgba(255, 215, 94, .7));
+}
+.mesa-exp-chat-botao[aria-expanded="true"] .mesa-exp-chat-icone {
+    fill: #ffd75e;
+}
+.mesa-exp-chat-botao[aria-expanded="true"] .mesa-exp-chat-icone circle {
+    fill: #1a1009;
 }
 
 /* Painel + histórico lado a lado — só existem no DOM enquanto `chatClicado`
-   (ver JSX). Histórico é o módulo À DIREITA do painel, não embaixo. */
+   (ver JSX). Histórico é o módulo À DIREITA do painel, não embaixo. A
+   margem da esquerda desconta o recorte do container. */
 .mesa-exp-chat-linha {
     display: flex;
     align-items: flex-start;
     gap: 10px;
+    margin-left: 40px;
 }
 
 /* Painel: hover NÃO abre/fecha, só o clique, de propósito (senão fechava
@@ -826,6 +862,12 @@ button.secundario {
     color: #f1e6d2;
 }
 
+.mesa-exp-chat-hora {
+    font-family: ui-monospace, monospace;
+    font-size: .8em;
+    opacity: .55;
+}
+
 .mesa-exp-chat-historico h3 {
     margin: 0;
     font-size: 12px;
@@ -858,18 +900,50 @@ button.secundario {
     font-size: 13px;
 }
 
-/* Aposta (ver botão "Apostar"/popup/fichas em MesaExperimento.jsx). Botão
-   de baixo: do LADO do botão de chat (ver .mesa-exp-chat, left:16px
-   bottom:16px, 48px de diâmetro) — não mais em cima da mesa. */
+/* Aposta (ver botão "Apostar"/popup/fichas em MesaExperimento.jsx). O
+   botão é uma placa de ouro deitada no meio do sulco (ainda vazio) da
+   barra das fichas, bem onde as fichas vão pousar: madeira com aro e
+   letras de ouro, como o resto do canto, com um brilho lento em volta
+   (é a sua vez e a partida está esperando). */
 .mesa-exp-aposta-botao {
-    position: fixed;
-    left: 130px;
-    bottom: 20px;
-    z-index: 43;
-    padding: 12px 28px;
-    font-size: 16px;
-    border-radius: 10px;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, .45);
+    box-sizing: border-box;
+    position: absolute;
+    transform: translate(-50%, -50%);
+    pointer-events: auto;
+    padding: 9px 30px;
+    font: 800 16px system-ui, sans-serif;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: #ffd75e;
+    text-shadow: 0 0 6px rgba(255, 215, 94, .45), 0 1px 0 rgba(0, 0, 0, .8);
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background:
+        linear-gradient(180deg, #3a2415 0%, #1a1009 100%) padding-box,
+        linear-gradient(90deg, #c8861a, #ffd75e 55%, #fff4c2) border-box;
+    box-shadow: inset 0 0 0 3px rgba(0, 0, 0, .35), 0 4px 10px rgba(0, 0, 0, .55);
+    animation:
+        mesa-exp-aposta-botao-entrar .3s ease-out,
+        mesa-exp-aposta-botao-pulsar 1.6s ease-in-out .3s infinite;
+    transition: color .15s ease, background .15s ease, text-shadow .15s ease;
+}
+/* Hover: a placa "acende" — vira ouro com letra escura. */
+.mesa-exp-aposta-botao:hover {
+    color: #2a1608;
+    text-shadow: 0 1px 0 rgba(255, 244, 194, .6);
+    background:
+        linear-gradient(180deg, #fff4c2 0%, #ffd75e 45%, #c8861a 100%) padding-box,
+        linear-gradient(90deg, #c8861a, #ffd75e 55%, #fff4c2) border-box;
+}
+@keyframes mesa-exp-aposta-botao-entrar {
+    from { opacity: 0; scale: .85; }
+    to   { opacity: 1; scale: 1; }
+}
+/* Brilho quente e lento em volta, no ritmo da brasa do pavio — chama a
+   atenção sem piscar. */
+@keyframes mesa-exp-aposta-botao-pulsar {
+    0%, 100% { box-shadow: inset 0 0 0 3px rgba(0, 0, 0, .35), 0 4px 10px rgba(0, 0, 0, .55), 0 0 0 rgba(255, 190, 60, 0); }
+    50%      { box-shadow: inset 0 0 0 3px rgba(0, 0, 0, .35), 0 4px 10px rgba(0, 0, 0, .55), 0 0 14px rgba(255, 190, 60, .5); }
 }
 
 /* Fundo escurecido — clicar NELE (não no popup, ver stopPropagation no
@@ -1066,25 +1140,6 @@ button.secundario {
     pointer-events: none;
 }
 
-/* Canto onde a aposta confirmada pousa em leque (ver fichasNoCanto) —
-   width/height FIXOS (não some com 0 fichas dentro): é o alvo que
-   confirmarAposta lê (getBoundingClientRect, o CENTRO deste retângulo) pra
-   saber onde fica o meio do leque. `left` = mesma posição do botão
-   "Apostar" (ver .mesa-exp-aposta-botao) — ele já sumiu quando as fichas
-   chegam, dá pra pousar onde ele estava. `bottom` calculado pro CENTRO
-   verticial bater com o centro do botão de chat (.mesa-exp-chat-botao:
-   bottom 16px + metade dos 48px = 40px; aqui 64px de altura, então
-   bottom = 40 - 32 = 8px) — pedido do Henrique, "tudo alinhadinho". */
-.mesa-exp-aposta-canto {
-    position: fixed;
-    left: 130px;
-    bottom: 8px;
-    width: 64px;
-    height: 64px;
-    z-index: 43;
-    pointer-events: none;
-}
-
 /* left/top vêm da MESMA `para` (px) que a ficha voando terminou nela —
    width/height/escala aqui só precisam bater com o estado final de
    .mesa-exp-ficha-voando.mesa-exp-ficha-pousada pra não sobrar nenhum
@@ -1101,30 +1156,7 @@ button.secundario {
        escondendo se teve ficha pra aquela vaza ou não. */
     z-index: 40;
     transform: translate(-50%, -50%) scale(.62);
-}
-
-/* Âncora fixa só pro texto "Sua aposta: N" (ver JSX) — suas fichas em si
-   não moram mais aqui dentro (são .mesa-exp-aposta-ficha-canto, posição
-   fixa própria, ver logo abaixo); esta div só existe pra dar ao texto o
-   mesmo ponto de partida (left/bottom) que o leque de fichas usa, e o
-   `margin-left` inline (calculado a partir de quantas fichas cabem no
-   leque) empurra o texto pra depois da última. */
-.mesa-exp-aposta-linha-legenda-ancora {
-    position: fixed;
-    left: 130px;
-    bottom: 8px;
-    z-index: 43;
-    display: flex;
-    align-items: center;
-}
-
-.mesa-exp-aposta-linha-legenda {
-    white-space: nowrap;
-    color: #f1e6d2;
-    font-family: system-ui, sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, .6);
+    pointer-events: none;
 }
 
 /* Revelação de fim de vaza (ver finalizarVaza/vazaRevelando/
@@ -1465,6 +1497,15 @@ button.secundario {
     position: absolute;
 }
 
+/* Uma camada por manilha jogada (ver DanosDaMesa) — mesmo tamanho da
+   camada de danos, então os danos dentro dela continuam posicionados em %
+   da mesa. Opacidade inline, desbotando devagar a cada manilha nova. */
+.mesa-exp-dano-camada {
+    position: absolute;
+    inset: 0;
+    transition: opacity .6s ease;
+}
+
 /* Mesmo espírito do corte do fantasminha (.fantasminha-corte, fill
    vermelho de "carne") só que aqui é madeira/feltro rasgado: bem mais
    escuro que o verde ao redor, pra ler como um talho revelando o fundo
@@ -1554,6 +1595,498 @@ button.secundario {
    ali. `transition` inteiro (propriedades + durações, inclusive a do
    próprio clip-path — sempre um "plunge" rápido, ver FACA_AFUNDAR_MS,
    mais curto que o resto) vem inline por fase — ver FacaCaindo. */
+
+/* Jogada de Copas (ver CartaCopasSimulada em MesaDanificada.jsx) — botão no
+   vermelho do naipe, mesma forma dos outros dois. */
+.mesa-exp-copas-botao {
+    background: linear-gradient(180deg, #ff6a5a, #b3122e);
+    color: #fff4e8;
+}
+
+/* Sem .carta-giro3d-miolo aqui: Copas não tem lâmina/guarda/cabo, é só a
+   carta — mesmo tamanho da .carta-exp. */
+.mesa-exp-copas-miolo {
+    position: relative;
+    width: 110px;
+    height: 154px;
+}
+
+/* Batida de coração em dois tempos (sobe forte, volta, sobe menor, volta)
+   — mesmo desenho de .carta-exp-coracao-pulsante, só que a carta inteira
+   e uma vez só. Fica num wrapper próprio porque o transform do miolo é
+   inline (escala/rotação por fase) e uma animation nele sobrescreveria. */
+.mesa-exp-copas-batida-ativa {
+    animation: mesa-exp-copas-bater .52s ease-out;
+}
+
+@keyframes mesa-exp-copas-bater {
+    0% { transform: scale(1); }
+    14% { transform: scale(1.16); }
+    28% { transform: scale(.98); }
+    42% { transform: scale(1.08); }
+    62%, 100% { transform: scale(1); }
+}
+
+/* Container das chamas — mesma caixa da carta (110x154), escalado inline
+   junto com ela. Antes da carta no DOM ('borda') = pinta por trás dela;
+   depois ('cobrindo') = por cima. */
+.mesa-exp-copas-chamas {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+/* Fogueira no estilo do "CSS Blend Mode Fire" (codepen.io/jkantner/pen/
+   gKRKKb, ver FogueiraCodepen) — mesmas medidas do original em `em`
+   (10em x 12em, bolinha de 5em subindo 10em em 1s), com o font-size vindo
+   inline pra escalar tudo junto. Ancorada pela base no ponto left/top. */
+.mesa-exp-fogo {
+    position: absolute;
+    width: 10em;
+    height: 12em;
+    transform: translate(-50%, -100%);
+    /* Cresce a partir da base (ver `escalaInicial`/`escalaFinal` em
+       FogueiraCodepen) — o fogo sobe do chão, não incha pro meio. */
+    transform-origin: 50% 100%;
+    filter: blur(.02em);
+}
+
+/* Fogueirinha da pulsada (ver sortearFogueiras modo 'borda'): nasce
+   pequena e invisível na semente atrás da carta, acende, cresce e é lançada
+   até --fora-x/--fora-y apagando no fim — e recomeça. Duração/atraso vêm
+   inline, sorteados por fogueira. `both` segura o quadro inicial (invisível)
+   durante o atraso, senão ela apareceria parada antes de sair. */
+.mesa-exp-fogo-espalhando {
+    opacity: 0;
+    animation-name: mesa-exp-fogo-espalhar;
+    animation-timing-function: ease-out;
+    animation-iteration-count: infinite;
+    animation-fill-mode: both;
+}
+
+@keyframes mesa-exp-fogo-espalhar {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -100%) translate(0, 0) scale(var(--escala-inicial));
+    }
+    15% {
+        opacity: 1;
+    }
+    70% {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+        transform: translate(-50%, -100%) translate(var(--fora-x), var(--fora-y)) scale(var(--escala-final));
+    }
+}
+
+.mesa-exp-fogo-particula {
+    position: absolute;
+    bottom: 0;
+    width: 5em;
+    height: 5em;
+    border-radius: 50%;
+    background-image: radial-gradient(rgb(255, 80, 0) 20%, rgba(255, 80, 0, 0) 70%);
+    mix-blend-mode: screen;
+    opacity: 0;
+    animation: mesa-exp-fogo-subir 1s ease-in infinite;
+}
+
+@keyframes mesa-exp-fogo-subir {
+    from {
+        opacity: 0;
+        transform: translateY(0) scale(1);
+    }
+    25% {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-10em) scale(0);
+    }
+}
+
+/* Marca carbonizada (ver MarcaCarbonizada) — nasce junto com o fogo na
+   mesa, embaixo da carta, e vai escurecendo/espalhando pelo tempo inteiro
+   da queima; quando a carta some ela já está completa. Fica pra sempre
+   (camada .mesa-exp-danos, mesma lógica dos cortes). */
+.mesa-exp-carbonizado {
+    position: absolute;
+    overflow: visible;
+    transform: translate(-50%, -50%);
+    animation: mesa-exp-carbonizar var(--duracao-carbonizar) ease-in both;
+}
+
+@keyframes mesa-exp-carbonizar {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(.55);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+.mesa-exp-carbonizado-borda {
+    filter: blur(2.5px);
+}
+
+/* Contorno do coração intacto: começa em brasa acesa e esfria até virar
+   só uma beirada queimada. */
+.mesa-exp-carbonizado-brasa {
+    fill: none;
+    stroke: #ff7a1a;
+    stroke-width: 1.4;
+    filter: drop-shadow(0 0 3px #ff5a00);
+    animation: mesa-exp-brasa-esfriar 4s ease-out forwards;
+}
+
+@keyframes mesa-exp-brasa-esfriar {
+    from {
+        stroke: #ffb347;
+        opacity: 1;
+    }
+    to {
+        stroke: #5a2208;
+        opacity: .35;
+    }
+}
+
+/* Jogada de Ouros (ver CartaOurosSimulada em MesaDanificada.jsx) — botão
+   dourado, mesma forma dos outros. */
+.mesa-exp-ouros-botao {
+    background: linear-gradient(180deg, #ffe27a, #b8860b);
+    color: #3a2604;
+}
+
+/* Botão de limpar as cartas da mesa (ver limparCartas) — neutro, pra não
+   parecer mais uma jogada de naipe. */
+.mesa-exp-limpar-botao {
+    background: linear-gradient(180deg, #5b636b, #30363c);
+    color: #eef1f4;
+}
+
+.mesa-exp-ouros-miolo {
+    position: relative;
+    width: 110px;
+    height: 154px;
+}
+
+/* Picareta em coordenadas da JANELA (position:fixed), por cima do
+   escurecido (46) e da carta crescida (47). A caixa tem tamanho zero e fica
+   na pegada — o transform gira em volta dela, e o <svg> é deslocado pra
+   que a origem do viewBox caia exatamente nesse ponto. */
+.mesa-exp-picareta {
+    position: fixed;
+    width: 0;
+    height: 0;
+    z-index: 48;
+    pointer-events: none;
+    transform-origin: 0 0;
+}
+
+.mesa-exp-picareta svg {
+    position: absolute;
+    overflow: visible;
+    filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .5));
+}
+
+/* Bola branca do impacto: cresce devagar durante a câmera lenta (até 78%,
+   que é onde a queda da carta começa) e estoura sumindo quando o tempo
+   volta ao normal. Duração inline = slowmo + queda. */
+.mesa-exp-ouros-impacto {
+    position: fixed;
+    width: 150px;
+    height: 150px;
+    margin: -75px 0 0 -75px;
+    border-radius: 50%;
+    z-index: 49;
+    pointer-events: none;
+    background: radial-gradient(circle, #fff 0%, #fff 32%, rgba(255, 250, 225, .85) 48%, rgba(255, 240, 190, 0) 70%);
+    box-shadow: 0 0 40px 10px rgba(255, 255, 255, .6);
+    animation-name: mesa-exp-ouros-impactar;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+}
+
+@keyframes mesa-exp-ouros-impactar {
+    0% {
+        transform: scale(.1);
+        opacity: 1;
+    }
+    69% {
+        transform: scale(1);
+        opacity: .95;
+    }
+    100% {
+        transform: scale(1.8);
+        opacity: 0;
+    }
+}
+
+/* Cratera (ver CrateraNaMesa) — entra num soco rápido e para. Todas as
+   animações aqui são finitas: depois da entrada a cratera é estática. */
+.mesa-exp-cratera {
+    position: absolute;
+    overflow: visible;
+    transform: translate(-50%, -50%);
+    animation: mesa-exp-cratera-abrir .26s ease-out both;
+}
+
+@keyframes mesa-exp-cratera-abrir {
+    0% {
+        transform: translate(-50%, -50%) scale(.3);
+    }
+    65% {
+        transform: translate(-50%, -50%) scale(1.1);
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+/* Feltro afundado em volta do buraco — mais escuro que a mesa, por baixo
+   das fendas. */
+.mesa-exp-cratera-borda {
+    fill: #0e3321;
+    opacity: .85;
+}
+
+/* Beirada levantada pegando luz, um pouco acima da borda. */
+.mesa-exp-cratera-beirada {
+    fill: none;
+    stroke: rgba(150, 225, 170, .25);
+    stroke-width: 1.5;
+    stroke-linejoin: miter;
+    transform: translateY(-1.5px);
+}
+
+.mesa-exp-cratera-rachadura {
+    fill: #07140c;
+    opacity: .9;
+}
+
+/* Veios de ouro rachando o fundo do buraco (ver FENDAS_OURO): nascem
+   acesos e esfriam até um ouro fosco. Desligados por enquanto, junto com
+   o JSX deles.
+.mesa-exp-cratera-ouro {
+    fill: #ffcc33;
+    filter: drop-shadow(0 0 1.5px #ffb300);
+    animation: mesa-exp-cratera-esfriar 2.2s ease-out forwards;
+}
+*/
+
+@keyframes mesa-exp-cratera-esfriar {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: .6;
+    }
+}
+
+/* Onda de poeira do impacto: um anel que abre e some uma vez só. */
+.mesa-exp-cratera-onda {
+    fill: none;
+    stroke: rgba(230, 215, 170, .55);
+    stroke-width: 6;
+    animation: mesa-exp-cratera-onda .5s ease-out forwards;
+}
+
+@keyframes mesa-exp-cratera-onda {
+    from {
+        transform: scale(.6);
+        opacity: 1;
+    }
+    to {
+        transform: scale(1.7);
+        opacity: 0;
+    }
+}
+
+/* Jogada de Paus, o Zap (ver CartaPausSimulada em MesaDanificada.jsx) —
+   botão azul elétrico, mesma forma dos outros. */
+.mesa-exp-paus-botao {
+    background: linear-gradient(180deg, #d9f6ff, #2f7fd6);
+    color: #06223d;
+}
+
+.mesa-exp-paus-miolo {
+    position: relative;
+    width: 110px;
+    height: 154px;
+}
+
+/* Brilho azul constante enquanto ela carrega (segurando/caindo), e o
+   estouro de luz do impacto que apaga devagar durante a dissipação. */
+.mesa-exp-zap-eletrizada {
+    filter: drop-shadow(0 0 10px rgba(110, 200, 255, .85));
+}
+
+.mesa-exp-zap-descarga {
+    animation: mesa-exp-zap-descarregar 1.1s ease-out forwards;
+}
+
+@keyframes mesa-exp-zap-descarregar {
+    from {
+        filter: brightness(2.4) drop-shadow(0 0 16px #9fe2ff);
+    }
+    to {
+        filter: brightness(1) drop-shadow(0 0 0 rgba(110, 200, 255, 0));
+    }
+}
+
+/* Camada dos raios presos à carta: caixa de 1px no centro dela, com os
+   raios desenhados em volta (origem = centro da carta). */
+.mesa-exp-zap-raios {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 1px;
+    height: 1px;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.mesa-exp-zap-raio-brilho {
+    fill: none;
+    stroke: #7fd8ff;
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: .55;
+}
+
+.mesa-exp-zap-raio-nucleo {
+    fill: none;
+    stroke: #f4fcff;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Raio curto: acende, falha, acende de novo e some — duração inline. */
+.mesa-exp-zap-raio {
+    filter: drop-shadow(0 0 3px #5fd0ff);
+    animation-name: mesa-exp-zap-piscar;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+}
+
+@keyframes mesa-exp-zap-piscar {
+    0% { opacity: 1; }
+    30% { opacity: .3; }
+    45% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* Faísca da subida: voa da borda até --dx/--dy apagando. */
+.mesa-exp-zap-faisca {
+    filter: drop-shadow(0 0 3px #5fd0ff);
+    animation-name: mesa-exp-zap-faisca-voar;
+    animation-timing-function: ease-out;
+    animation-fill-mode: forwards;
+}
+
+@keyframes mesa-exp-zap-faisca-voar {
+    from {
+        transform: translate(0, 0);
+        opacity: 1;
+    }
+    60% {
+        opacity: 1;
+    }
+    to {
+        transform: translate(var(--dx), var(--dy));
+        opacity: 0;
+    }
+}
+
+/* Raio grande do impacto, em coordenadas da janela, por cima de tudo. */
+.mesa-exp-zap-queda {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: visible;
+    z-index: 49;
+    pointer-events: none;
+    filter: drop-shadow(0 0 6px #7fd8ff) drop-shadow(0 0 18px #2a8cff);
+    animation-name: mesa-exp-zap-queda-piscar;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+}
+
+.mesa-exp-zap-queda .mesa-exp-zap-raio-brilho {
+    stroke-width: 11;
+}
+
+.mesa-exp-zap-queda .mesa-exp-zap-raio-nucleo {
+    stroke-width: 3.5;
+}
+
+@keyframes mesa-exp-zap-queda-piscar {
+    0%, 12% { opacity: 1; }
+    20% { opacity: .2; }
+    30% { opacity: 1; }
+    50% { opacity: .7; }
+    62% { opacity: .15; }
+    72% { opacity: .8; }
+    100% { opacity: 0; }
+}
+
+/* Clarão da tela inteira, mais forte em volta do ponto de impacto. */
+.mesa-exp-zap-clarao {
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+    pointer-events: none;
+    background: radial-gradient(circle at var(--cx) var(--cy), rgba(235, 248, 255, .85), rgba(150, 210, 255, .35) 40%, rgba(120, 190, 255, 0) 75%);
+    animation: mesa-exp-zap-clarear .32s ease-out forwards;
+}
+
+@keyframes mesa-exp-zap-clarear {
+    0% { opacity: 1; }
+    15% { opacity: .4; }
+    25% { opacity: .9; }
+    100% { opacity: 0; }
+}
+
+/* Cratera do raio (ver CrateraRaio) — entra com o mesmo soco de
+   .mesa-exp-cratera; o brilho das fendas e do centro esfria e some. */
+.mesa-exp-zap-cratera-borda {
+    fill: #0a2217;
+    opacity: .9;
+}
+
+.mesa-exp-zap-cratera-rachadura {
+    fill: #040a07;
+}
+
+.mesa-exp-zap-cratera-brilho {
+    fill: #c9f3ff;
+    filter: drop-shadow(0 0 2px #5fd0ff);
+    animation: mesa-exp-zap-esfriar 1.6s ease-out forwards;
+}
+
+.mesa-exp-zap-cratera-nucleo {
+    animation: mesa-exp-zap-esfriar 1s ease-out forwards;
+}
+
+@keyframes mesa-exp-zap-esfriar {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+.mesa-exp-zap-cratera-onda {
+    fill: none;
+    stroke: rgba(160, 220, 255, .6);
+    stroke-width: 4;
+    animation: mesa-exp-cratera-onda .45s ease-out forwards;
+}
 
 /* Não é mais um "cartão" de jogador — é o CAMPO/hitbox onde os elementos de
    verdade (avatar, cartas, fichas...) vão entrar depois. Sem preenchimento
@@ -1658,9 +2191,9 @@ button.secundario {
     color: #7dd3fc;
 }
 
-/* Coraçãozinhos de vida (ver Coracoes/vidaPorAssento em
-   MesaExperimento.jsx) — emoji puro, "básico" de propósito, sem desenho
-   nenhum por trás. */
+/* Corações de vida (ver Coracoes/MedalhaoVida em MesaExperimento.jsx) —
+   joias de Copas cravadas num engaste de ouro. O desenho todo é SVG; aqui
+   só tamanho, brilho e animações. */
 .mesa-exp-coracoes {
     display: flex;
     gap: 4px;
@@ -1668,16 +2201,53 @@ button.secundario {
 }
 
 .mesa-exp-coracao {
+    position: relative;
+    display: inline-flex;
     font-size: 22px;
     line-height: 1;
-    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .55));
+    filter: drop-shadow(0 0 4px rgba(255, 50, 80, .5)) drop-shadow(0 2px 3px rgba(0, 0, 0, .65));
+    transition: filter .3s ease;
 }
 
-/* Flash de impacto (ver aoChegarCartaDano/CORACAO_IMPACTO_DURACAO_MS em
-   MesaExperimento.jsx) — liga só no coração que ACABOU de ser atingido por
-   uma carta de dano, nunca nos vizinhos. `transform-origin: center` porque
-   o emoji já nasce alinhado por `line-height: 1`, sem isso o "pulo" saltava
-   pro canto em vez de crescer no próprio lugar. */
+/* Engaste vazio: sem o brilho vermelho, só a sombra. */
+.mesa-exp-coracao-perdido {
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .6));
+}
+
+/* <svg> só com os degradês dos corações (ver Coracoes) — não ocupa lugar. */
+.mesa-exp-coracoes-defs {
+    position: absolute;
+    width: 0;
+    height: 0;
+}
+
+/* Último coração: a joia bate sozinha (mesmo compasso em dois tempos da
+   manilha de Copas, ver .carta-exp-coracao-pulsante). Só o miolo pulsa —
+   o engaste fica parado. */
+.mesa-exp-coracao-ultimo .mesa-exp-coracao-joia {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: mesa-exp-coracao-ultimo-batida 1.1s ease-in-out infinite;
+}
+.mesa-exp-coracao-ultimo {
+    animation: mesa-exp-coracao-ultimo-brilho 1.1s ease-in-out infinite;
+}
+@keyframes mesa-exp-coracao-ultimo-batida {
+    0%, 100% { transform: scale(1); }
+    20%      { transform: scale(1.12); }
+    35%      { transform: scale(.97); }
+    50%      { transform: scale(1.07); }
+    70%      { transform: scale(1); }
+}
+@keyframes mesa-exp-coracao-ultimo-brilho {
+    0%, 70%, 100% { filter: drop-shadow(0 0 4px rgba(255, 50, 80, .5)) drop-shadow(0 2px 3px rgba(0, 0, 0, .65)); }
+    20%           { filter: drop-shadow(0 0 10px rgba(255, 50, 80, .95)) drop-shadow(0 2px 3px rgba(0, 0, 0, .65)); }
+}
+
+/* Impacto (ver aoChegarCartaDano/CORACAO_IMPACTO_DURACAO_MS em
+   MesaExperimento.jsx) — só no coração que ACABOU de ser atingido: a joia
+   estala em dourado e cai pro engaste vazio, com estilhaços de esmalte
+   saltando pra fora. */
 .mesa-exp-coracao-impacto {
     transform-origin: center;
     animation: mesa-exp-coracao-impacto 380ms ease-out;
@@ -1685,14 +2255,26 @@ button.secundario {
 
 @keyframes mesa-exp-coracao-impacto {
     0%   { transform: scale(1) rotate(0deg); filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .55)); }
-    30%  { transform: scale(1.6) rotate(-10deg); filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .55)) brightness(1.7); }
-    60%  { transform: scale(0.82) rotate(8deg); filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .55)); }
+    30%  { transform: scale(1.5) rotate(-10deg); filter: drop-shadow(0 0 10px rgba(255, 215, 94, .9)) drop-shadow(0 2px 3px rgba(0, 0, 0, .55)) brightness(1.6); }
+    60%  { transform: scale(0.84) rotate(8deg); filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .55)); }
     100% { transform: scale(1) rotate(0deg); filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .55)); }
 }
 
-/* A SUA — 1.6x o tamanho base (22px * 1.6 ≈ 35px). */
-.mesa-exp-coracoes-suas .mesa-exp-coracao {
-    font-size: 35px;
+.mesa-exp-coracao-estilhaco {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: .2em;
+    height: .2em;
+    margin: -.1em 0 0 -.1em;
+    background: linear-gradient(135deg, #ff9090, #b0122e);
+    clip-path: polygon(50% 0, 100% 70%, 20% 100%);
+    opacity: 0;
+    animation: mesa-exp-coracao-estilhaco 420ms ease-out;
+}
+@keyframes mesa-exp-coracao-estilhaco {
+    0%   { transform: translate(0, 0) rotate(0deg) scale(1.2); opacity: 1; }
+    100% { transform: translate(var(--ex), var(--ey)) rotate(var(--giro)) scale(.4); opacity: 0; }
 }
 
 /* A dos FANTASMINHAS — 1.2x o tamanho base (22px * 1.2 ≈ 26px). */
@@ -1700,15 +2282,287 @@ button.secundario {
     font-size: 26px;
 }
 
-/* A SUA — fixa no canto inferior direito, sempre visível (ver JSX). */
+/* A SUA — medalhão em quarto de círculo encostado no canto inferior
+   direito da tela (ver MedalhaoVida: tamanho e posição dos corações vêm
+   de lá). O medalhão é desenhado num SVG de fundo; os corações são
+   posicionados um a um no trilho curvo (.mesa-exp-coracoes-arco). */
 .mesa-exp-coracoes-suas {
     position: fixed;
-    right: 16px;
-    bottom: 16px;
+    right: 0;
+    bottom: 0;
     z-index: 43;
-    background: rgba(0, 0, 0, .4);
-    padding: 8px 10px;
-    border-radius: 10px;
+    transform-origin: 100% 100%;
+}
+.mesa-exp-medalhao {
+    position: absolute;
+    inset: 0;
+    overflow: visible;
+    filter: drop-shadow(-4px -4px 14px rgba(0, 0, 0, .55));
+}
+.mesa-exp-medalhao-aro {
+    fill: none;
+    stroke-width: 3;
+    transition: filter .4s ease;
+}
+.mesa-exp-medalhao-filete {
+    fill: none;
+    stroke: rgba(255, 215, 94, .22);
+    stroke-width: 1;
+    stroke-dasharray: 2 5;
+}
+/* Sulco dos corações: o mesmo trilho escuro com fio dourado do pavio. */
+.mesa-exp-medalhao-sulco {
+    fill: none;
+    stroke: #120b06;
+    stroke-width: 13;
+    stroke-linecap: round;
+}
+.mesa-exp-medalhao-sulco-fio {
+    fill: none;
+    stroke: rgba(255, 215, 94, .28);
+    stroke-width: 1;
+}
+/* Cubo do "relógio", no canto: o centro comum dos três arcos. */
+.mesa-exp-medalhao-cubo {
+    fill: #1a1009;
+    stroke-width: 2;
+}
+.mesa-exp-medalhao-cubo-miolo {
+    fill: none;
+    stroke: rgba(255, 215, 94, .3);
+    stroke-width: 1;
+}
+.mesa-exp-medalhao-naipe {
+    fill: rgba(224, 36, 63, .55);
+    font: 700 14px system-ui, sans-serif;
+}
+
+/* Na sua vez o aro acende junto com o pavio. */
+.mesa-exp-coracoes-suas-vez .mesa-exp-medalhao-aro {
+    filter: drop-shadow(0 0 3px rgba(255, 215, 94, .8)) drop-shadow(0 0 8px rgba(255, 170, 40, .45));
+}
+
+/* As SUAS fichas — barra de madeira rente à borda de baixo, saindo de trás
+   da bola do chat (ver BarraFichas; largura/altura inline). Aro dourado em
+   cima e na ponta direita (degradê no border-box, como a bola do chat).
+   z-index ABAIXO das fichas pousadas (40) e das cartas de vaza ganha (39),
+   que moram nas vagas do sulco. */
+.mesa-exp-fichas-barra {
+    box-sizing: border-box;
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    z-index: 38;
+    border: 2px solid transparent;
+    border-left: none;
+    border-bottom: none;
+    border-radius: 0 38px 0 0;
+    background:
+        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0) 0 9px, rgba(0, 0, 0, .1) 9px 10px) padding-box,
+        linear-gradient(180deg, #3a2415 0%, #2a190d 55%, #1a1009 100%) padding-box,
+        linear-gradient(90deg, #c8861a, #ffd75e 55%, #fff4c2) border-box;
+    box-shadow: 0 -4px 14px rgba(0, 0, 0, .5);
+    transition: width .4s ease, box-shadow .4s ease;
+}
+/* Sulco onde as fichas e cartas pousam: o mesmo trilho escuro com fio
+   dourado dos medalhões. */
+.mesa-exp-fichas-sulco {
+    position: absolute;
+    top: 7px;
+    bottom: 7px;
+    right: 16px;
+    border-radius: 12px;
+    background: #120b06;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, .8), 0 0 0 1px rgba(255, 215, 94, .28);
+    transition: box-shadow .4s ease;
+}
+/* Na sua vez de apostar a barra e o fio do sulco acendem, como o aro da
+   vida na sua vez de jogar. */
+.mesa-exp-fichas-barra-vez {
+    box-shadow: 0 -4px 14px rgba(0, 0, 0, .5), 0 -2px 12px rgba(255, 190, 60, .55);
+}
+.mesa-exp-fichas-barra-vez .mesa-exp-fichas-sulco {
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, .8), 0 0 0 1px rgba(255, 215, 94, .85), 0 0 10px rgba(255, 190, 60, .6);
+}
+/* "Aposta: N" — só com o mouse em cima da barra. Mesmo tratamento dos
+   outros overlays de hover (.mesa-exp-carta-jogada-legenda/-vira-legenda):
+   fundo escuro, texto claro, valor em dourado. */
+.mesa-exp-fichas-legenda {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    background: rgba(0, 0, 0, .65);
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-family: system-ui, sans-serif;
+    font-size: 16px;
+    color: #f1e6d2;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    translate: 0 6px;
+    transition: opacity .15s ease, translate .15s ease;
+}
+.mesa-exp-fichas-legenda span {
+    color: #ffd75e;
+    font-weight: 700;
+}
+.mesa-exp-fichas-barra:hover .mesa-exp-fichas-legenda {
+    opacity: 1;
+    translate: 0 0;
+}
+
+.mesa-exp-coracoes-arco {
+    position: absolute;
+    inset: 0;
+    display: block;
+}
+.mesa-exp-coracoes-arco .mesa-exp-coracao {
+    position: absolute;
+    font-size: inherit;
+}
+
+/* Anel de timer do seu turno (ver AnelTimer/ArcoTimer em
+   MesaExperimento.jsx) — pavio dourado queimando em volta dos seus
+   corações, ancorado no canto inferior direito da caixa deles. Trilho =
+   sulco escuro com fio dourado, no espírito da borda de madeira da mesa;
+   o traço restante e a brasa são posicionados por JS a cada quadro. */
+.mesa-exp-anel-timer {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    overflow: visible;
+    pointer-events: none;
+    animation: mesa-exp-anel-entrar .35s ease-out;
+}
+@keyframes mesa-exp-anel-entrar {
+    from { opacity: 0; transform: scale(.94); }
+    to   { opacity: 1; transform: scale(1); }
+}
+/* Borda, trilha e traço restante são faixas preenchidas que afinam do
+   topo pra ficha (ver faixaAfinando) — a cor vem do fill do grupo.
+   Opacidade no grupo, não no fill, pra não somar onde o círculo da ponta
+   encosta na faixa. */
+.mesa-exp-anel-borda {
+    fill: #ffd75e;
+    opacity: .3;
+    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, .55));
+}
+.mesa-exp-anel-trilha {
+    fill: #1c120a;
+}
+.mesa-exp-anel-eixo {
+    fill: none;
+    stroke: none;
+}
+.mesa-exp-anel-marca {
+    fill: rgba(255, 215, 94, .45);
+}
+.mesa-exp-anel-restante {
+    filter: drop-shadow(0 0 3px rgba(255, 215, 94, .8)) drop-shadow(0 0 8px rgba(255, 170, 40, .45));
+    transition: filter .3s ease;
+}
+
+/* Brasa na ponta do pavio + faíscas saltando dela. */
+.mesa-exp-anel-ponta {
+    transition: opacity .2s ease;
+}
+.mesa-exp-anel-brasa {
+    fill: #fffbe6;
+    filter: drop-shadow(0 0 3px #ffd75e) drop-shadow(0 0 8px #ff9a1f);
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: mesa-exp-anel-tremular .22s ease-in-out infinite alternate;
+}
+@keyframes mesa-exp-anel-tremular {
+    from { transform: scale(.85); }
+    to   { transform: scale(1.15); }
+}
+.mesa-exp-anel-faisca {
+    fill: #ffe08a;
+    animation: mesa-exp-anel-faiscar .7s ease-out infinite;
+}
+@keyframes mesa-exp-anel-faiscar {
+    0%   { transform: translate(0, 0); opacity: 1; }
+    100% { transform: translate(var(--dx), var(--dy)); opacity: 0; }
+}
+
+/* Ficha contando os segundos, no começo do arco (onde o pavio termina). */
+.mesa-exp-anel-ficha-borda {
+    fill: #15100b;
+    stroke: #ffd75e;
+    stroke-width: 4;
+    stroke-dasharray: 5 3.4;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .6));
+}
+.mesa-exp-anel-ficha-miolo {
+    fill: none;
+    stroke: rgba(255, 215, 94, .4);
+    stroke-width: 1;
+}
+.mesa-exp-anel-ficha-texto {
+    fill: #fff4c2;
+    font: 700 13px system-ui, sans-serif;
+}
+
+/* Fora da sua vez: o mesmo anel, apagado — preto, sem brasa nem brilho, a
+   ficha sem número. */
+.mesa-exp-anel-inativo .mesa-exp-anel-borda {
+    fill: #fff;
+    opacity: .07;
+}
+.mesa-exp-anel-inativo .mesa-exp-anel-trilha {
+    fill: #0e0a07;
+}
+.mesa-exp-anel-inativo .mesa-exp-anel-marca {
+    fill: rgba(255, 255, 255, .12);
+}
+.mesa-exp-anel-inativo .mesa-exp-anel-restante {
+    filter: none;
+}
+.mesa-exp-anel-inativo .mesa-exp-anel-restante * {
+    fill: #050403;
+}
+.mesa-exp-anel-inativo .mesa-exp-anel-ponta {
+    display: none;
+}
+.mesa-exp-anel-inativo .mesa-exp-anel-ficha-borda {
+    fill: #0e0a07;
+    stroke: #3a332c;
+}
+.mesa-exp-anel-inativo .mesa-exp-anel-ficha-miolo {
+    stroke: rgba(255, 255, 255, .08);
+}
+.mesa-exp-anel-inativo .mesa-exp-anel-ficha-texto {
+    fill: #4a423a;
+}
+
+/* Últimos segundos: o fogo esquenta, pulsa, e a ficha acende em vermelho. */
+.mesa-exp-anel-urgente .mesa-exp-anel-restante {
+    animation: mesa-exp-anel-pulsar .5s ease-in-out infinite alternate;
+}
+@keyframes mesa-exp-anel-pulsar {
+    from { filter: drop-shadow(0 0 3px rgba(255, 90, 46, .8)) drop-shadow(0 0 7px rgba(255, 60, 30, .4)); }
+    to   { filter: drop-shadow(0 0 6px rgba(255, 90, 46, 1)) drop-shadow(0 0 14px rgba(255, 60, 30, .75)) brightness(1.25); }
+}
+.mesa-exp-anel-urgente .mesa-exp-anel-brasa {
+    fill: #ffe9d6;
+    filter: drop-shadow(0 0 4px #ff7a3d) drop-shadow(0 0 10px #ff3b1f);
+}
+.mesa-exp-anel-urgente .mesa-exp-anel-faisca {
+    fill: #ffb08a;
+}
+.mesa-exp-anel-urgente .mesa-exp-anel-ficha-borda {
+    stroke: #ff5a2e;
+}
+.mesa-exp-anel-urgente .mesa-exp-anel-ficha-texto {
+    fill: #ffd2c4;
+}
+.mesa-exp-anel-urgente .mesa-exp-anel-ficha {
+    animation: mesa-exp-anel-ficha-bater .5s ease-in-out infinite alternate;
+}
+@keyframes mesa-exp-anel-ficha-bater {
+    from { filter: drop-shadow(0 0 0 rgba(255, 60, 30, 0)); }
+    to   { filter: drop-shadow(0 0 7px rgba(255, 60, 30, .85)); }
 }
 
 /* Pulso no fim da rodada (ver suaVidaEmDestaque/finalizarRodada) — "todo
@@ -2181,7 +3035,7 @@ button.secundario {
    diagonal que varre a carta em loop, `::after`, cortado pelo
    `overflow: hidden` da própria carta); Copas ganha um coração gigante
    pulsando por cima (Carta.jsx); Paus/Zap pisca como se estivesse com
-   eletricidade correndo por cima (raios em SVG + glow trepidando). Ideia
+   eletricidade correndo por cima (raios em SVG + borda elétrica). Ideia
    ainda em teste (pedido do Henrique 2026-09-20) — sem arte/referência
    nenhuma, só CSS/SVG. */
 .carta-exp-manilha.carta-exp-manilha-ouros {
@@ -2278,51 +3132,84 @@ button.secundario {
 }
 
 .carta-exp-manilha.carta-exp-manilha-paus {
-    border-color: #7fd9ff;
-    animation: carta-exp-eletrico-flicker 1.9s linear infinite;
+    border-color: rgba(127, 217, 255, .45);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, .45), 0 0 26px rgba(110, 200, 255, .55), 0 0 60px rgba(60, 160, 255, .25);
 }
 
-/* Raios (só Paus/Zap, ver Carta.jsx) — dois traçados em SVG (viewBox do
-   tamanho exato da carta, então escalam junto se .carta-exp mudar de
-   tamanho em algum outro lugar) que piscam em momentos DIFERENTES um do
-   outro (delay negativo no segundo), pra nunca ficar simétrico/mecânico
-   demais — eletricidade de verdade não risca sempre no mesmo padrão. */
+/* Raios por dentro da carta (só Paus/Zap, ver RaiosNaCarta.jsx) — o SVG tem
+   o viewBox do tamanho exato da carta; cada raio é um <g> com duas camadas
+   por ramo (brilho ciano largo embaixo, núcleo quase branco em cima), o
+   halo vem do drop-shadow no SVG inteiro de uma vez só. A espessura de cada
+   ramo e o tracejado que revela/apaga são inline, por quadro. */
 .carta-exp-raio {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     z-index: 1;
+    overflow: visible;
     pointer-events: none;
+    filter: drop-shadow(0 0 2px #7fdcff) drop-shadow(0 0 6px #2fb4ff);
 }
-.carta-exp-raio-tracado {
+.carta-exp-raio-brilho,
+.carta-exp-raio-nucleo {
     fill: none;
-    stroke: #dff6ff;
-    stroke-width: 3;
     stroke-linejoin: round;
     stroke-linecap: round;
-    filter: drop-shadow(0 0 4px #7fd9ff) drop-shadow(0 0 9px #38b6ff);
-    opacity: 0;
 }
-.carta-exp-raio-tracado-1 { animation: carta-exp-raio-pisca 1.9s steps(1, end) infinite; }
-.carta-exp-raio-tracado-2 { animation: carta-exp-raio-pisca 1.9s steps(1, end) infinite -0.85s; }
-
-@keyframes carta-exp-raio-pisca {
-    0%, 100% { opacity: 0; }
-    4%       { opacity: 1; }
-    7%       { opacity: .25; }
-    9%       { opacity: 1; }
-    13%      { opacity: 0; }
+.carta-exp-raio-brilho {
+    stroke: #6fdcff;
+    opacity: .7;
+}
+.carta-exp-raio-nucleo {
+    stroke: #effeff;
 }
 
-@keyframes carta-exp-eletrico-flicker {
-    0%, 100% { box-shadow: 0 0 0 2px #7fd9ff, 0 0 22px rgba(110, 200, 255, .75); }
-    5%       { box-shadow: 0 0 0 2px #eafcff, 0 0 30px rgba(160, 230, 255, 1); }
-    8%       { box-shadow: 0 0 0 1px #4fb8e8, 0 0 10px rgba(80, 170, 220, .4); }
-    12%      { box-shadow: 0 0 0 2px #7fd9ff, 0 0 22px rgba(110, 200, 255, .75); }
-    60%      { box-shadow: 0 0 0 2px #7fd9ff, 0 0 22px rgba(110, 200, 255, .75); }
-    63%      { box-shadow: 0 0 0 2px #eafcff, 0 0 34px rgba(160, 230, 255, 1); }
-    66%      { box-shadow: 0 0 0 2px #7fd9ff, 0 0 22px rgba(110, 200, 255, .75); }
+/* Borda elétrica (só Paus/Zap, ver BordaEletrica em Carta.jsx): por cima da
+   borda de verdade da carta, mesmo raio de canto. A .linha é a única que
+   passa pelo filtro de turbulência; as outras são brilho parado. */
+.carta-exp-zap-borda {
+    position: absolute;
+    inset: -2px;
+    border-radius: 10px;
+    z-index: 3;
+    pointer-events: none;
+}
+.carta-exp-zap-filtro-svg {
+    position: absolute;
+    width: 0;
+    height: 0;
+}
+.carta-exp-zap-borda-externa,
+.carta-exp-zap-borda-linha,
+.carta-exp-zap-borda-brilho,
+.carta-exp-zap-borda-reflexo {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+}
+.carta-exp-zap-borda-externa {
+    inset: -3px;
+    border-radius: 12px;
+    border: 1.5px solid rgba(127, 217, 255, .45);
+}
+.carta-exp-zap-borda-linha {
+    border: 2px solid #8fdfff;
+}
+.carta-exp-zap-borda-brilho-1 {
+    border: 2px solid rgba(143, 223, 255, .6);
+    filter: blur(1px);
+}
+.carta-exp-zap-borda-brilho-2 {
+    border: 2px solid #d4f5ff;
+    filter: blur(4px);
+}
+.carta-exp-zap-borda-reflexo {
+    transform: scale(1.08);
+    filter: blur(10px);
+    mix-blend-mode: overlay;
+    opacity: .7;
+    background: linear-gradient(-30deg, white, transparent 30%, transparent 70%, white);
 }
 
 /* Carta giratória (CartaGiratoria.jsx, botão de teste na tela de Login) —

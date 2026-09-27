@@ -452,6 +452,25 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
             });
         });
 
+        // Avisos de andamento de tela: o front manda sem callback (não precisa
+        // de resposta), por isso responderOuExecutar em vez de responder —
+        // responder() nem roda a ação quando não há ack.
+        socket.on(EventosCliente.ANIMACOES_CONCLUIDAS, ({ salaId, seq } = {}, ack) => {
+            responderOuExecutar(ack, () => {
+                const player = exigirJogador();
+                salaManager.registrarAnimacoes(salaId, player, seq ?? null);
+                return {};
+            });
+        });
+
+        socket.on(EventosCliente.AINDA_ANIMANDO, ({ salaId } = {}, ack) => {
+            responderOuExecutar(ack, () => {
+                const player = exigirJogador();
+                salaManager.registrarAnimando(salaId, player);
+                return {};
+            });
+        });
+
         socket.on(EventosCliente.SUGESTAO_BOT, ({ salaId } = {}, ack) => {
             responder(ack, () => {
                 const player = exigirJogador();
@@ -617,9 +636,11 @@ function ligarControllerASala(io, salaManager, sala, socketPorJogador, salaPorSo
     retransmitir(EventosServidor.PARTIDA_INICIANDO_EM);
     retransmitir(EventosServidor.NOVA_RODADA_INICIADA);
     retransmitir(EventosServidor.MANILHA_VIRADA);
+    retransmitir(EventosServidor.DISTRIBUICAO_CONCLUIDA);
     retransmitir(EventosServidor.TURNO_APOSTA);
     retransmitir(EventosServidor.APOSTA_FEITA);
     retransmitir(EventosServidor.TURNO_JOGADOR);
+    retransmitir(EventosServidor.TIMER_TURNO);
     retransmitir(EventosServidor.CARTA_JOGADA);
     retransmitir(EventosServidor.VAZA_FINALIZADA);
     retransmitir(EventosServidor.RODADA_FINALIZADA);
@@ -713,6 +734,21 @@ function ligarControllerASala(io, salaManager, sala, socketPorJogador, salaPorSo
 // assíncrona (ENTRAR/CADASTRAR, que usam bcrypt) sem distinção: `await` num
 // valor que não é Promise só resolve com ele na hora. Um `throw` síncrono
 // dentro de `acao` cai no mesmo catch de sempre, Promise ou não.
+// Igual responder(), mas executa `acao` mesmo quando o cliente não mandou
+// callback — pra eventos de aviso que não precisam de resposta. Sem ack, um
+// erro de domínio só é ignorado (não tem pra quem devolver); um erro
+// inesperado é logado.
+async function responderOuExecutar(ack, acao) {
+    if (typeof ack === 'function') return responder(ack, acao);
+    try {
+        await acao();
+    } catch (erro) {
+        if (!(erro instanceof ErroSala || erro instanceof ErroSessao || erro instanceof ErroProtocolo)) {
+            console.error('Erro inesperado num aviso de socket sem ack:', erro);
+        }
+    }
+}
+
 async function responder(ack, acao) {
     if (typeof ack !== 'function') return; // cliente não pediu resposta, nada a fazer
     try {

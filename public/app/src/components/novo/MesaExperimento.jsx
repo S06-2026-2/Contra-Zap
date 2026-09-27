@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import Fantasminha from './Fantasminha.jsx';
-import Carta from './Carta.jsx';
+import Carta, { ManilhaContext } from './Carta.jsx';
+import { JogadaManilha, DanosDaMesa, tremerElemento, calcularEmpurraoZap } from './MesaDanificada.jsx';
 import Ficha from './Ficha.jsx';
 import { sortearChapeu } from '../../chapeus.js';
 import { MENSAGENS_CHAT } from '../../../../../conexao/chat/mensagensChat.js';
@@ -44,6 +45,23 @@ const ESCALA_CARTA_VOANDO_INICIAL = ESCALA_BARALHO_ENTREGANDO;
 const ESCALA_CARTA_VOANDO_FINAL = 0.36;
 const ESCALA_CARTA_VOANDO_INICIAL_VOCE = 0.32;
 const ESCALA_CARTA_VOANDO_FINAL_VOCE = 0.95;
+
+// Danos das manilhas na mesa (cortes, marcas, crateras — ver
+// DanosDaMesa em MesaDanificada.jsx). Em teste (pedido do Henrique
+// 2026-09-26): true = nunca somem, acumulam a partida inteira; false =
+// limpam a cada rodada nova.
+const DANOS_MESA_PERMANENTES = true;
+// Cada manilha jogada é uma "geração" de dano, numa camada própria (a mais
+// nova por cima). As camadas desbotam pelo "desgaste" da mesa: cada
+// manilha jogada soma DESGASTE_POR_MANILHA e cada carta vencedora caindo na
+// revelação da vaza soma DESGASTE_POR_VAZA. Uma camada perde
+// 1/DANOS_CAMADAS_VISIVEIS de opacidade por ponto de desgaste desde que
+// nasceu — com 10, some de vez depois de 10 manilhas (ou 20 vazas) e sai do
+// estado.
+const DANOS_CAMADAS_VISIVEIS = 10;
+const DESGASTE_POR_MANILHA = 1;
+const DESGASTE_POR_VAZA = 0.5;
+const AINDA_ANIMANDO_INTERVALO_MS = 2_000;
 
 const DURACAO_SAIDA_MAO_MS = 220;
 const DURACAO_JOGADA_MS = Math.round(650 / VELOCIDADE);
@@ -92,11 +110,6 @@ const PAUSA_MORTE_APOS_DANO_MS = 1000;
 const FICHA_TAMANHO_PX = 64;
 const ESCALA_FICHA_CANTO = 0.62;
 const FICHA_EMPILHA_POPUP_PX = 10;
-// Espaçamento entre fichas no seu leque (canto inferior esquerdo) — folgado
-// o bastante pra caber a carta de vaza ganha (110x154 * VAZA_POUSO_ESCALA,
-// rotacionada 90°, ~52px de largura) espiando atrás de UMA ficha sem tocar
-// a ficha VIZINHA (ver render de cartasVazaGanhas mais abaixo).
-const FICHA_LEQUE_ESPACAMENTO_PX = 52;
 const FICHA_EMPILHA_FANTASMA_PX = 30;
 const FICHA_FANTASMA_OFFSET_LADO_PX = 55;
 const FICHA_FORCA_SUBIDA_MIN = 70;
@@ -541,20 +554,473 @@ function CartaRevelando({ origem, destino, fase, carta }) {
 // medir onde cada carta de dano tem que pousar (getBoundingClientRect NA
 // HORA, não um cálculo de layout feito à mão). `coracaoImpactado` (índice
 // do coração que acabou de ser atingido, ou null) liga um flash rápido nele
-// só — os outros corações da fileira ficam de fora da classe.
-function Coracoes({ vida, assentoIndice, registrarRef, coracaoImpactado }) {
+// só, com estilhaços de esmalte saltando — os outros ficam de fora.
+// Cada coração é uma joia cravada: o naipe de Copas (bico pontudo de carta,
+// não o coração arredondado de emoji) em esmalte vermelho, dentro de um
+// engaste escuro com aro dourado — o mesmo sulco + fio de ouro do trilho do
+// anel de timer. Perdido = engaste vazio e rachado. O último que sobra bate
+// sozinho. `arco` (só a sua vida, ver MedalhaoVida): posiciona cada um no
+// trilho curvo do medalhão em vez da fileira/coluna de flex. Tamanho = 1em
+// (o font-size do span decide, ver .mesa-exp-coracao no CSS).
+const CORACAO_CAMINHO = 'M16 30 C11.5 23.5 1.5 18 1.5 9.8 C1.5 5 5 1.5 9.3 1.5 C12.3 1.5 14.6 3.4 16 6.2 C17.4 3.4 19.7 1.5 22.7 1.5 C27 1.5 30.5 5 30.5 9.8 C30.5 18 20.5 23.5 16 30 Z';
+const CORACAO_FACETA = 'M16 24 C13 20 7 16.5 7 11.2 C7 8.6 9 6.8 11.2 6.8 C13.2 6.8 15 8.4 16 10.4 C17 8.4 18.8 6.8 20.8 6.8 C23 6.8 25 8.6 25 11.2 C25 16.5 19 20 16 24 Z';
+const CORACAO_RACHADURA = 'M16.4 6.8 L13.8 12.8 L17.8 16.2 L14.6 23.5 M17.8 16.2 L21.5 14.6';
+const CORACAO_ESTILHACOS = [
+    { ex: -26, ey: -20, giro: -140 },
+    { ex: 24, ey: -24, giro: 160 },
+    { ex: -30, ey: 10, giro: 90 },
+    { ex: 28, ey: 14, giro: -110 },
+    { ex: 2, ey: 30, giro: 200 },
+];
+
+function Coracoes({ vida, assentoIndice, registrarRef, coracaoImpactado, arco }) {
+    const id = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+    const idEsmalte = `coracao-esmalte-${id}`;
+    const idOuro = `coracao-ouro-${id}`;
     return (
-        <div className="mesa-exp-coracoes">
-            {Array.from({ length: VIDA_MAXIMA }, (_, i) => (
-                <span
-                    key={i}
-                    ref={registrarRef ? (el) => registrarRef(assentoIndice, i, el) : undefined}
-                    className={`mesa-exp-coracao${coracaoImpactado === i ? ' mesa-exp-coracao-impacto' : ''}`}
-                >
-                    {i < vida ? '❤️' : '🖤'}
-                </span>
-            ))}
+        <div className={`mesa-exp-coracoes${arco ? ' mesa-exp-coracoes-arco' : ''}`}>
+            <svg className="mesa-exp-coracoes-defs" width="0" height="0" aria-hidden="true">
+                <defs>
+                    <radialGradient id={idEsmalte} cx="38%" cy="30%" r="78%">
+                        <stop offset="0%" stopColor="#ff9090" />
+                        <stop offset="38%" stopColor="#e0243f" />
+                        <stop offset="78%" stopColor="#8a0d24" />
+                        <stop offset="100%" stopColor="#4d0614" />
+                    </radialGradient>
+                    <linearGradient id={idOuro} x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor="#fff4c2" />
+                        <stop offset="50%" stopColor="#ffd75e" />
+                        <stop offset="100%" stopColor="#c8861a" />
+                    </linearGradient>
+                </defs>
+            </svg>
+            {Array.from({ length: VIDA_MAXIMA }, (_, i) => {
+                const cheio = i < vida;
+                const ultimo = cheio && vida === 1;
+                const posicao = arco?.posicoes[i];
+                return (
+                    <span
+                        key={i}
+                        ref={registrarRef ? (el) => registrarRef(assentoIndice, i, el) : undefined}
+                        className={`mesa-exp-coracao${cheio ? '' : ' mesa-exp-coracao-perdido'}${ultimo ? ' mesa-exp-coracao-ultimo' : ''}${coracaoImpactado === i ? ' mesa-exp-coracao-impacto' : ''}`}
+                        style={posicao ? { left: posicao.x, top: posicao.y, rotate: `${posicao.giro}deg` } : undefined}
+                    >
+                        <svg viewBox="-2.5 -2.5 37 37" width="1em" height="1em" aria-hidden="true">
+                            <path
+                                d={CORACAO_CAMINHO}
+                                transform="translate(16 16) scale(1.1) translate(-16 -16)"
+                                fill="#120b06"
+                                stroke={cheio ? `url(#${idOuro})` : 'rgba(255, 215, 94, .38)'}
+                                strokeWidth="1.7"
+                                strokeLinejoin="round"
+                            />
+                            {cheio ? (
+                                <g className="mesa-exp-coracao-joia">
+                                    <path d={CORACAO_CAMINHO} fill={`url(#${idEsmalte})`} stroke="rgba(60, 4, 14, .7)" strokeWidth=".8" strokeLinejoin="round" />
+                                    <path d={CORACAO_FACETA} fill="#fff" opacity=".1" />
+                                    <ellipse cx="9.6" cy="8.6" rx="3.4" ry="2" transform="rotate(-34 9.6 8.6)" fill="#fff" opacity=".6" />
+                                    <circle cx="21.8" cy="7.2" r=".9" fill="#fff" opacity=".7" />
+                                </g>
+                            ) : (
+                                <>
+                                    <path d={CORACAO_FACETA} fill="none" stroke="rgba(255, 215, 94, .1)" strokeWidth=".8" strokeLinejoin="round" />
+                                    <path d={CORACAO_RACHADURA} fill="none" stroke="rgba(255, 215, 94, .3)" strokeWidth="1" strokeLinejoin="round" strokeLinecap="round" />
+                                </>
+                            )}
+                        </svg>
+                        {coracaoImpactado === i && CORACAO_ESTILHACOS.map((e, j) => (
+                            <i
+                                key={j}
+                                className="mesa-exp-coracao-estilhaco"
+                                style={{ '--ex': `${e.ex}px`, '--ey': `${e.ey}px`, '--giro': `${e.giro}deg` }}
+                            />
+                        ))}
+                    </span>
+                );
+            })}
         </div>
+    );
+}
+
+// Medalhão da SUA vida, no canto inferior direito: um quarto de elipse
+// achatada (mais largo que alto) com o centro exatamente no canto da tela,
+// madeira torneada (anéis de veio) com aro dourado e um sulco curvo onde os
+// corações ficam cravados. `trilhoRx/trilhoRy`: raios do sulco.
+const MEDALHAO_VIDA = { rx: 200, ry: 132, trilhoRx: 160, trilhoRy: 96 };
+
+// Percorre o sulco de um medalhão pelo COMPRIMENTO de arco (não por ângulo
+// — na elipse achatada, ângulos iguais amontoam as peças perto da ponta
+// horizontal). `ponto(s)`: s = 0 na ponta horizontal (rente à borda de
+// baixo da tela), s = total no topo (rente à borda lateral); devolve x/y
+// na caixa do medalhão + `normalGraus`, o ângulo (matemático, y
+// pra cima) da normal pra fora nesse ponto.
+function trilhoDoMedalhao({ rx: cx, ry: cy, trilhoRx: rx, trilhoRy: ry }) {
+    const passos = 240;
+    const pontoEm = (t) => ({ x: cx + rx * Math.cos(t), y: cy - ry * Math.sin(t) });
+    const amostras = [{ t: Math.PI, s: 0 }];
+    let anterior = pontoEm(Math.PI);
+    for (let i = 1; i <= passos; i++) {
+        const t = Math.PI - (Math.PI / 2) * (i / passos);
+        const p = pontoEm(t);
+        amostras.push({ t, s: amostras[i - 1].s + Math.hypot(p.x - anterior.x, p.y - anterior.y) });
+        anterior = p;
+    }
+    const total = amostras[passos].s;
+    return {
+        total,
+        ponto(s) {
+            const { t } = amostras.find((a) => a.s >= Math.min(s, total)) ?? amostras[passos];
+            return { ...pontoEm(t), normalGraus: (Math.atan2(Math.sin(t) / ry, Math.cos(t) / rx) * 180) / Math.PI };
+        },
+    };
+}
+
+function arcoDeQuadrante(m, rx, ry) {
+    return `M${m.rx - rx},${m.ry} A${rx},${ry} 0 0 1 ${m.rx},${m.ry - ry}`;
+}
+
+// Fundo desenhado do medalhão (madeira, aro, filete, sulco). `children`
+// entra por cima, no mesmo SVG (o cubo com o naipe).
+function FundoMedalhao({ m, children }) {
+    const id = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+    const { rx, ry } = m;
+    const setor = `M${rx},${ry} L0,${ry} A${rx},${ry} 0 0 1 ${rx},0 Z`;
+    const achatar = `translate(${rx} ${ry}) scale(1 ${ry / rx}) translate(${-rx} ${-ry})`;
+    const idMadeira = `medalhao-madeira-${id}`;
+    const idVeio = `medalhao-veio-${id}`;
+    const idOuro = `medalhao-ouro-${id}`;
+    return (
+        <svg className="mesa-exp-medalhao" width={rx} height={ry} aria-hidden="true">
+            <defs>
+                <radialGradient id={idMadeira} gradientUnits="userSpaceOnUse" cx={rx} cy={ry} r={rx} gradientTransform={achatar}>
+                    <stop offset="0%" stopColor="#4a2e19" />
+                    <stop offset="45%" stopColor="#2e1c10" />
+                    <stop offset="100%" stopColor="#1a1009" />
+                </radialGradient>
+                <radialGradient id={idVeio} gradientUnits="userSpaceOnUse" cx={rx} cy={ry} r="11" spreadMethod="repeat" gradientTransform={achatar}>
+                    <stop offset="0%" stopColor="#000" stopOpacity="0" />
+                    <stop offset="70%" stopColor="#000" stopOpacity="0" />
+                    <stop offset="100%" stopColor="#000" stopOpacity=".16" />
+                </radialGradient>
+                <linearGradient id={idOuro} gradientUnits="userSpaceOnUse" x1="0" y1={ry} x2={rx} y2="0">
+                    <stop offset="0%" stopColor="#c8861a" />
+                    <stop offset="55%" stopColor="#ffd75e" />
+                    <stop offset="100%" stopColor="#fff4c2" />
+                </linearGradient>
+            </defs>
+            <path d={setor} fill={`url(#${idMadeira})`} />
+            <path d={setor} fill={`url(#${idVeio})`} />
+            <path className="mesa-exp-medalhao-aro" d={arcoDeQuadrante(m, rx - 2, ry - 2)} stroke={`url(#${idOuro})`} />
+            <path className="mesa-exp-medalhao-filete" d={arcoDeQuadrante(m, rx - 10, ry - 9)} />
+            <path className="mesa-exp-medalhao-sulco" d={arcoDeQuadrante(m, m.trilhoRx, m.trilhoRy)} />
+            <path className="mesa-exp-medalhao-sulco-fio" d={arcoDeQuadrante(m, m.trilhoRx, m.trilhoRy)} />
+            {typeof children === 'function' ? children(idOuro) : children}
+        </svg>
+    );
+}
+
+// A SUA vida, no canto inferior direito: o centro do medalhão é o mesmo
+// centro do anel de timer (AnelTimer mede esta caixa e desenha o arco com
+// raios largura/altura + ANEL_FOLGA_PX), então medalhão, sulco dos
+// corações e pavio são três arcos em volta do mesmo ponto. Os corações
+// ficam espaçados por igual ao longo do sulco, em leque como a mão de
+// cartas, perdidos do topo pra baixo — o mesmo sentido em que o pavio
+// queima.
+const MEDALHAO_CORACAO_PX = 42;
+const MEDALHAO_FRACOES = [0.17, 0.5, 0.83];
+const MEDALHAO_ARCO = { posicoes: posicoesDosCoracoes() };
+
+function posicoesDosCoracoes() {
+    const trilho = trilhoDoMedalhao(MEDALHAO_VIDA);
+    const pontos = MEDALHAO_FRACOES.map((f) => trilho.ponto(trilho.total * f));
+    // Leque centrado no coração do meio (ele fica reto), os outros tombam
+    // pra fora seguindo a curva do sulco.
+    const normalMeio = pontos[Math.floor(pontos.length / 2)].normalGraus;
+    return pontos.map((p) => ({
+        x: p.x - MEDALHAO_CORACAO_PX / 2,
+        y: p.y - MEDALHAO_CORACAO_PX / 2,
+        giro: -(p.normalGraus - normalMeio) * 0.55,
+    }));
+}
+
+function MedalhaoVida({ caixaRef, prazo, destaque, ...propsCoracoes }) {
+    const { rx, ry } = MEDALHAO_VIDA;
+    return (
+        <div
+            ref={caixaRef}
+            className={`mesa-exp-coracoes-suas${prazo ? ' mesa-exp-coracoes-suas-vez' : ''}${destaque ? ' mesa-exp-coracoes-destaque' : ''}`}
+            style={{ width: rx, height: ry, fontSize: MEDALHAO_CORACAO_PX }}
+        >
+            <FundoMedalhao m={MEDALHAO_VIDA}>
+                {(idOuro) => (
+                    <>
+                        <ellipse className="mesa-exp-medalhao-cubo" cx={rx} cy={ry} rx="40" ry="28" stroke={`url(#${idOuro})`} />
+                        <ellipse className="mesa-exp-medalhao-cubo-miolo" cx={rx} cy={ry} rx="29" ry="19" />
+                        <text className="mesa-exp-medalhao-naipe" x={rx - 15} y={ry - 7} textAnchor="middle">♥</text>
+                    </>
+                )}
+            </FundoMedalhao>
+            <AnelTimer caixaRef={caixaRef} prazo={prazo} />
+            <Coracoes {...propsCoracoes} arco={MEDALHAO_ARCO} />
+        </div>
+    );
+}
+
+// As SUAS fichas, no canto inferior esquerdo: uma barra de madeira com aro
+// dourado (mesmo idioma dos medalhões) saindo de trás da bola do chat (ver
+// .mesa-exp-chat-botao) e correndo rente à borda de baixo da tela. Dentro,
+// um sulco onde as fichas da aposta pousam em linha, uma por vaga, e as
+// cartas de vaza ganha pousam debaixo da ficha de mesmo número (ver
+// calcularPosicaoCartaVazaGanha) — a barra é alta o bastante pra carta
+// inteira caber no sulco. As vagas não dependem da largura (vaga i fica
+// sempre no mesmo x), então nada escorrega quando a barra muda de tamanho
+// entre rodadas; a largura tem sempre pelo menos BARRA_VAGAS_MIN vagas e
+// cresce se a rodada tiver mais cartas (`cartasRodada` = o máximo de fichas
+// + vazas da rodada). A placa "Apostar" aparece deitada no sulco ainda
+// vazio na sua vez. "Aposta: N" só aparece
+// com o mouse em cima da barra (fichas e cartas pousadas deixam o hover
+// passar, ver pointer-events no CSS).
+const BARRA_ALTURA_PX = 76;
+const BARRA_INICIO_VAGAS_PX = 98;
+const BARRA_VAGA_ESPACO_PX = 52;
+const BARRA_FIM_PX = 26;
+const BARRA_VAGAS_MIN = 6;
+
+// Centro da vaga `indice`, em px relativos ao canto superior esquerdo da
+// barra.
+function posicaoVagaFicha(indice) {
+    return { x: BARRA_INICIO_VAGAS_PX + BARRA_VAGA_ESPACO_PX * (indice + 0.5), y: BARRA_ALTURA_PX / 2 };
+}
+
+function somarPonto(a, b) {
+    return { x: a.x + b.x, y: a.y + b.y };
+}
+
+function BarraFichas({ caixaRef, vagas, podeApostar, onApostar, aposta }) {
+    const largura = BARRA_INICIO_VAGAS_PX + Math.max(BARRA_VAGAS_MIN, vagas) * BARRA_VAGA_ESPACO_PX + BARRA_FIM_PX;
+    return (
+        <div
+            ref={caixaRef}
+            className={`mesa-exp-fichas-barra${podeApostar ? ' mesa-exp-fichas-barra-vez' : ''}`}
+            style={{ width: largura, height: BARRA_ALTURA_PX }}
+        >
+            <div className="mesa-exp-fichas-sulco" style={{ left: BARRA_INICIO_VAGAS_PX - 8 }} />
+            {aposta != null && (
+                <div className="mesa-exp-fichas-legenda" style={{ left: BARRA_INICIO_VAGAS_PX }}>
+                    Aposta: <span>{aposta}</span>
+                </div>
+            )}
+            {podeApostar && (
+                <button
+                    type="button"
+                    className="mesa-exp-aposta-botao"
+                    style={{ left: (BARRA_INICIO_VAGAS_PX - 8 + largura - BARRA_FIM_PX + 8) / 2, top: BARRA_ALTURA_PX / 2 }}
+                    onClick={onApostar}
+                >
+                    Apostar
+                </button>
+            )}
+        </div>
+    );
+}
+
+// Anel de timer em volta dos seus corações — um pavio queimando: só o
+// segundo quadrante de uma elipse centrada no canto inferior direito da
+// caixa deles, saindo da esquerda da caixa e subindo por cima dela. O traço
+// dourado (o que resta do prazo) vai sendo consumido do topo pra esquerda,
+// com uma brasa soltando faíscas na ponta, até a ficha no começo do arco,
+// que conta os segundos. O pavio é mais grosso no topo (onde o prazo começa
+// a queimar) e afina até a ficha (onde acaba) — ANEL_AFINAMENTO é a
+// espessura final relativa à inicial. Nos últimos ANEL_URGENTE_FRACAO do
+// prazo o fogo esquenta pra vermelho e pulsa. `prazo`: { tempoMs, inicio }
+// ou null (escondido). A elipse acompanha o tamanho medido da caixa. A
+// caixa encosta no canto da tela, então as pontas do arco nascem da borda e
+// a ficha sobe ANEL_FICHA_RECUO_PX pra caber inteira.
+const ANEL_FOLGA_PX = 30;
+const ANEL_MARGEM_PX = 28;
+const ANEL_URGENTE_FRACAO = 0.3;
+const ANEL_MARCAS = 8;
+const ANEL_FICHA_RECUO_PX = 22;
+const ANEL_AFINAMENTO = 0.55;
+const ANEL_ESPESSURA_BORDA = 18;
+const ANEL_ESPESSURA_TRILHA = 14;
+const ANEL_ESPESSURA_RESTANTE = 8.5;
+const ANEL_FAISCAS = [
+    { dx: -9, dy: -7, atraso: 0 },
+    { dx: 8, dy: -9, atraso: 0.18 },
+    { dx: -3, dy: 10, atraso: 0.33 },
+    { dx: 10, dy: 4, atraso: 0.5 },
+];
+
+// Faixa em volta do quarto de elipse (centro cx,cy), com espessura indo de
+// `espessuraInicio` no topo até `espessuraInicio * ANEL_AFINAMENTO` na ponta
+// da esquerda. SVG não tem traço de largura variável, então é um contorno
+// fechado (lado de fora indo, lado de dentro voltando) + um círculo em cada
+// ponta fazendo o papel do stroke-linecap round.
+function faixaAfinando(cx, cy, rx, ry, espessuraInicio) {
+    const passos = 48;
+    const fora = [];
+    const dentro = [];
+    for (let i = 0; i <= passos; i++) {
+        const f = i / passos;
+        const t = Math.PI - (Math.PI / 2) * f;
+        const meia = (espessuraInicio * (ANEL_AFINAMENTO + (1 - ANEL_AFINAMENTO) * f)) / 2;
+        const nx = Math.cos(t) / rx;
+        const ny = -Math.sin(t) / ry;
+        const n = Math.hypot(nx, ny);
+        const x = cx + rx * Math.cos(t);
+        const y = cy - ry * Math.sin(t);
+        fora.push(`${(x + (nx / n) * meia).toFixed(1)},${(y + (ny / n) * meia).toFixed(1)}`);
+        dentro.push(`${(x - (nx / n) * meia).toFixed(1)},${(y - (ny / n) * meia).toFixed(1)}`);
+    }
+    const meiaFim = (espessuraInicio * ANEL_AFINAMENTO) / 2;
+    return {
+        d: `M${fora.join(' L')} L${dentro.reverse().join(' L')} Z`,
+        pontas: [
+            { cx: cx - rx, cy, r: meiaFim },
+            { cx, cy: cy - ry, r: espessuraInicio / 2 },
+        ],
+    };
+}
+
+function Faixa({ faixa }) {
+    return (
+        <>
+            <path d={faixa.d} />
+            {faixa.pontas.map((p, i) => <circle key={i} cx={p.cx} cy={p.cy} r={p.r} />)}
+        </>
+    );
+}
+
+function AnelTimer({ caixaRef, prazo }) {
+    const [tamanho, setTamanho] = useState(null);
+    useEffect(() => {
+        const caixa = caixaRef.current;
+        if (!caixa) return undefined;
+        const medir = () => setTamanho({ largura: caixa.offsetWidth, altura: caixa.offsetHeight });
+        medir();
+        const observador = new ResizeObserver(medir);
+        observador.observe(caixa);
+        return () => observador.disconnect();
+    }, [caixaRef]);
+    if (!tamanho) return null;
+    return <ArcoTimer key={prazo?.inicio ?? 'inativo'} prazo={prazo} tamanho={tamanho} />;
+}
+
+// Um anel por prazo (key = instante em que o timerTurno chegou; sem prazo —
+// fora da sua vez — o anel fica apagado, preto e parado). O quanto
+// resta é lido do relógio a cada quadro (início + tempoMs), não de uma
+// animação CSS — re-render nenhum da mesa consegue adiantar ou atrasar o
+// anel, e dá pra posicionar a brasa exatamente na ponta do traço. O traço
+// restante é a faixa dourada inteira recortada por uma máscara: um stroke
+// largo no eixo do arco com dasharray = o que sobra do prazo.
+function ArcoTimer({ prazo, tamanho }) {
+    const id = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+    const trilhaRef = useRef(null);
+    const mascaraRef = useRef(null);
+    const restanteRef = useRef(null);
+    const pontaRef = useRef(null);
+    const segundosRef = useRef(null);
+    const raizRef = useRef(null);
+    const [marcas, setMarcas] = useState([]);
+
+    const rx = tamanho.largura + ANEL_FOLGA_PX;
+    const ry = tamanho.altura + ANEL_FOLGA_PX;
+    const largura = rx + ANEL_MARGEM_PX;
+    const altura = ry + ANEL_MARGEM_PX;
+    const inicioArco = { x: largura - rx, y: altura };
+    const fimArco = { x: largura, y: altura - ry };
+    const d = `M${inicioArco.x},${inicioArco.y} A${rx},${ry} 0 0 1 ${fimArco.x},${fimArco.y}`;
+    const faixas = useMemo(() => ({
+        borda: faixaAfinando(largura, altura, rx, ry, ANEL_ESPESSURA_BORDA),
+        trilha: faixaAfinando(largura, altura, rx, ry, ANEL_ESPESSURA_TRILHA),
+        restante: faixaAfinando(largura, altura, rx, ry, ANEL_ESPESSURA_RESTANTE),
+    }), [largura, altura, rx, ry]);
+    const idOuro = `anel-ouro-${id}`;
+    const idFogo = `anel-fogo-${id}`;
+    const idMascara = `anel-mascara-${id}`;
+
+    useEffect(() => {
+        const trilha = trilhaRef.current;
+        if (!trilha) return undefined;
+        const comprimento = trilha.getTotalLength();
+        setMarcas(Array.from({ length: ANEL_MARCAS - 1 }, (_, i) => trilha.getPointAtLength((comprimento * (i + 1)) / ANEL_MARCAS)));
+        if (!prazo) return undefined;
+        let urgente = null;
+        let quadro;
+        const passo = () => {
+            const restanteMs = Math.max(0, prazo.tempoMs - (Date.now() - prazo.inicio));
+            const fracao = restanteMs / prazo.tempoMs;
+            mascaraRef.current.style.strokeDasharray = `${comprimento * fracao} ${comprimento}`;
+            restanteRef.current.style.opacity = fracao > 0 ? '1' : '0';
+            const ponta = trilha.getPointAtLength(comprimento * fracao);
+            pontaRef.current.setAttribute('transform', `translate(${ponta.x.toFixed(1)} ${ponta.y.toFixed(1)})`);
+            pontaRef.current.style.opacity = fracao > 0 ? '1' : '0';
+            segundosRef.current.textContent = String(Math.ceil(restanteMs / 1000));
+            const agoraUrgente = fracao < ANEL_URGENTE_FRACAO;
+            if (agoraUrgente !== urgente) {
+                urgente = agoraUrgente;
+                raizRef.current.classList.toggle('mesa-exp-anel-urgente', urgente);
+                restanteRef.current.setAttribute('fill', `url(#${urgente ? idFogo : idOuro})`);
+            }
+            if (restanteMs > 0) quadro = requestAnimationFrame(passo);
+        };
+        passo();
+        return () => cancelAnimationFrame(quadro);
+    }, [prazo, rx, ry, idOuro, idFogo]);
+
+    return (
+        <svg ref={raizRef} className={`mesa-exp-anel-timer${prazo ? '' : ' mesa-exp-anel-inativo'}`} width={largura} height={altura}>
+            <defs>
+                <linearGradient id={idOuro} gradientUnits="userSpaceOnUse" x1={inicioArco.x} y1={inicioArco.y} x2={fimArco.x} y2={fimArco.y}>
+                    <stop offset="0%" stopColor="#c8861a" />
+                    <stop offset="55%" stopColor="#ffd75e" />
+                    <stop offset="100%" stopColor="#fff4c2" />
+                </linearGradient>
+                <linearGradient id={idFogo} gradientUnits="userSpaceOnUse" x1={inicioArco.x} y1={inicioArco.y} x2={fimArco.x} y2={fimArco.y}>
+                    <stop offset="0%" stopColor="#b3261e" />
+                    <stop offset="60%" stopColor="#ff5a2e" />
+                    <stop offset="100%" stopColor="#ffb347" />
+                </linearGradient>
+                <mask id={idMascara} maskUnits="userSpaceOnUse" x="0" y="0" width={largura} height={altura}>
+                    <path ref={mascaraRef} d={d} fill="none" stroke="#fff" strokeWidth={ANEL_ESPESSURA_BORDA * 2} />
+                    <circle cx={inicioArco.x} cy={inicioArco.y} r={ANEL_ESPESSURA_BORDA} fill="#fff" />
+                </mask>
+            </defs>
+            <g className="mesa-exp-anel-borda">
+                <Faixa faixa={faixas.borda} />
+            </g>
+            <g className="mesa-exp-anel-trilha">
+                <Faixa faixa={faixas.trilha} />
+            </g>
+            <path ref={trilhaRef} className="mesa-exp-anel-eixo" d={d} />
+            {marcas.map((p, i) => (
+                <circle key={i} className="mesa-exp-anel-marca" cx={p.x} cy={p.y} r="1.8" />
+            ))}
+            <g className="mesa-exp-anel-restante">
+                <g ref={restanteRef} mask={`url(#${idMascara})`} fill={`url(#${idOuro})`}>
+                    <Faixa faixa={faixas.restante} />
+                </g>
+            </g>
+            <g ref={pontaRef} className="mesa-exp-anel-ponta">
+                {ANEL_FAISCAS.map((f, i) => (
+                    <circle
+                        key={i}
+                        className="mesa-exp-anel-faisca"
+                        r="1.4"
+                        style={{ '--dx': `${f.dx}px`, '--dy': `${f.dy}px`, animationDelay: `${f.atraso}s` }}
+                    />
+                ))}
+                <circle className="mesa-exp-anel-brasa" r="4.5" />
+            </g>
+            <g className="mesa-exp-anel-ficha" transform={`translate(${inicioArco.x} ${inicioArco.y - ANEL_FICHA_RECUO_PX})`}>
+                <circle className="mesa-exp-anel-ficha-borda" r="16" />
+                <circle className="mesa-exp-anel-ficha-miolo" r="11" />
+                <text ref={segundosRef} className="mesa-exp-anel-ficha-texto" textAnchor="middle" dominantBaseline="central">
+                    {prazo ? null : '•'}
+                </text>
+            </g>
+        </svg>
     );
 }
 
@@ -650,22 +1116,28 @@ function LequeManilha({ rank }) {
 
 // `estado`: o mesmo estado bruto que novo/Partida.jsx já monta a partir dos
 // handlers de socket (ver conexao/PROTOCOLO.md) — { salaId, meuNome,
-// iniciada, jogadores, segundosParaIniciar, senha, chatAberto, mao,
+// iniciada, jogadores, ordem, segundosParaIniciar, senha, chatAberto, mao,
 // cartasRodada, numeroRodada, maosReveladas, mesa, vira, jogadorDaVez,
 // jogadorDaVezAposta, apostas, eliminados, desconectados, ultimoPlacar,
 // vencedor, vazaResultado, mensagensChat, erro }. `acoes` (opcional, ainda
 // não usado na Fatia 1): funções que chamam o servidor de verdade.
 export default function MesaExperimento({ estado, acoes, onFechar }) {
-    // "Você" sempre no assento 0 (mesmo baseline visual de sempre), mesmo
-    // que `estado.jogadores` não te liste primeiro (a ordem do roster é a
-    // de ENTRADA na sala, não tem nada a ver com o layout) — gira a lista
-    // pra começar em você, preservando a ordem relativa dos outros.
+    // Assentos na ordem de JOGO (`estado.ordem`, de novaRodadaIniciada — a
+    // vez sempre anda pra frente nela), não na de entrada na sala de
+    // `estado.jogadores`, que só serve de fallback antes da primeira rodada.
+    // "Você" sempre no assento 0 (embaixo): gira a lista pra começar em
+    // você, preservando a ordem relativa dos outros — como calcularAssentos
+    // anda em sentido horário a partir de baixo, o próximo a jogar depois
+    // de você fica à sua esquerda, e assim por diante.
     const ordemAssentos = useMemo(() => {
-        const jogadores = estado.jogadores ?? [];
+        const roster = estado.jogadores ?? [];
+        const jogadores = estado.ordem?.length
+            ? estado.ordem.map((nome) => roster.find((j) => j.nome === nome) ?? { nome })
+            : roster;
         const meuIndice = jogadores.findIndex((j) => j.nome === estado.meuNome);
         if (meuIndice <= 0) return jogadores;
         return [...jogadores.slice(meuIndice), ...jogadores.slice(0, meuIndice)];
-    }, [estado.jogadores, estado.meuNome]);
+    }, [estado.jogadores, estado.ordem, estado.meuNome]);
 
     const assentos = useMemo(() => calcularAssentos(Math.max(ordemAssentos.length, 1)), [ordemAssentos.length]);
     const huesPorAssento = useMemo(
@@ -745,6 +1217,37 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     const proximoIdSuaCarta = useRef(0);
     const [cartaSaindoId, setCartaSaindoId] = useState(null);
     const [cartasNaMesa, setCartasNaMesa] = useState([]);
+    // Espelho de `cartasNaMesa` do último render. As coreografias de vaza são
+    // async e leem a mesa depois de vários `await` — o `cartasNaMesa` do
+    // closure é o de quando a coreografia começou, sem as cartas que pousaram
+    // no meio dela.
+    const cartasNaMesaRef = useRef(cartasNaMesa);
+    cartasNaMesaRef.current = cartasNaMesa;
+    // Quantas cartas SUAS estão na animação de saída da mão (antes de virar
+    // um CartaVoando, ver `disparar` em animarJogada) — nesse intervalo elas
+    // ainda não estão em `cartasVoando`, mas a revelação da vaza tem que
+    // esperar por elas do mesmo jeito.
+    const saidasDaMaoPendentesRef = useRef(0);
+    // Manilha no meio da própria coreografia (ver JogadaManilha): enquanto
+    // true, as jogadas seguintes esperam na fila (ver drenarFilaJogadas).
+    const especialAtivoRef = useRef(false);
+    // Número da vaza de cada jogada (sobe quando uma jogada abre vaza nova,
+    // ver efeito de estado.mesa) e da vaza cujo resultado está sendo
+    // revelado — a fila solta jogadas da vaza em revelação (ela precisa
+    // delas na mesa) mas segura as da vaza seguinte até a revelação acabar.
+    const vazaContadorRef = useRef(0);
+    const vazaEmRevelacaoRef = useRef(0);
+    const [danosMesa, setDanosMesa] = useState([]);
+    const proximoIdDano = useRef(0);
+    // Quantas manilhas já foram jogadas na partida (a geração de cada
+    // camada, ver DANOS_CAMADAS_VISIVEIS) e o desgaste acumulado da mesa.
+    // Refs pra ler na hora; state do desgaste pra camada re-renderizar.
+    const geracaoManilhaRef = useRef(0);
+    const desgasteMesaRef = useRef(0);
+    const [desgasteMesa, setDesgasteMesa] = useState(0);
+    const mesaRef = useRef(null);
+    const telaRef = useRef(null);
+    const caixaCoracoesRef = useRef(null);
     const cartaMesaRefs = useRef({});
     const [cartaEmHoverId, setCartaEmHoverId] = useState(null);
 
@@ -797,6 +1300,15 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     const [bolhasFala, setBolhasFala] = useState([]);
     const proximoIdBolha = useRef(0);
     const chatHistoricoRef = useRef(null);
+    // Histórico = mensagens do chat, na ordem em que chegaram aqui, cada
+    // linha com a hora.
+    const [feedHistorico, setFeedHistorico] = useState([]);
+    const proximoIdFeed = useRef(0);
+    const chatVistoRef = useRef(0);
+    function adicionarAoFeed(item) {
+        const id = ++proximoIdFeed.current;
+        setFeedHistorico((atual) => [...atual.slice(-299), { id, hora: new Date(), ...item }]);
+    }
     const mensagensVistasRef = useRef(0);
 
     const [fichasVoando, setFichasVoando] = useState([]);
@@ -840,11 +1352,19 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     const rodadaProcessadaRef = useRef(0);
     const placarProcessadoRef = useRef(null);
 
-    // Rola o histórico pro fim sempre que chega mensagem nova.
+    // Mensagens de chat novas entram no feed na ordem em que chegam.
+    useEffect(() => {
+        const mensagens = estado.mensagensChat ?? [];
+        if (mensagens.length < chatVistoRef.current) chatVistoRef.current = 0;
+        for (const mensagem of mensagens.slice(chatVistoRef.current)) adicionarAoFeed({ tipo: 'chat', mensagem });
+        chatVistoRef.current = mensagens.length;
+    }, [estado.mensagensChat]);
+
+    // Rola o histórico pro fim sempre que chega linha nova.
     useEffect(() => {
         const el = chatHistoricoRef.current;
         if (el) el.scrollTop = el.scrollHeight;
-    }, [estado.mensagensChat, chatClicado]);
+    }, [feedHistorico, chatClicado]);
 
     // A coreografia em si (ver constantes VIRA_*/calcularEstadoVira lá em
     // cima) — chamada tanto pela vira quanto (indiretamente) por nada mais
@@ -925,7 +1445,10 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         return { grupo: 0, indice: 0 };
     }
 
-    function aoChegarCarta(voo) {
+    // `pouso`: só pra manilha (ver JogadaManilha) — onde a coreografia dela
+    // deixou a carta, que não é o `para` do voo (quique, avanço, fim do
+    // corte).
+    function aoChegarCarta(voo, pouso) {
         atualizarCartasVoando((atuais) => atuais.filter((c) => c.id !== voo.id));
         if (voo.tipo === 'jogar') {
             setCartasNaMesa((atual) => [
@@ -935,12 +1458,16 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                     jogador: voo.jogador,
                     rank: voo.carta.rank,
                     naipe: voo.carta.naipe,
-                    x: voo.para.x,
-                    y: voo.para.y,
-                    rot: voo.anguloFinal,
-                    escala: voo.escalaFinal,
+                    x: pouso?.x ?? voo.para.x,
+                    y: pouso?.y ?? voo.para.y,
+                    rot: pouso?.rot ?? voo.anguloFinal,
+                    escala: pouso?.escala ?? voo.escalaFinal,
                 },
             ]);
+            if (voo.especial) {
+                especialAtivoRef.current = false;
+                drenarFilaJogadasRef.current();
+            }
         } else if (voo.seatIndex === 0) {
             setSuaMao((atual) => [...atual, { id: ++proximoIdSuaCarta.current, rank: voo.carta.rank, naipe: voo.carta.naipe }]);
         } else {
@@ -959,6 +1486,17 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         const assento = assentos[indice];
         const carta = lerCarta(jogada.carta);
         if (!assento || !carta) return;
+        // Manilha faz a coreografia do próprio naipe em vez do voo simples.
+        // `estado.vira` como reserva: a vira local só existe depois da
+        // animação dela.
+        const valorManilha = vira?.valorInt ?? estado.vira?.valor ?? null;
+        const especial = valorManilha != null && ORDEM_RANKS.indexOf(carta.rank) === valorManilha;
+        let geracao = null;
+        if (especial) {
+            especialAtivoRef.current = true;
+            geracao = ++geracaoManilhaRef.current;
+            desgastarMesa(DESGASTE_POR_MANILHA);
+        }
 
         // A carta que saiu da SUA mão (pra remover de vez depois da saída,
         // ver `disparar` abaixo) — lida direto do closure de `suaMao`
@@ -976,6 +1514,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         }
 
         const disparar = () => {
+            if (indice === 0) saidasDaMaoPendentesRef.current -= 1;
             setCartaSaindoId(null);
             // Só agora ela sai de vez da mão — sem isto a contagem nunca
             // diminuía (a carta ficava presa em suaMao pra sempre, só com
@@ -992,6 +1531,8 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                 {
                     id,
                     tipo: 'jogar',
+                    especial,
+                    geracao,
                     jogador: nome,
                     de: assento,
                     para: calcularAlvoJogada(assento),
@@ -1005,18 +1546,20 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         };
 
         if (indice === 0) {
+            saidasDaMaoPendentesRef.current += 1;
             setTimeout(disparar, DURACAO_SAIDA_MAO_MS);
         } else {
             disparar();
         }
     }
 
+    // Enquanto uma vaza está sendo revelada (com vencedora ou melada, e
+    // também esperando as travas de tentarIniciarRevelacaoVaza), a jogada
+    // que já abre a vaza seguinte fica na fila — senão ela pousa no meio da
+    // coreografia e é apagada junto com a mesa, sem ter explodido.
     function processarJogada(jogada) {
-        if (vazaRevelando) {
-            filaJogadasRef.current.push(jogada);
-            return;
-        }
-        animarJogada(jogada);
+        filaJogadasRef.current.push(jogada);
+        drenarFilaJogadas();
     }
 
     // Mesa (vaza atual) mudou — o ÚLTIMO elemento do array é sempre a carta
@@ -1032,7 +1575,8 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         ultimaMesaRef.current = estado.mesa;
         const ultima = estado.mesa[estado.mesa.length - 1];
         if (!ultima) return;
-        processarJogada(ultima);
+        if (estado.mesa.length === 1) vazaContadorRef.current += 1;
+        processarJogada({ ...ultima, vaza: vazaContadorRef.current });
         // eslint-disable-next-line react-hooks/exhaustive-deps -- processarJogada fecha sobre estado local (vazaRevelando/assentos/...) que muda a cada render; ler direto no corpo já pega o valor atual
     }, [estado.mesa]);
 
@@ -1055,6 +1599,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     useEffect(() => {
         if (!estado.vazaResultado || estado.vazaResultado === vazaProcessadaRef.current) return;
         vazaProcessadaRef.current = estado.vazaResultado;
+        vazaEmRevelacaoRef.current = vazaContadorRef.current;
         tentarIniciarRevelacaoVaza(estado.vazaResultado);
         // eslint-disable-next-line react-hooks/exhaustive-deps -- tentarIniciarRevelacaoVaza fecha sobre cartasNaMesa/assentos atuais
     }, [estado.vazaResultado]);
@@ -1341,7 +1886,9 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         setFichasFantasmaVoando([]);
         apostasProcessadasRef.current = new Set();
         filaJogadasRef.current = [];
+        especialAtivoRef.current = false;
         vazaAguardandoRef.current = null;
+        if (!DANOS_MESA_PERMANENTES) setDanosMesa([]);
         setSuaMao([]);
         setMaos(Array(ordemAssentos.length).fill(0));
 
@@ -1399,10 +1946,122 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         setDistribuindo(false);
     }
 
+    // Segurar pelas animações (ver PROTOCOLO.md): toda vez que chega um
+    // evento novo ou alguma coreografia muda de estado, espera um instante
+    // (os efeitos que o evento dispara já rodaram e marcaram as travas) e,
+    // se nada estiver animando, avisa o servidor que esta tela está em dia
+    // até o último evento. Lê os refs das travas — o state delas só reflete
+    // no render seguinte. Ao sair da tela, avisa null (não me espere mais).
+    const ultimoSeqAvisadoRef = useRef(-1);
+    function animandoAgora() {
+        return distribuindoRef.current
+            || viraAnimandoRef.current
+            || revelacaoVazaAtivaRef.current
+            || danoRodadaAtivoRef.current
+            || mortesAtivasRef.current > 0
+            || especialAtivoRef.current
+            || saidasDaMaoPendentesRef.current > 0
+            || filaJogadasRef.current.length > 0
+            || cartasVoandoRef.current.length > 0
+            || cartasDanoVoando.length > 0
+            || fichasVoando.length > 0
+            || fichasFantasmaVoando.length > 0;
+    }
+    const animandoAgoraRef = useRef(animandoAgora);
+    animandoAgoraRef.current = animandoAgora;
+    useEffect(() => {
+        const avisar = acoes?.animacoesConcluidas;
+        if (!avisar || !estado.iniciada) return undefined;
+        const timer = setTimeout(() => {
+            if (animandoAgoraRef.current()) return;
+            const seq = estado.ultimoSeq ?? 0;
+            if (seq === ultimoSeqAvisadoRef.current) return;
+            ultimoSeqAvisadoRef.current = seq;
+            avisar(seq);
+        }, 150);
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- as deps são os gatilhos pra reavaliar; a leitura de verdade é por animandoAgoraRef
+    }, [estado.ultimoSeq, estado.iniciada, distribuindo, viraAnimando, revelacaoVazaAtiva, danoRodadaAtivo, mortesAtivas, cartasVoando, cartasDanoVoando, fichasVoando, fichasFantasmaVoando, cartasNaMesa]);
+    // Adere ao segurar assim que esta tela abre — ainda na sala de espera,
+    // se for o caso: o servidor decide se espera a distribuição da rodada 1
+    // logo que a partida começa, antes de qualquer aviso de "parado" desta
+    // tela. Ao sair da tela, avisa null (não me espere mais).
+    useEffect(() => {
+        const avisar = acoes?.animacoesConcluidas;
+        const seq = estado.ultimoSeq ?? 0;
+        ultimoSeqAvisadoRef.current = seq;
+        avisar?.(seq);
+        return () => avisar?.(null);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- só no montar/desmontar
+    }, []);
+    // Enquanto ainda tem animação de eventos já recebidos (seq não avisado),
+    // manda "ainda animando" a cada AINDA_ANIMANDO_INTERVALO_MS — cada um
+    // renova a espera do servidor, que sem notícia solta o turno em 10s.
+    // Sequências longas (revelação + dano + distribuição + vira) passam
+    // disso fácil.
+    const ultimoSeqRef = useRef(estado.ultimoSeq ?? 0);
+    ultimoSeqRef.current = estado.ultimoSeq ?? 0;
+    useEffect(() => {
+        const avisar = acoes?.aindaAnimando;
+        if (!avisar || !estado.iniciada) return undefined;
+        const intervalo = setInterval(() => {
+            if (ultimoSeqRef.current > ultimoSeqAvisadoRef.current && animandoAgoraRef.current()) avisar();
+        }, AINDA_ANIMANDO_INTERVALO_MS);
+        return () => clearInterval(intervalo);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- acoes é estável o bastante; a leitura de verdade é pelos refs
+    }, [estado.iniciada]);
+
+    // `desgaste`: o da mesa quando o dano nasceu — a camada desbota pelo
+    // quanto a mesa se desgastou depois disso.
+    function adicionarDanoMesa(dano) {
+        const id = ++proximoIdDano.current;
+        setDanosMesa((atuais) => [...atuais, { id, desgaste: desgasteMesaRef.current, ...dano }]);
+    }
+
+    // Soma desgaste na mesa e já tira as camadas que ficaram invisíveis.
+    function desgastarMesa(quanto) {
+        const novo = desgasteMesaRef.current + quanto;
+        desgasteMesaRef.current = novo;
+        setDesgasteMesa(novo);
+        setDanosMesa((atuais) => atuais.filter((d) => novo - d.desgaste < DANOS_CAMADAS_VISIVEIS));
+    }
+
+    // Choque do Zap nas cartas já na mesa: cada uma escorrega pra longe do
+    // impacto (x/y/rot no estado — a transição de .mesa-exp-carta-jogada
+    // anima) e dá um pulinho com flip no .carta-exp de dentro, que nada mais
+    // anima. Mais tarde quanto mais longe, como uma onda (ver
+    // calcularEmpurraoZap).
+    function empurrarCartasDaMesa(pontoPx) {
+        const rect = mesaRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        for (const carta of cartasNaMesaRef.current) {
+            const el = cartaMesaRefs.current[carta.id];
+            if (!el) continue;
+            const r = el.getBoundingClientRect();
+            const empurrao = calcularEmpurraoZap({ x: r.left + r.width / 2, y: r.top + r.height / 2 }, pontoPx);
+            setTimeout(() => {
+                setCartasNaMesa((atual) => atual.map((c) => (c.id === carta.id ? {
+                    ...c,
+                    x: c.x + (empurrao.x / rect.width) * 100,
+                    y: c.y + (empurrao.y / rect.height) * 100,
+                    rot: c.rot + empurrao.giro,
+                } : c)));
+                el.firstElementChild?.animate(
+                    [
+                        { transform: 'perspective(600px) rotate3d(0, 1, 0, 0deg) scale(1)' },
+                        { transform: `perspective(600px) rotate3d(${-empurrao.dirY}, ${empurrao.dirX}, 0, ${empurrao.flip}deg) scale(${1 + 0.3 * empurrao.forca})`, offset: 0.4 },
+                        { transform: 'perspective(600px) rotate3d(0, 1, 0, 0deg) scale(1)' },
+                    ],
+                    { duration: empurrao.duracaoMs, easing: 'ease-out' },
+                );
+            }, empurrao.atrasoMs);
+        }
+    }
+
     function explodirCartasDaMesa() {
         setCartasExplodindo(() => {
             const explosoes = {};
-            for (const carta of cartasNaMesa) {
+            for (const carta of cartasNaMesaRef.current) {
                 const dx = carta.x - 50;
                 const dy = carta.y - 50;
                 const distancia = Math.hypot(dx, dy) || 1;
@@ -1424,11 +2083,23 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         });
     }
 
-    async function drenarFilaJogadas() {
-        const pendentes = filaJogadasRef.current;
-        filaJogadasRef.current = [];
-        for (const jogada of pendentes) animarJogada(jogada);
+    // Solta as jogadas da fila em ordem enquanto nada segura a da frente:
+    // uma manilha no meio da coreografia segura todas; uma revelação de vaza
+    // em andamento segura só as das vazas seguintes (as da própria vaza em
+    // revelação precisam chegar na mesa pra ela achar a vencedora).
+    function drenarFilaJogadas() {
+        while (filaJogadasRef.current.length > 0 && !especialAtivoRef.current) {
+            const jogada = filaJogadasRef.current[0];
+            if (revelacaoVazaAtivaRef.current && jogada.vaza > vazaEmRevelacaoRef.current) break;
+            filaJogadasRef.current.shift();
+            animarJogada(jogada);
+        }
     }
+    // As coreografias são async e chamam isto depois de vários `await` —
+    // pelo ref pegam a versão do render mais recente (animarJogada lê
+    // assentos/suaMao/vira do closure).
+    const drenarFilaJogadasRef = useRef(drenarFilaJogadas);
+    drenarFilaJogadasRef.current = drenarFilaJogadas;
 
     // Tenta achar a carta vencedora em `cartasNaMesa` e, se conseguir, já
     // dispara a coreografia inteira. Existe pra cobrir corridas reais:
@@ -1490,7 +2161,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         // direto) pelo mesmo motivo dos outros refs desta função: pode
         // rodar no mesmo commit em que `aoChegarCarta` acabou de tirar a
         // ÚLTIMA carta voando, com o state só refletindo no PRÓXIMO render.
-        if (cartasVoandoRef.current.some((c) => c.tipo === 'jogar')) {
+        if (saidasDaMaoPendentesRef.current > 0 || cartasVoandoRef.current.some((c) => c.tipo === 'jogar')) {
             vazaAguardandoRef.current = resultado;
             return;
         }
@@ -1501,7 +2172,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         }
 
         const cartaVencedora = lerCarta(cartaTexto);
-        const vencedora = cartasNaMesa.find((c) => c.jogador === vencedor && c.rank === cartaVencedora?.rank && c.naipe === cartaVencedora?.naipe);
+        const vencedora = cartasNaMesaRef.current.find((c) => c.jogador === vencedor && c.rank === cartaVencedora?.rank && c.naipe === cartaVencedora?.naipe);
         if (!vencedora || !cartaVencedora) {
             vazaAguardandoRef.current = resultado;
             return;
@@ -1544,7 +2215,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         setFaseRevelacaoVaza(null);
         revelacaoVazaAtivaRef.current = false;
         setRevelacaoVazaAtiva(false);
-        drenarFilaJogadas();
+        drenarFilaJogadasRef.current();
     }
 
     async function iniciarRevelacaoVazaComVencedora(vencedor, vencedora, el) {
@@ -1559,6 +2230,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
             // vez (ver guarda no efeito de "Rodada nova").
             revelacaoVazaAtivaRef.current = false;
             setRevelacaoVazaAtiva(false);
+            drenarFilaJogadasRef.current();
             return;
         }
 
@@ -1600,6 +2272,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         await esperar(VAZA_REVELACAO_PAUSA_MS);
 
         setFaseRevelacaoVaza('impacto');
+        desgastarMesa(DESGASTE_POR_VAZA);
         setChoqueVaza((v) => v + 1);
         explodirCartasDaMesa();
 
@@ -1629,7 +2302,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         setFaseRevelacaoVaza(null);
         revelacaoVazaAtivaRef.current = false;
         setRevelacaoVazaAtiva(false);
-        drenarFilaJogadas();
+        drenarFilaJogadasRef.current();
     }
 
     function calcularAncoraFichaAssento(assentoIndice) {
@@ -1637,7 +2310,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
         if (!assento) return null;
         if (assento.eVoce) {
             const rect = cantoFichasRef.current?.getBoundingClientRect();
-            return rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, rot: VAZA_POUSO_ROT_GRAUS } : null;
+            return rect ? { x: rect.left, y: rect.top, rot: VAZA_POUSO_ROT_GRAUS } : null;
         }
         const el = assentoRefs.current[assentoIndice];
         if (!el) return null;
@@ -1651,10 +2324,9 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     }
 
     // Onde a carta de uma vaza ganha FICA de verdade, em cima da ficha de
-    // mesmo número (`slotIndice`) — mesma fórmula pra você e pro
-    // fantasminha, só o EIXO que muda: sua fileira de fichas é horizontal
-    // (desloca em x, ver FICHA_LEQUE_ESPACAMENTO_PX), a pilha do
-    // fantasminha é vertical (desloca em y, ver FICHA_EMPILHA_FANTASMA_PX).
+    // mesmo número (`slotIndice`). As suas fichas moram nas vagas da barra
+    // (ver posicaoVagaFicha); a pilha do fantasminha é vertical (desloca em
+    // y, ver FICHA_EMPILHA_FANTASMA_PX).
     // `ancoraX`/`ancoraY` são o ponto SEM deslocamento nenhum (a mesma
     // ancora guardada em `cartasVazaGanhas.x/y`, ver
     // iniciarRevelacaoVazaComVencedora) — usada tanto pro render final
@@ -1662,11 +2334,11 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     // chega pousada no lugar certo, sem "tp" nenhum na troca do componente
     // viajando pro card estático.
     function calcularPosicaoCartaVazaGanha(assentoIndice, slotIndice, ancoraX, ancoraY, apostaValor) {
+        if (assentoIndice === 0) {
+            return somarPonto({ x: ancoraX, y: ancoraY }, posicaoVagaFicha(slotIndice));
+        }
         const meio = (apostaValor - 1) / 2;
         const offset = slotIndice - meio;
-        if (assentoIndice === 0) {
-            return { x: ancoraX + offset * FICHA_LEQUE_ESPACAMENTO_PX, y: ancoraY };
-        }
         return { x: ancoraX, y: ancoraY - offset * FICHA_EMPILHA_FANTASMA_PX };
     }
 
@@ -1701,7 +2373,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
             id: ++proximoIdFicha.current,
             de,
             para: ehVoce
-                ? { x: ancora.x + (i - meio) * FICHA_LEQUE_ESPACAMENTO_PX, y: ancora.y }
+                ? somarPonto(ancora, posicaoVagaFicha(i))
                 : { x: ancora.x, y: ancora.y - (i - meio) * FICHA_EMPILHA_FANTASMA_PX },
             atrasoMs: i * FICHA_ATRASO_ENTRE_MS,
             hue,
@@ -1816,7 +2488,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
             if (cartaPilha) {
                 return {
                     id: ++proximoIdCartaDano.current,
-                    de: { x: cartaPilha.x, y: cartaPilha.y },
+                    de: calcularPosicaoCartaVazaGanha(indice, cartaPilha.slotIndice, cartaPilha.x, cartaPilha.y, cartaPilha.apostaValor),
                     carta: { rank: cartaPilha.rank, naipe: cartaPilha.naipe },
                     atrasoMs: i * DANO_CARTA_ATRASO_ENTRE_MS,
                     assentoIndice: indice,
@@ -1962,9 +2634,13 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
     const nomeDaVez = estado.jogadorDaVezAposta ?? estado.jogadorDaVez;
     const turnoAssentoIndex = nomeDaVez != null ? indiceDoNome(nomeDaVez) : -1;
     const rodadaCegaAtiva = estado.cartasRodada === 1;
+    // Anel de timer só quando o SEU timer está correndo no servidor (ver
+    // timerTurno em novo/Partida.jsx — some quando você aposta/joga).
+    const seuPrazo = estado.prazoTurno?.jogador === estado.meuNome ? estado.prazoTurno : null;
 
     return (
-        <div className={`mesa-exp-tela${faseRevelacaoVaza === 'impacto' ? ' mesa-exp-tela-tremendo' : ''}`}>
+        <ManilhaContext.Provider value={vira ? vira.valorInt : null}>
+        <div ref={telaRef} className={`mesa-exp-tela${faseRevelacaoVaza === 'impacto' ? ' mesa-exp-tela-tremendo' : ''}`}>
             <h1 className="mesa-exp-cabecalho-titulo">Sala {estado.salaId}</h1>
             <div className="mesa-exp-cabecalho-direita">
                 <button type="button" className="secundario" onClick={() => acoes?.sair?.()} disabled={!acoes?.sair}>
@@ -1998,11 +2674,13 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                 escondida={rodadaCegaAtiva}
             />
 
-            {estado.jogadorDaVezAposta === estado.meuNome && acoes?.apostar && !apostaPopupAberto && (
-                <button type="button" className="mesa-exp-aposta-botao" onClick={abrirPopupAposta}>
-                    Apostar
-                </button>
-            )}
+            <BarraFichas
+                caixaRef={cantoFichasRef}
+                vagas={estado.cartasRodada ?? 0}
+                podeApostar={estado.jogadorDaVezAposta === estado.meuNome && !!acoes?.apostar && !apostaPopupAberto}
+                onApostar={abrirPopupAposta}
+                aposta={estado.apostas?.[estado.meuNome] ?? null}
+            />
 
             {apostaPopupAberto && (() => {
                 const numero = Number(apostaValorPopup);
@@ -2062,8 +2740,14 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                     className="mesa-exp-chat-botao"
                     onClick={() => setChatClicado((v) => !v)}
                     aria-expanded={chatClicado}
+                    aria-label="Chat"
                 >
-                    💬
+                    <svg className="mesa-exp-chat-icone" viewBox="0 0 32 28" width="40" height="35" aria-hidden="true">
+                        <path d="M5 2.5 H27 A3.5 3.5 0 0 1 30.5 6 V17 A3.5 3.5 0 0 1 27 20.5 H14 L7.5 26 V20.5 H5 A3.5 3.5 0 0 1 1.5 17 V6 A3.5 3.5 0 0 1 5 2.5 Z" />
+                        <circle cx="10" cy="11.5" r="1.8" />
+                        <circle cx="16" cy="11.5" r="1.8" />
+                        <circle cx="22" cy="11.5" r="1.8" />
+                    </svg>
                 </button>
                 {chatClicado && (
                     <div className="mesa-exp-chat-linha">
@@ -2086,37 +2770,41 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                         <div className="mesa-exp-chat-historico">
                             <h3>Histórico</h3>
                             <div className="mesa-exp-chat-historico-feed" ref={chatHistoricoRef}>
-                                {(estado.mensagensChat ?? []).length === 0
+                                {feedHistorico.length === 0
                                     ? <span className="mesa-exp-chat-vazio">(sem mensagens)</span>
-                                    : estado.mensagensChat.map((mensagem, i) => (
-                                        mensagem.tipo === 'sistema'
+                                    : feedHistorico.map((item) => {
+                                        const hora = item.hora.toLocaleTimeString('pt-BR', { hour12: false }) + `.${Math.floor(item.hora.getMilliseconds() / 100)}`;
+                                        const mensagem = item.mensagem;
+                                        return mensagem.tipo === 'sistema'
                                             ? (
-                                                <div key={i} className="mesa-exp-chat-msg mesa-exp-chat-msg-sistema">
-                                                    <em>{mensagem.jogador} {mensagem.texto}</em>
+                                                <div key={item.id} className="mesa-exp-chat-msg mesa-exp-chat-msg-sistema">
+                                                    <span className="mesa-exp-chat-hora">{hora}</span> <em>{mensagem.jogador} {mensagem.texto}</em>
                                                 </div>
                                             )
                                             : (
-                                                <div key={i} className="mesa-exp-chat-msg">
-                                                    <strong>{mensagem.jogador === estado.meuNome ? 'Você' : mensagem.jogador}:</strong> {mensagem.texto}
+                                                <div key={item.id} className="mesa-exp-chat-msg">
+                                                    <span className="mesa-exp-chat-hora">{hora}</span> <strong>{mensagem.jogador === estado.meuNome ? 'Você' : mensagem.jogador}:</strong> {mensagem.texto}
                                                 </div>
-                                            )
-                                    ))}
+                                            );
+                                    })}
                             </div>
                         </div>
                     </div>
                 )}
             </div>
 
-            <div className={`mesa-exp-coracoes-suas${suaVidaEmDestaque ? ' mesa-exp-coracoes-destaque' : ''}`}>
-                <Coracoes
-                    vida={vidaPorAssento[0] ?? VIDA_MAXIMA}
-                    assentoIndice={0}
-                    registrarRef={registrarRefCoracao}
-                    coracaoImpactado={coracoesImpactados[0] ?? null}
-                />
-            </div>
+            <MedalhaoVida
+                caixaRef={caixaCoracoesRef}
+                prazo={seuPrazo}
+                destaque={suaVidaEmDestaque}
+                vida={vidaPorAssento[0] ?? VIDA_MAXIMA}
+                assentoIndice={0}
+                registrarRef={registrarRefCoracao}
+                coracaoImpactado={coracoesImpactados[0] ?? null}
+            />
 
-            <div className="mesa-exp-mesa">
+            <div className="mesa-exp-mesa" ref={mesaRef}>
+                <DanosDaMesa danos={danosMesa} desgasteAtual={desgasteMesa} camadasVisiveis={DANOS_CAMADAS_VISIVEIS} />
                 {assentos.map((assento, i) => {
                     const nomeAssento = ordemAssentos[i]?.nome;
                     const rotuloAssento = assento.eVoce ? 'Você' : nomeAssento ?? '';
@@ -2313,7 +3001,20 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                     );
                 })()}
 
-                {cartasVoando.map((carta) => (
+                {cartasVoando.map((carta) => (carta.especial ? (
+                    <JogadaManilha
+                        key={carta.id}
+                        naipe={carta.carta.naipe}
+                        rank={carta.carta.rank}
+                        mesaRef={mesaRef}
+                        origem={carta.de}
+                        pouso={carta.para}
+                        onDano={(dano) => adicionarDanoMesa({ ...dano, geracao: carta.geracao })}
+                        onTremer={(forca) => tremerElemento(telaRef.current, forca)}
+                        onEmpurrar={empurrarCartasDaMesa}
+                        onFim={(pouso) => aoChegarCarta(carta, pouso)}
+                    />
+                ) : (
                     <CartaVoando
                         key={carta.id}
                         de={carta.de}
@@ -2327,7 +3028,7 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                         duracaoMs={carta.tipo === 'jogar' ? DURACAO_JOGADA_MS : DURACAO_CARTA_MS}
                         onChegou={() => aoChegarCarta(carta)}
                     />
-                ))}
+                )))}
             </div>
 
             <div className="mesa-exp-ficha-camada">
@@ -2373,8 +3074,6 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                 </div>
             ))}
 
-            <div className="mesa-exp-aposta-canto" ref={cantoFichasRef} />
-
             {/* Sua ficha pousada, MESMA classe/posição fixa (`ficha.para`)
                 da ficha do fantasminha (ver fichasFantasmaNoCanto acima) —
                 nada de flex/largura variável: uma vez pousada, a ficha
@@ -2389,21 +3088,6 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                     <Ficha />
                 </div>
             ))}
-
-            {estado.apostas?.[estado.meuNome] != null && (
-                <div className="mesa-exp-aposta-linha-legenda-ancora">
-                    <span
-                        className="mesa-exp-aposta-linha-legenda"
-                        style={{
-                            // Deixa uma folga de um `espaçamento` de ficha depois
-                            // da ÚLTIMA ficha do leque antes do texto começar.
-                            marginLeft: `${FICHA_LEQUE_ESPACAMENTO_PX + ((estado.apostas[estado.meuNome] - 1) / 2) * FICHA_LEQUE_ESPACAMENTO_PX}px`,
-                        }}
-                    >
-                        Sua aposta: {estado.apostas[estado.meuNome]}
-                    </span>
-                </div>
-            )}
 
             {cartasVazaGanhas.map((carta) => {
                 // Mesmo sistema pra você e pro fantasminha (ver
@@ -2519,5 +3203,6 @@ export default function MesaExperimento({ estado, acoes, onFechar }) {
                 </div>
             )}
         </div>
+        </ManilhaContext.Provider>
     );
 }

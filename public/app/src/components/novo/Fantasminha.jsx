@@ -330,13 +330,12 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
                     contorna o CONTORNO DE VERDADE do fantasma — a
                     silhueta do path, não um retângulo por cima dele — via
                     stroke direto no SVG. `naVez` (de quem é a vez agora,
-                    NÃO depende do mouse) usa a MESMA técnica, só que azul
-                    claro — os dois nunca aparecem juntos, hover (amarelo)
-                    tem prioridade por ser o estado mais "imediato". */}
+                    NÃO depende do mouse) usa a MESMA técnica e o mesmo
+                    amarelo — azul claro sumia demais em cima do feltro. */}
                 <path
                     d={corpoComPonta(50)}
                     fill={`url(#${idGradiente})`}
-                    stroke={destacado ? '#ffcc00' : naVez ? '#7dd3fc' : 'none'}
+                    stroke={destacado || naVez ? '#ffcc00' : 'none'}
                     strokeWidth={destacado || naVez ? 3 : 0}
                 >
                     {/* centro -> direita -> centro -> esquerda -> centro,

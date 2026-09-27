@@ -433,6 +433,24 @@ export class SalaManager {
     // [0, número de cartas da rodada], APOSTA_FECHA_RODADA se ele for o
     // último a apostar e o valor fechar a soma de todo mundo no número de
     // cartas (ver GameController.apostar).
+    // Ver GameController.registrarAnimacoes. Silencioso de propósito: é um
+    // aviso de andamento de tela, sem ack útil — sala que não existe só não
+    // faz nada. Vale ANTES da partida começar também: é na sala de espera
+    // que a tela adere, pra já segurar a distribuição da rodada 1.
+    registrarAnimacoes(salaId, player, seq) {
+        const sala = this.salas.get(salaId);
+        if (!sala) return;
+        sala.controller.registrarAnimacoes(player.id, seq);
+    }
+
+    // Ver GameController.registrarAnimando — mesmo silêncio de
+    // registrarAnimacoes.
+    registrarAnimando(salaId, player) {
+        const sala = this.salas.get(salaId);
+        if (!sala || !sala.iniciada) return;
+        sala.controller.registrarAnimando(player.id);
+    }
+
     apostar(salaId, player, valor) {
         const sala = this.salas.get(salaId);
         if (!sala) {
