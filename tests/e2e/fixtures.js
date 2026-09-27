@@ -30,7 +30,7 @@ export class Jogador {
     static async entrar(browser, nome = nomeUnico()) {
         const context = await browser.newContext();
         // Contexto novo do Playwright não tem localStorage nenhum — sem isto,
-        // cairia no SeletorFrente (ver App.jsx) em vez do Login direto. Fixa
+        // abriria na frente padrão (arcade, ver SeletorFrente.jsx). Fixa
         // "debugging" pra o E2E continuar testando a interface de sempre,
         // igual a um usuário de verdade que já escolheu isso antes.
         await context.addInitScript(() => {

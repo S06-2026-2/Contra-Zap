@@ -396,6 +396,32 @@ body.az-body .badge-frente {
     animation: cz-rise .2s ease-out;
 }
 
+/* ---------- Seletor de front ---------- */
+
+.az-tela-frente { max-width: 820px; padding-top: 48px; }
+
+.az-grade-frentes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+}
+
+.az-frente {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 18px;
+    border: 2px solid #262935;
+    border-top: 6px solid var(--cor-frente);
+    background: linear-gradient(180deg, #1a1c25, #14161d);
+    animation: cz-rise .2s ease-out;
+}
+.az-frente.az-ativo { border-color: var(--cor-frente); }
+.az-frente-icone { font-size: 20px; line-height: 1; }
+.az-frente-atual { color: var(--cor-frente); }
+.az-frente-voltar { display: block; width: 100%; max-width: 440px; margin: 22px auto 0; }
+
 /* ---------- Avisos (reconexão, colisão de partida) ---------- */
 
 .az-aviso {
