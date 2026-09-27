@@ -1,3 +1,6 @@
+import { createContext, useContext, useId } from 'react';
+import RaiosNaCarta from './RaiosNaCarta.jsx';
+
 // Carta de baralho pro protótipo de mesa (MesaExperimento) — componente
 // NOVO, não o .carta/.carta-face que Partida.jsx já usa de verdade; classes
 // prefixadas "carta-exp-" de propósito, pra não colidir com aquele.
@@ -9,10 +12,10 @@
 // calcular isso na mão.
 
 const NAIPES = {
-    Ouros:   { simbolo: '♦', cor: '#f2555a' },
-    Copas:   { simbolo: '♥', cor: '#f2555a' },
-    Espadas: { simbolo: '♠', cor: '#5c9dff' },
-    Paus:    { simbolo: '♣', cor: '#42c98a' },
+    Ouros:   { simbolo: '♦', cor: '#f5a300' },
+    Copas:   { simbolo: '♥', cor: '#e8102e' },
+    Espadas: { simbolo: '♠', cor: '#1d2026' },
+    Paus:    { simbolo: '♣', cor: '#0f6cff' },
 };
 
 // Teste de "material" por naipe quando a carta é MANILHA (ver `ehManilha`
@@ -55,7 +58,68 @@ const PIPS = {
     ],
 };
 
-export default function Carta({ rank, naipe, valorInt, manilha, efeitoManilha = false, virada = false }) {
+// Borda elétrica do Zap (a partir do pen "Electric Border" do Balint
+// Ferenczy, em azul claro): a borda de verdade passa por um filtro que
+// desloca os pixels com ruído de turbulência — quatro camadas de ruído
+// deslizando em sentidos opostos, então o contorno fica ondulando o tempo
+// todo como se estivesse eletrificado. Por cima, duas cópias sem filtro e
+// desfocadas fazem o brilho, e um reflexo branco em overlay clareia os
+// cantos. O filtro é por carta (id próprio via useId).
+function BordaEletrica() {
+    const idFiltro = `carta-exp-zap-filtro-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+    return (
+        <div className="carta-exp-zap-borda" aria-hidden="true">
+            <svg className="carta-exp-zap-filtro-svg">
+                <defs>
+                    <filter id={idFiltro} colorInterpolationFilters="sRGB" x="-20%" y="-20%" width="140%" height="140%">
+                        <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves="6" result="ruido1" seed="1" />
+                        <feOffset in="ruido1" dx="0" dy="0" result="ruidoDesloc1">
+                            <animate attributeName="dy" values="220; 0" dur="5s" repeatCount="indefinite" calcMode="linear" />
+                        </feOffset>
+                        <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves="6" result="ruido2" seed="1" />
+                        <feOffset in="ruido2" dx="0" dy="0" result="ruidoDesloc2">
+                            <animate attributeName="dy" values="0; -220" dur="5s" repeatCount="indefinite" calcMode="linear" />
+                        </feOffset>
+                        <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves="6" result="ruido3" seed="2" />
+                        <feOffset in="ruido3" dx="0" dy="0" result="ruidoDesloc3">
+                            <animate attributeName="dx" values="160; 0" dur="5s" repeatCount="indefinite" calcMode="linear" />
+                        </feOffset>
+                        <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves="6" result="ruido4" seed="2" />
+                        <feOffset in="ruido4" dx="0" dy="0" result="ruidoDesloc4">
+                            <animate attributeName="dx" values="0; -160" dur="5s" repeatCount="indefinite" calcMode="linear" />
+                        </feOffset>
+                        <feComposite in="ruidoDesloc1" in2="ruidoDesloc2" result="parte1" />
+                        <feComposite in="ruidoDesloc3" in2="ruidoDesloc4" result="parte2" />
+                        <feBlend in="parte1" in2="parte2" mode="color-dodge" result="ruidoFinal" />
+                        <feDisplacementMap in="SourceGraphic" in2="ruidoFinal" scale="11" xChannelSelector="R" yChannelSelector="B" />
+                    </filter>
+                </defs>
+            </svg>
+            <div className="carta-exp-zap-borda-externa" />
+            <div className="carta-exp-zap-borda-linha" style={{ filter: `url(#${idFiltro})` }} />
+            <div className="carta-exp-zap-borda-brilho carta-exp-zap-borda-brilho-1" />
+            <div className="carta-exp-zap-borda-brilho carta-exp-zap-borda-brilho-2" />
+            <div className="carta-exp-zap-borda-reflexo" />
+        </div>
+    );
+}
+
+// Valor da manilha da rodada (o `viraValor` do servidor, índice em
+// ORDEM_RANKS) pra toda carta dentro do provider — a mesa de verdade
+// (MesaExperimento) envolve tudo com isto, e qualquer carta daquele rank vira
+// manilha sozinha (na mão, voando, na mesa, nas vazas ganhas), sem cada
+// componente no meio precisar repassar prop. Fora de um provider é null e
+// nada muda.
+export const ManilhaContext = createContext(null);
+
+// Mesma ordem de valorInt de game/Baralho.js.
+const ORDEM_RANKS = ['4', '5', '6', '7', 'Q', 'J', 'K', 'A', '2', '3'];
+
+// `taxaRaios`/`taxaRaiosTransicaoMs`: só pro Zap (ver RaiosNaCarta) — quantos
+// raios extras por segundo riscam dentro da carta e em quanto tempo chegar
+// nessa taxa.
+export default function Carta({ rank, naipe, valorInt, manilha, efeitoManilha = false, virada = false, taxaRaios = 0, taxaRaiosTransicaoMs = 0 }) {
+    const valorManilhaDaMesa = useContext(ManilhaContext);
     if (virada) {
         return <div className="carta-exp carta-exp-verso" />;
     }
@@ -65,7 +129,9 @@ export default function Carta({ rank, naipe, valorInt, manilha, efeitoManilha = 
     // (ninguém no jogo de verdade passa esses dois ainda — ver LequeManilha,
     // que É sempre manilha nas 4 cartas por construção). `manilha`/`valorInt`
     // continuam aqui pro dia que a mesa/mão real quiser calcular sozinha.
-    const ehManilha = efeitoManilha || (manilha != null && valorInt === manilha);
+    const ehManilha = efeitoManilha
+        || (manilha != null && valorInt === manilha)
+        || (valorManilhaDaMesa != null && ORDEM_RANKS.indexOf(rank) === valorManilhaDaMesa);
     const cor = ehManilha ? (COR_MANILHA_POR_NAIPE[naipe] ?? info.cor) : info.cor;
     const classeMaterial = ehManilha ? CLASSE_MANILHA_POR_NAIPE[naipe] : null;
     const pips = PIPS[rank];
@@ -89,10 +155,10 @@ export default function Carta({ rank, naipe, valorInt, manilha, efeitoManilha = 
                 <div className="carta-exp-coracao-pulsante">♥</div>
             )}
             {ehManilha && naipe === 'Paus' && (
-                <svg className="carta-exp-raio" viewBox="0 0 110 154" preserveAspectRatio="none">
-                    <polyline className="carta-exp-raio-tracado carta-exp-raio-tracado-1" points="70,4 40,60 62,64 30,150" />
-                    <polyline className="carta-exp-raio-tracado carta-exp-raio-tracado-2" points="34,12 58,52 40,58 80,146" />
-                </svg>
+                <>
+                    <RaiosNaCarta taxa={taxaRaios} transicaoMs={taxaRaiosTransicaoMs} />
+                    <BordaEletrica />
+                </>
             )}
 
             {/* Índice repetido nos dois cantos opostos (clássico de carta

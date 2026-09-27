@@ -135,6 +135,16 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
     // de lá); o front de texto nunca precisou disso além do log.
     const [numeroRodada, setNumeroRodada] = useState(reconexao?.numeroRodada ?? 0);
     const [jogadorDaVez, setJogadorDaVez] = useState(reconexao?.jogadorDaVez ?? null);
+    // Número do evento mais recente da partida (ver "Segurar pelas
+    // animações" no PROTOCOLO.md) — o visual novo avisa o servidor quando
+    // terminou de animar até ele.
+    const [ultimoSeq, setUltimoSeq] = useState(0);
+    // Prazo do turno atual: quem, quanto tempo (tempoMs do timerTurno, que
+    // sai no instante em que o timer do servidor começa) e quando chegou
+    // aqui — pro anel de timer do visual novo.
+    const [prazoTurno, setPrazoTurno] = useState(null);
+    // Último distribuicaoConcluida ({ numero, em }) — só pro log do histórico.
+    const [distribuicaoLiberada, setDistribuicaoLiberada] = useState(null);
     const [mesa, setMesa] = useState(reconexao?.mesa ?? []);
     // Vaza recém-encerrada, segurada na tela por PAUSA_VAZA_MS antes de
     // limpar a mesa — { vencedor: string|null, carta: string|null }, ou
@@ -271,21 +281,34 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
             turnoAposta(p) {
                 if (!daSala(p)) return;
                 setJogadorDaVezAposta(p.jogador);
+                setPrazoTurno(null);
                 registrar(`Vez de ${p.jogador} apostar`);
             },
             apostaFeita(p) {
                 if (!daSala(p)) return;
                 setJogadorDaVezAposta(null);
+                setPrazoTurno((atual) => (atual?.jogador === p.jogador ? null : atual));
                 setApostas((anterior) => ({ ...anterior, [p.jogador]: p.aposta }));
                 registrar(`${p.jogador} apostou ${p.aposta}`);
+            },
+            distribuicaoConcluida(p) {
+                if (!daSala(p)) return;
+                registrar(`Distribuição da rodada ${p.numero} liberada`);
+                setDistribuicaoLiberada({ numero: p.numero, em: Date.now() });
+            },
+            timerTurno(p) {
+                if (!daSala(p)) return;
+                setPrazoTurno({ jogador: p.jogador, tipo: p.tipo, tempoMs: p.tempoMs, inicio: Date.now() });
             },
             turnoJogador(p) {
                 if (!daSala(p)) return;
                 setJogadorDaVez(p.jogador);
+                setPrazoTurno(null);
                 registrar(`Vez de ${p.jogador}`);
             },
             cartaJogada(p) {
                 if (!daSala(p)) return;
+                setPrazoTurno((atual) => (atual?.jogador === p.jogador ? null : atual));
                 // Se a vaza anterior ainda está congelada na mesa (pausa
                 // rodando), a primeira carta da vaza nova abre a mesa do
                 // zero em vez de empilhar em cima da que acabou.
@@ -412,6 +435,9 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
                 (payload) => {
                     console.log(`[socket] ${evento}`, payload);
                     handler(payload);
+                    if (payload?.salaId === salaId && Number.isInteger(payload.seq)) {
+                        setUltimoSeq((atual) => Math.max(atual, payload.seq));
+                    }
                 },
             ])
         );
@@ -764,6 +790,7 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
                 estado={{
                     salaId, meuNome, senha,
                     iniciada, jogadores, ordem, segundosParaIniciar, chatAberto,
+                    ultimoSeq, prazoTurno, distribuicaoLiberada,
                     mao, cartasRodada, numeroRodada, maosReveladas,
                     mesa, vira, jogadorDaVez, jogadorDaVezAposta, apostas,
                     eliminados, desconectados, ultimoPlacar, vencedor,
@@ -771,6 +798,9 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
                 }}
                 acoes={{
                     jogar: jogarCartaClicada,
+                    // Sem ack: é só um aviso de andamento da tela.
+                    animacoesConcluidas: (seq) => socket.emit('animacoesConcluidas', { salaId, seq }),
+                    aindaAnimando: () => socket.emit('aindaAnimando', { salaId }),
                     apostar: apostarValor,
                     forcarInicio,
                     enviarChatPronta,

@@ -16,12 +16,12 @@ import Carta from './Carta.jsx';
 // brilha é só o .carta-giro3d-brilho-unico por cima de tudo; FacaCaindo e a
 // jogada simulada de MesaDanificada não têm esse brilho único, então deixam
 // no padrão (fallback 'running' do var()).
-export default function PunhalAssembly({ extraVisivel = true, pausarBrilhoFace = false }) {
+export default function PunhalAssembly({ extraVisivel = true, pausarBrilhoFace = false, rank = 'A' }) {
     const classeExtra = extraVisivel ? '' : ' carta-giro3d-extra-oculta';
     return (
         <>
             <div className="carta-giro3d-face" style={pausarBrilhoFace ? { '--brilho-carta-play': 'paused' } : undefined}>
-                <Carta rank="A" naipe="Espadas" efeitoManilha />
+                <Carta rank={rank} naipe="Espadas" efeitoManilha />
             </div>
             <div className="carta-giro3d-face carta-giro3d-face-verso">
                 <Carta virada />

@@ -444,6 +444,17 @@ function sortearOrigemJogador() {
 // transição CSS (left/top em % e em px não são a mesma unidade pro
 // navegador interpolar, viraria um salto seco); assim o elemento nunca muda
 // de sistema de coordenadas, só de quanto translate() empurra em cima dele.
+// Ponto em % da mesa deslocado `dxPx`/`dyPx` px de tela — as coreografias
+// que andam depois de pousar (quique de Ouros, avanço de Copas) andam em px,
+// e quem recebe a carta pousada no fim (onFim) precisa da posição em %.
+function deslocarPctNaMesa(mesaRef, ponto, dxPx, dyPx) {
+    const rect = mesaRef.current?.getBoundingClientRect();
+    return {
+        x: ponto.x + (dxPx / (rect?.width || 1080)) * 100,
+        y: ponto.y + (dyPx / (rect?.height || 400)) * 100,
+    };
+}
+
 function calcularEmpurraoParaCentroDaTela(mesaRef, pontoPercentual) {
     const rect = mesaRef.current?.getBoundingClientRect();
     if (!rect) return { x: 0, y: 0 };
@@ -455,11 +466,16 @@ function calcularEmpurraoParaCentroDaTela(mesaRef, pontoPercentual) {
     };
 }
 
-function CartaSimulada({ mesaRef, onCortar, onFim }) {
+// `origem`/`pouso`/`rank` (opcionais — a sandbox sorteia): de onde a carta
+// sai, onde ela pousa e qual carta é. A mesa de verdade (MesaExperimento,
+// via JogadaManilha lá embaixo) passa o assento de quem jogou, o alvo da
+// jogada e a manilha da rodada. `onFim` recebe onde ela ficou pousada
+// ({ x, y } em % da mesa, `rot`, `escala`) — vale pras quatro jogadas.
+function CartaSimulada({ mesaRef, onCortar, onFim, origem: origemFixa, pouso, rank = 'A' }) {
     const [fase, setFase] = useState('jogando');
     const [partiu, setPartiu] = useState(false);
-    const [origem] = useState(sortearOrigemJogador);
-    const [pousoJogada] = useState(sortearPontoCentralMesa);
+    const [origem] = useState(() => origemFixa ?? sortearOrigemJogador());
+    const [pousoJogada] = useState(() => pouso ?? sortearPontoCentralMesa());
     const [giroInicial] = useState(() => 360 + Math.random() * 360);
     const [rotFinalJogada] = useState(() => Math.random() * 360);
     // A girada da crescida é no próprio plano da tela (rotateZ): sai de
@@ -518,7 +534,7 @@ function CartaSimulada({ mesaRef, onCortar, onFim }) {
             if (cancelado) return;
 
             setFase('pousada'); // fica assim pra sempre, mesma lógica dos cortes
-            onFim();
+            onFim({ ...geometriaRef.current.pontoFim, rot: voltasZ + rotFinalPouso, escala: SIM_VOO_ESCALA_POUSO });
         }
         coreografia();
         return () => { cancelado = true; };
@@ -631,7 +647,7 @@ function CartaSimulada({ mesaRef, onCortar, onFim }) {
                         clipPath: `inset(${clipTopoPx}px -300px -300px -300px)`,
                     }}
                 >
-                    <PunhalAssembly extraVisivel={extraVisivel} />
+                    <PunhalAssembly extraVisivel={extraVisivel} rank={rank} />
                 </div>
             </div>
         </>
@@ -872,12 +888,12 @@ function MarcaCarbonizada({ marca }) {
     );
 }
 
-function CartaCopasSimulada({ mesaRef, onCarbonizar, onFim }) {
+function CartaCopasSimulada({ mesaRef, onCarbonizar, onFim, origem: origemFixa, pouso, rank = 'A' }) {
     const [fase, setFase] = useState('jogando');
     const [partiu, setPartiu] = useState(false);
     const [chamasBaixo, setChamasBaixo] = useState(false);
-    const [origem] = useState(sortearOrigemJogador);
-    const [pousoJogada] = useState(sortearPontoCentralMesa);
+    const [origem] = useState(() => origemFixa ?? sortearOrigemJogador());
+    const [pousoJogada] = useState(() => pouso ?? sortearPontoCentralMesa());
     const [giroInicial] = useState(() => 360 + Math.random() * 360);
     const [rotFinalJogada] = useState(() => Math.random() * 360);
     // Mesma ideia de voltasZ em CartaSimulada, só que termina EM PÉ (0°) na
@@ -940,7 +956,11 @@ function CartaCopasSimulada({ mesaRef, onCarbonizar, onFim }) {
             if (cancelado) return;
 
             setFase('pousada');
-            onFim();
+            onFim({
+                ...deslocarPctNaMesa(mesaRef, pousoJogada, avancoRef.current.x, avancoRef.current.y),
+                rot: voltasZ + rotSegundoPouso,
+                escala: SIM_VOO_ESCALA_POUSO,
+            });
         }
         coreografia();
         return () => { cancelado = true; };
@@ -1027,7 +1047,7 @@ function CartaCopasSimulada({ mesaRef, onCarbonizar, onFim }) {
                     }}
                 >
                     <div className={`mesa-exp-copas-batida${fase === 'pulsando' ? ' mesa-exp-copas-batida-ativa' : ''}`}>
-                        <Carta rank="A" naipe="Copas" efeitoManilha />
+                        <Carta rank={rank} naipe="Copas" efeitoManilha />
                     </div>
                 </div>
                 {/* Depois da carta = por cima dela. Monta quando pousa e
@@ -1052,16 +1072,21 @@ function CartaCopasSimulada({ mesaRef, onCarbonizar, onFim }) {
 // inclinação. Daí:
 //   segura OUROS_SEGURAR_MS -> uma picareta sobe de baixo pela direita e
 //   para ao lado da carta -> carrega o golpe devagar, girando pra trás e
-//   saindo do quadro pela direita -> volta com tudo da mesma direção e a
-//   ponta acerta a carta -> câmera lenta no impacto (quase parado, com a
-//   bola branca de impacto crescendo) -> a carta despenca na mesa bem mais
+//   saindo do quadro pela direita -> volta com tudo da mesma direção,
+//   freando forte até a ponta encostar na carta quase parada -> só então
+//   aparece a bola branca do impacto e começa a câmera lenta (a picareta e a
+//   carta mal andam e vão pegando velocidade) -> a carta despenca na mesa bem mais
 //   rápido que as outras descem -> abre uma cratera (CrateraNaMesa, na
 //   camada de danos) com a tela tremendo -> quica pra fora dela num arco e
 //   pousa de novo — fica ali pra sempre como as outras.
 const OUROS_SEGURAR_MS = 200;
 const OUROS_PICARETA_ENTRADA_MS = 420;
 const OUROS_CARGA_MS = 650;
-const OUROS_GOLPE_MS = 110;
+// O golpe sai rápido e freia até a ponta encostar na carta quase parada; a
+// câmera lenta sai dali quase parada e vai acelerando até a queda normal.
+const OUROS_GOLPE_MS = 300;
+const OUROS_GOLPE_EASING = 'cubic-bezier(.15, .85, .25, 1)';
+const OUROS_SLOWMO_EASING = 'cubic-bezier(.55, 0, .9, .45)';
 const OUROS_SLOWMO_MS = 420;
 const OUROS_QUEDA_MS = 190;
 const OUROS_ASSENTAR_MS = 220;
@@ -1091,7 +1116,7 @@ const PICARETA_POSES = {
     parada: { giro: 8, dx: 0, dy: 0 },
     carregada: { giro: 80, dx: 140, dy: 60 },
     impacto: { giro: PICARETA_GIRO_IMPACTO, dx: 0, dy: 0 },
-    slowmo: { giro: PICARETA_GIRO_IMPACTO - 3, dx: -4, dy: 3 },
+    slowmo: { giro: PICARETA_GIRO_IMPACTO - 6, dx: -8, dy: 6 },
     seguindo: { giro: -55, dx: -80, dy: 120 },
 };
 
@@ -1161,7 +1186,7 @@ function Picareta({ pegada, pose, duracaoMs, easing, visivel }) {
 
 // Contorno e rachaduras sorteados por cratera; tudo parado depois da
 // entrada (animações finitas), então dezenas delas na mesa não pesam.
-const CRATERA_RAIO = 62;
+const CRATERA_RAIO = 54;
 const CRATERA_TAMANHO_PX = CRATERA_RAIO * 2 + 90;
 
 // Contorno de pedra quebrada: vértices com ângulo e raio sorteados ligados
@@ -1205,14 +1230,14 @@ function sortear([min, max]) {
     return min + Math.random() * (max - min);
 }
 
-function sortearRachaduras(cfg) {
+function sortearRachaduras(cfg, raio = CRATERA_RAIO) {
     const n = Math.floor(sortear([cfg.quantidade[0], cfg.quantidade[1] + 1]));
     const longas = new Set();
     while (longas.size < Math.min(cfg.longas, n)) longas.add(Math.floor(Math.random() * n));
     return Array.from({ length: n }, (_, i) => {
         let a = ((i + Math.random() * 0.7) / n) * Math.PI * 2;
-        let r = CRATERA_RAIO * cfg.inicio;
-        const alcance = CRATERA_RAIO * sortear(longas.has(i) ? cfg.alcanceLonga : cfg.alcanceCurta);
+        let r = raio * cfg.inicio;
+        const alcance = raio * sortear(longas.has(i) ? cfg.alcanceLonga : cfg.alcanceCurta);
         const centro = [[Math.cos(a) * r, Math.sin(a) * r]];
         while (r < alcance) {
             r = Math.min(alcance, r + sortear(cfg.passo));
@@ -1279,11 +1304,11 @@ function CrateraNaMesa({ cratera }) {
     );
 }
 
-function CartaOurosSimulada({ mesaRef, onCratera, onTremer, onFim }) {
+function CartaOurosSimulada({ mesaRef, onCratera, onTremer, onFim, origem: origemFixa, pouso, rank = 'A' }) {
     const [fase, setFase] = useState('jogando');
     const [partiu, setPartiu] = useState(false);
-    const [origem] = useState(sortearOrigemJogador);
-    const [pousoJogada] = useState(sortearPontoCentralMesa);
+    const [origem] = useState(() => origemFixa ?? sortearOrigemJogador());
+    const [pousoJogada] = useState(() => pouso ?? sortearPontoCentralMesa());
     const [giroInicial] = useState(() => 360 + Math.random() * 360);
     const [rotFinalJogada] = useState(() => Math.random() * 360);
     const [voltasZ] = useState(() => 360 * Math.ceil(rotFinalJogada / 360));
@@ -1361,7 +1386,11 @@ function CartaOurosSimulada({ mesaRef, onCratera, onTremer, onFim }) {
             if (cancelado) return;
 
             setFase('pousada');
-            onFim();
+            onFim({
+                ...deslocarPctNaMesa(mesaRef, pousoJogada, destinoX, destinoY),
+                rot: voltasZ + OUROS_GIRO_QUEDA_GRAUS + rotSegundoPouso,
+                escala: SIM_VOO_ESCALA_POUSO,
+            });
         }
         coreografia();
         return () => { cancelado = true; };
@@ -1392,11 +1421,11 @@ function CartaOurosSimulada({ mesaRef, onCratera, onTremer, onFim }) {
         duracaoPos = fase === 'subindo' ? SIM_CRESCIDA_DURACAO_MS : 0;
         if (fase === 'impacto') {
             // Câmera lenta: a pancada já empurrou, mas quase nada anda.
-            offsetX -= 4;
-            offsetY += 4;
-            rotZ = voltasZ - 3;
+            offsetX -= 7;
+            offsetY += 6;
+            rotZ = voltasZ - 5;
             duracaoPos = OUROS_SLOWMO_MS;
-            easing = 'linear';
+            easing = OUROS_SLOWMO_EASING;
         }
     } else if (fase === 'caindo') {
         rotZ = voltasZ + OUROS_GIRO_QUEDA_GRAUS + rotFinalPouso;
@@ -1416,8 +1445,8 @@ function CartaOurosSimulada({ mesaRef, onCratera, onTremer, onFim }) {
         segurando: ['escondida', 0, 'linear'],
         'picareta-entrando': ['parada', OUROS_PICARETA_ENTRADA_MS, 'ease-out'],
         carregando: ['carregada', OUROS_CARGA_MS, 'ease-in-out'],
-        golpeando: ['impacto', OUROS_GOLPE_MS, 'cubic-bezier(.55, 0, 1, .45)'],
-        impacto: ['slowmo', OUROS_SLOWMO_MS, 'linear'],
+        golpeando: ['impacto', OUROS_GOLPE_MS, OUROS_GOLPE_EASING],
+        impacto: ['slowmo', OUROS_SLOWMO_MS, OUROS_SLOWMO_EASING],
         caindo: ['seguindo', OUROS_QUEDA_MS, 'ease-out'],
     }[fase];
 
@@ -1445,7 +1474,7 @@ function CartaOurosSimulada({ mesaRef, onCratera, onTremer, onFim }) {
                             transform: `scale(${escala}) rotateZ(${rotZ}deg)`,
                         }}
                     >
-                        <Carta rank="A" naipe="Ouros" efeitoManilha />
+                        <Carta rank={rank} naipe="Ouros" efeitoManilha />
                     </div>
                 </div>
             </div>
@@ -1472,6 +1501,576 @@ function CartaOurosSimulada({ mesaRef, onCratera, onTremer, onFim }) {
     );
 }
 
+// Jogada de Paus, o Zap (pedido do Henrique 2026-09-26: zap -> raio) —
+// mesmo começo das outras: voa até um ponto central e sobe pro centro da
+// tela com o fundo escurecendo, soltando faíscas pelo caminho. Daí:
+//   segura ZAP_SEGURAR_MS com poucos raios em volta -> despenca de volta no
+//   MESMO ponto da mesa acelerando (ease-in forte), com os raios ficando
+//   cada vez mais frequentes e compridos até o chão -> no impacto cai um
+//   raio de verdade do topo da tela até ela, a tela pisca e treme, abre uma
+//   cratera pequena de fendas retas (CrateraRaio) e o choque levanta e
+//   afasta todas as outras cartas da mesa (ver empurrarCartas em
+//   MesaDanificada) -> a descarga vai se dissipando em volta dela. Não quica
+//   nem anda: fica parada exatamente onde caiu, pra sempre.
+const ZAP_SEGURAR_MS = 200;
+const ZAP_QUEDA_MS = 560;
+// Começa quase parada e só acelera — sem desacelerar no fim, bate no chão
+// na velocidade máxima.
+const ZAP_QUEDA_EASING = 'cubic-bezier(.5, 0, .95, .35)';
+const ZAP_RAIO_QUEDA_MS = 380;
+const ZAP_DISSIPAR_MS = 1100;
+const ZAP_RAIOS_DENTRO_TAXA = 70;
+const ZAP_POUSO_ROT_MAX_GRAUS = 18;
+const ZAP_TREMOR_FORCA = 0.55;
+
+// Quantos raios por segundo (e de que tamanho) saem da carta em cada fase —
+// `t` é o progresso 0..1 dentro da própria fase. Na queda a taxa cresce com
+// t² (quase nada no começo, uma chuva no fim) junto com a velocidade dela.
+// `chao`: chance de, além do raio curto, sair um arco comprido rastejando
+// pela mesa (só na dissipação, a descarga escoando pro chão).
+const ZAP_PERFIS = {
+    subindo: { tipo: 'faisca', taxa: () => 26 },
+    segurando: { tipo: 'raio', taxa: () => 9, comprimento: () => 1, ramo: () => 0.1 },
+    caindo: { tipo: 'raio', taxa: (t) => 10 + 150 * t * t, comprimento: (t) => 1 + 2.2 * t, ramo: (t) => 0.15 + 0.5 * t },
+    dissipando: { tipo: 'raio', taxa: (t) => 80 * (1 - t) * (1 - t), comprimento: (t) => 1.6 - t, ramo: () => 0.25, chao: (t) => 0.35 * (1 - t) },
+};
+const ZAP_RAIO_COMPRIMENTO = [18, 34];
+const ZAP_CHAO_COMPRIMENTO = [70, 130];
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+// Linha quebrada de raio por deslocamento de ponto médio: a cada geração,
+// cada segmento ganha um ponto no meio empurrado pro lado (perpendicular) por
+// até `desvio`, que cai pela metade na geração seguinte — zigue-zague grande
+// no geral e miúdo no detalhe, como raio de verdade.
+function gerarCaminhoRaio(x0, y0, x1, y1, desvio, geracoes) {
+    let pontos = [[x0, y0], [x1, y1]];
+    let d = desvio;
+    for (let g = 0; g < geracoes; g++) {
+        const novos = [pontos[0]];
+        for (let i = 1; i < pontos.length; i++) {
+            const [ax, ay] = pontos[i - 1];
+            const [bx, by] = pontos[i];
+            const norma = Math.hypot(bx - ax, by - ay) || 1;
+            const empurrao = (Math.random() * 2 - 1) * d;
+            novos.push([(ax + bx) / 2 - ((by - ay) / norma) * empurrao, (ay + by) / 2 + ((bx - ax) / norma) * empurrao]);
+            novos.push(pontos[i]);
+        }
+        pontos = novos;
+        d /= 2;
+    }
+    return pontos;
+}
+
+function pontosParaD(pontos) {
+    return `M${pontos.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' L')}`;
+}
+
+// Raio saindo da borda da carta pra fora, com chance de uma ramificação
+// menor saindo do meio dele. Coordenadas locais da carta (centro na origem,
+// 110x154).
+function sortearRaioDaCarta(comprimento, chanceRamo) {
+    const lado = Math.floor(Math.random() * 4);
+    const u = Math.random() * 2 - 1;
+    const [x0, y0, nx, ny] = [
+        [u * 52, -74, 0, -1],
+        [52, u * 74, 1, 0],
+        [u * 52, 74, 0, 1],
+        [-52, u * 74, -1, 0],
+    ][lado];
+    const angulo = Math.atan2(ny, nx) + (Math.random() - 0.5) * 1.4;
+    const caminho = gerarCaminhoRaio(x0, y0, x0 + Math.cos(angulo) * comprimento, y0 + Math.sin(angulo) * comprimento, comprimento * 0.35, 4);
+    const tracos = [caminho];
+    if (Math.random() < chanceRamo) {
+        const [bx, by] = caminho[Math.floor(caminho.length / 2)];
+        const anguloRamo = angulo + (Math.random() < 0.5 ? -1 : 1) * (0.4 + Math.random() * 0.5);
+        const c = comprimento * 0.5;
+        tracos.push(gerarCaminhoRaio(bx, by, bx + Math.cos(anguloRamo) * c, by + Math.sin(anguloRamo) * c, c * 0.35, 3));
+    }
+    return { tracos, angulo };
+}
+
+// Cada raio é um <g> com duas camadas por traço (brilho largo embaixo,
+// núcleo branco fino em cima). non-scaling-stroke: a espessura fica igual na
+// tela esteja a carta grande (2.2x) ou pousada (0.6x). Se remove sozinho no
+// fim da própria animação CSS.
+function criarGrupoRaio(svg, tracos, classe, duracaoMs) {
+    const g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('class', classe);
+    g.style.animationDuration = `${duracaoMs}ms`;
+    for (const pontos of tracos) {
+        for (const camada of ['mesa-exp-zap-raio-brilho', 'mesa-exp-zap-raio-nucleo']) {
+            const path = document.createElementNS(SVG_NS, 'path');
+            path.setAttribute('d', pontosParaD(pontos));
+            path.setAttribute('class', camada);
+            path.setAttribute('vector-effect', 'non-scaling-stroke');
+            g.appendChild(path);
+        }
+    }
+    g.addEventListener('animationend', () => g.remove(), { once: true });
+    svg.appendChild(g);
+    return g;
+}
+
+function soltarEletricidade(svg, perfil, t) {
+    if (perfil.tipo === 'faisca') {
+        // Zigue-zague curtinho nascendo na borda e voando pra fora.
+        const { tracos, angulo } = sortearRaioDaCarta(8 + Math.random() * 8, 0);
+        const g = criarGrupoRaio(svg, tracos, 'mesa-exp-zap-faisca', 280 + Math.random() * 120);
+        const voo = 20 + Math.random() * 25;
+        g.style.setProperty('--dx', `${Math.cos(angulo) * voo}px`);
+        g.style.setProperty('--dy', `${Math.sin(angulo) * voo}px`);
+        return;
+    }
+    const comprimento = sortear(ZAP_RAIO_COMPRIMENTO) * perfil.comprimento(t);
+    criarGrupoRaio(svg, sortearRaioDaCarta(comprimento, perfil.ramo(t)).tracos, 'mesa-exp-zap-raio', 90 + Math.random() * 80);
+    if (perfil.chao && Math.random() < perfil.chao(t)) {
+        const { tracos } = sortearRaioDaCarta(sortear(ZAP_CHAO_COMPRIMENTO), 0.5);
+        criarGrupoRaio(svg, tracos, 'mesa-exp-zap-raio', 160 + Math.random() * 100);
+    }
+}
+
+// Camada de raios presa à carta (dentro do miolo, então escala e gira com
+// ela). Os raios são criados direto no DOM, fora do React: são dezenas por
+// segundo vivendo ~100ms cada, não faz sentido passar isso por estado.
+function RaiosZap({ modo, duracaoModoMs }) {
+    const svgRef = useRef(null);
+    useEffect(() => {
+        const perfil = ZAP_PERFIS[modo];
+        if (!perfil) return undefined;
+        const inicio = performance.now();
+        let anterior = inicio;
+        let acumulado = 0;
+        let quadro;
+        function passo(agora) {
+            const t = Math.min(1, (agora - inicio) / duracaoModoMs);
+            acumulado += (perfil.taxa(t) * (agora - anterior)) / 1000;
+            anterior = agora;
+            while (acumulado >= 1 && svgRef.current) {
+                acumulado -= 1;
+                soltarEletricidade(svgRef.current, perfil, t);
+            }
+            quadro = requestAnimationFrame(passo);
+        }
+        quadro = requestAnimationFrame(passo);
+        return () => cancelAnimationFrame(quadro);
+    }, [modo, duracaoModoMs]);
+    return <svg ref={svgRef} className="mesa-exp-zap-raios" />;
+}
+
+// O raio grande que desce do céu no impacto, em px da JANELA: sai de um ponto
+// sorteado acima do topo da tela e termina exatamente na carta, com algumas
+// ramificações descendo pros lados. Mais o clarão da tela inteira, centrado
+// no ponto de impacto.
+function RaioDaQueda({ ponto }) {
+    const [tracos] = useState(() => {
+        const principal = gerarCaminhoRaio(ponto.x + (Math.random() * 2 - 1) * 140, -40, ponto.x, ponto.y, 90, 7);
+        const ramos = Array.from({ length: 3 + Math.floor(Math.random() * 2) }, () => {
+            const [bx, by] = principal[Math.floor(principal.length * (0.2 + Math.random() * 0.6))];
+            const angulo = Math.PI / 2 + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.6);
+            const c = 60 + Math.random() * 110;
+            return gerarCaminhoRaio(bx, by, bx + Math.cos(angulo) * c, by + Math.sin(angulo) * c, c * 0.3, 4);
+        });
+        return [principal, ...ramos];
+    });
+    return (
+        <>
+            <div
+                className="mesa-exp-zap-clarao"
+                style={{ '--cx': `${ponto.x}px`, '--cy': `${ponto.y}px` }}
+            />
+            <svg className="mesa-exp-zap-queda" style={{ animationDuration: `${ZAP_RAIO_QUEDA_MS}ms` }}>
+                {tracos.map((pontos, i) => (
+                    <g key={i}>
+                        <path className="mesa-exp-zap-raio-brilho" d={pontosParaD(pontos)} />
+                        <path className="mesa-exp-zap-raio-nucleo" d={pontosParaD(pontos)} />
+                    </g>
+                ))}
+            </svg>
+        </>
+    );
+}
+
+// Cratera do raio: bem menor que a de Ouros, com fendas curtas e quase
+// retas (torção mínima, passos longos) — queimadura elétrica, não pedra
+// estourada. As fendas nascem com um brilho azul que esfria até sumir,
+// deixando só o risco escuro.
+const ZAP_CRATERA_RAIO = 42;
+const ZAP_CRATERA_TAMANHO_PX = ZAP_CRATERA_RAIO * 2 + 140;
+const FENDAS_RAIO = {
+    quantidade: [7, 10], longas: 3, inicio: 0.45,
+    alcanceLonga: [1.4, 1.8], alcanceCurta: [0.85, 1.15],
+    passo: [16, 26], torcao: 0.05, base: 1.5, ponta: 0.2,
+};
+
+let proximoIdCrateraRaio = 0;
+
+function CrateraRaio({ cratera }) {
+    const [ids] = useState(() => {
+        const n = ++proximoIdCrateraRaio;
+        return { fundo: `mesa-exp-zap-cratera-fundo-${n}`, nucleo: `mesa-exp-zap-cratera-nucleo-${n}` };
+    });
+    const [formas] = useState(() => ({
+        borda: sortearContornoPoligonal(ZAP_CRATERA_RAIO * 0.95, 12),
+        fundo: sortearContornoPoligonal(ZAP_CRATERA_RAIO * 0.7, 9),
+        rachaduras: sortearRachaduras(FENDAS_RAIO, ZAP_CRATERA_RAIO),
+    }));
+    const meio = ZAP_CRATERA_TAMANHO_PX / 2;
+    return (
+        <svg
+            className="mesa-exp-cratera"
+            width={ZAP_CRATERA_TAMANHO_PX}
+            height={ZAP_CRATERA_TAMANHO_PX}
+            viewBox={`${-meio} ${-meio} ${ZAP_CRATERA_TAMANHO_PX} ${ZAP_CRATERA_TAMANHO_PX}`}
+            style={{ left: `${cratera.x}%`, top: `${cratera.y}%` }}
+        >
+            <defs>
+                <radialGradient id={ids.fundo}>
+                    <stop offset="0%" stopColor="#0b1218" />
+                    <stop offset="100%" stopColor="#030607" />
+                </radialGradient>
+                <radialGradient id={ids.nucleo}>
+                    <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+                    <stop offset="40%" stopColor="#bfeeff" stopOpacity="0.8" />
+                    <stop offset="100%" stopColor="#4fb8ff" stopOpacity="0" />
+                </radialGradient>
+            </defs>
+            <circle className="mesa-exp-zap-cratera-onda" r={ZAP_CRATERA_RAIO} />
+            <path className="mesa-exp-zap-cratera-borda" d={formas.borda} />
+            {formas.rachaduras.map((d, i) => (
+                <path key={i} className="mesa-exp-zap-cratera-rachadura" d={d} />
+            ))}
+            <g className="mesa-exp-zap-cratera-brilho">
+                {formas.rachaduras.map((d, i) => <path key={i} d={d} />)}
+            </g>
+            <path d={formas.fundo} fill={`url(#${ids.fundo})`} />
+            <circle className="mesa-exp-zap-cratera-nucleo" r={ZAP_CRATERA_RAIO * 1.3} fill={`url(#${ids.nucleo})`} />
+        </svg>
+    );
+}
+
+function CartaPausSimulada({ mesaRef, onImpacto, onFim, origem: origemFixa, pouso, rank = '4' }) {
+    const [fase, setFase] = useState('jogando');
+    const [partiu, setPartiu] = useState(false);
+    const [origem] = useState(() => origemFixa ?? sortearOrigemJogador());
+    const [pousoJogada] = useState(() => pouso ?? sortearPontoCentralMesa());
+    const [giroInicial] = useState(() => 360 + Math.random() * 360);
+    const [rotFinalJogada] = useState(() => Math.random() * 360);
+    const [voltasZ] = useState(() => 360 * Math.ceil(rotFinalJogada / 360));
+    const [rotFinalPouso] = useState(() => (Math.random() * 2 - 1) * ZAP_POUSO_ROT_MAX_GRAUS);
+    const [pontoImpacto, setPontoImpacto] = useState(null);
+    const empurraoRef = useRef({ x: 0, y: 0 });
+    const wrapperRef = useRef(null);
+
+    useEffect(() => {
+        let cancelado = false;
+        async function coreografia() {
+            await new Promise((r) => requestAnimationFrame(r));
+            if (cancelado) return;
+            setPartiu(true);
+            await esperar(SIM_VOO_DURACAO_MS);
+            if (cancelado) return;
+
+            empurraoRef.current = calcularEmpurraoParaCentroDaTela(mesaRef, pousoJogada);
+            setFase('subindo');
+            await esperar(SIM_CRESCIDA_DURACAO_MS);
+            if (cancelado) return;
+
+            setFase('segurando');
+            await esperar(ZAP_SEGURAR_MS);
+            if (cancelado) return;
+
+            setFase('caindo');
+            await esperar(ZAP_QUEDA_MS);
+            if (cancelado) return;
+
+            const rect = mesaRef.current?.getBoundingClientRect();
+            const ponto = {
+                x: (rect?.left ?? 0) + ((rect?.width ?? 0) * pousoJogada.x) / 100,
+                y: (rect?.top ?? 0) + ((rect?.height ?? 0) * pousoJogada.y) / 100,
+            };
+            setPontoImpacto(ponto);
+            setFase('dissipando');
+            onImpacto({ cratera: pousoJogada, pontoPx: ponto, proprioElemento: wrapperRef.current });
+            await esperar(ZAP_DISSIPAR_MS);
+            if (cancelado) return;
+
+            setFase('pousada');
+            onFim({ ...pousoJogada, rot: voltasZ + rotFinalPouso, escala: SIM_VOO_ESCALA_POUSO });
+        }
+        coreografia();
+        return () => { cancelado = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- mesaRef/pousoJogada/onImpacto/onFim são fixos por instância (cada jogada roda uma vez só)
+    }, []);
+
+    let pos = pousoJogada;
+    let offsetX = 0;
+    let offsetY = 0;
+    let escala = SIM_VOO_ESCALA_POUSO;
+    let pitch = 0;
+    let rotZ = voltasZ + rotFinalPouso;
+    let escurecendo = false;
+    let duracaoPos = 0;
+    let easing = 'ease-in-out';
+
+    if (fase === 'jogando') {
+        pos = partiu ? pousoJogada : origem;
+        escala = partiu ? SIM_VOO_ESCALA_POUSO : SIM_VOO_ESCALA_INICIAL;
+        rotZ = partiu ? rotFinalJogada : rotFinalJogada + giroInicial;
+        duracaoPos = partiu ? SIM_VOO_DURACAO_MS : 0;
+    } else if (fase === 'subindo' || fase === 'segurando') {
+        offsetX = empurraoRef.current.x;
+        offsetY = empurraoRef.current.y;
+        escala = SIM_CRESCIDA_ESCALA;
+        pitch = SIM_CRESCIDA_PITCH_GRAUS;
+        rotZ = voltasZ;
+        escurecendo = true;
+        duracaoPos = fase === 'subindo' ? SIM_CRESCIDA_DURACAO_MS : 0;
+    } else if (fase === 'caindo') {
+        // Escuro até o chão: os raios se destacam mais, e o clarão do
+        // impacto é que devolve a luz.
+        escurecendo = true;
+        duracaoPos = ZAP_QUEDA_MS;
+        easing = ZAP_QUEDA_EASING;
+    }
+
+    // Raios por dentro da carta (ver RaiosNaCarta): na queda a tempestade vai
+    // enchendo até o chão, e depois do impacto escoa até voltar ao normal.
+    const raiosDentro = fase === 'caindo' ? { taxaRaios: ZAP_RAIOS_DENTRO_TAXA, taxaRaiosTransicaoMs: ZAP_QUEDA_MS }
+        : fase === 'dissipando' ? { taxaRaios: 0, taxaRaiosTransicaoMs: ZAP_DISSIPAR_MS }
+        : {};
+    const duracaoModo = { subindo: SIM_CRESCIDA_DURACAO_MS, segurando: ZAP_SEGURAR_MS, caindo: ZAP_QUEDA_MS, dissipando: ZAP_DISSIPAR_MS }[fase] ?? 1;
+    const classeCarga = fase === 'dissipando' ? ' mesa-exp-zap-descarga'
+        : fase === 'segurando' || fase === 'caindo' ? ' mesa-exp-zap-eletrizada'
+        : '';
+    return (
+        <>
+            <div
+                className={`mesa-exp-vaza-overlay${escurecendo ? ' mesa-exp-vaza-overlay-escuro' : ''}`}
+                style={{ pointerEvents: escurecendo ? 'auto' : 'none' }}
+            />
+            <div
+                ref={wrapperRef}
+                className="mesa-exp-carta-simulada"
+                style={{
+                    left: `${pos.x}%`,
+                    top: `${pos.y}%`,
+                    transition: `left ${duracaoPos}ms ${easing}, top ${duracaoPos}ms ${easing}, transform ${duracaoPos}ms ${easing}`,
+                    transform: `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px)`,
+                    zIndex: fase === 'pousada' ? Z_CARTA_SIMULADA_POUSADA : undefined,
+                }}
+            >
+                <div
+                    className="mesa-exp-paus-miolo"
+                    style={{
+                        transition: `transform ${duracaoPos}ms ${easing}`,
+                        transform: `scale(${escala}) rotateX(${pitch}deg) rotateZ(${rotZ}deg)`,
+                    }}
+                >
+                    <div className={`mesa-exp-zap-carga${classeCarga}`}>
+                        <Carta rank={rank} naipe="Paus" efeitoManilha {...raiosDentro} />
+                    </div>
+                    {/* Só monta enquanto tem eletricidade — pousada de vez,
+                        o loop de rAF não fica rodando à toa. */}
+                    {fase !== 'jogando' && fase !== 'pousada' && (
+                        <RaiosZap modo={fase} duracaoModoMs={duracaoModo} />
+                    )}
+                </div>
+            </div>
+            {pontoImpacto && fase === 'dissipando' && <RaioDaQueda ponto={pontoImpacto} />}
+        </>
+    );
+}
+
+// Choque do Zap nas outras cartas: cada carta da mesa (menos a própria) dá
+// um pulo pra longe do ponto de impacto — sobe, afasta, e o flip 3D pequeno
+// levanta primeiro a borda do lado de onde veio o choque (eixo da rotação
+// deitado na mesa, perpendicular à direção do empurrão). Quanto mais perto,
+// mais forte; e começa mais tarde quanto mais longe, como uma onda saindo do
+// raio.
+//
+// Via WAAPI direto no elemento (fill:'forwards', então o afastamento fica),
+// por cima do transform inline que o React escreveu: o React não reescreve
+// esse transform enquanto a carta está pousada. O deslocamento acumulado
+// mora em data-* do próprio elemento, pra um segundo Zap empurrar a partir
+// de onde o primeiro deixou.
+const ZAP_EMPURRAO_PX = 78;
+const ZAP_EMPURRAO_ALTURA_PX = 48;
+const ZAP_EMPURRAO_FLIP_GRAUS = 26;
+const ZAP_EMPURRAO_GIRO_MAX_GRAUS = 12;
+const ZAP_EMPURRAO_MS = 680;
+const ZAP_EMPURRAO_ALCANCE_PX = 750;
+const ZAP_ONDA_PX_POR_MS = 1.6;
+
+// Quanto UMA carta é empurrada por um impacto do Zap em `pontoPx` (px da
+// janela), dado o centro dela na tela: direção pra longe do impacto, força
+// caindo com a distância (nunca abaixo de 0.35) e o atraso da onda.
+export function calcularEmpurraoZap(centroCarta, pontoPx) {
+    let dx = centroCarta.x - pontoPx.x;
+    let dy = centroCarta.y - pontoPx.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 1) { dx = 1; dy = 0; }
+    const norma = Math.hypot(dx, dy);
+    dx /= norma;
+    dy /= norma;
+    const forca = Math.max(0.35, 1 - dist / ZAP_EMPURRAO_ALCANCE_PX);
+    return {
+        dirX: dx,
+        dirY: dy,
+        forca,
+        x: dx * ZAP_EMPURRAO_PX * forca,
+        y: dy * ZAP_EMPURRAO_PX * forca,
+        giro: (Math.random() * 2 - 1) * ZAP_EMPURRAO_GIRO_MAX_GRAUS * forca,
+        altura: ZAP_EMPURRAO_ALTURA_PX * forca,
+        flip: ZAP_EMPURRAO_FLIP_GRAUS * forca,
+        atrasoMs: dist / ZAP_ONDA_PX_POR_MS,
+        duracaoMs: ZAP_EMPURRAO_MS,
+    };
+}
+
+function empurrarCartas(container, pontoPx, excluir) {
+    if (!container) return;
+    for (const el of container.querySelectorAll('.mesa-exp-carta-simulada')) {
+        if (el === excluir) continue;
+        // Centro da carta VISÍVEL, não do wrapper — a de Ouros quica pra
+        // longe do próprio wrapper.
+        const r = (el.querySelector('.carta-exp') ?? el).getBoundingClientRect();
+        const empurrao = calcularEmpurraoZap({ x: r.left + r.width / 2, y: r.top + r.height / 2 }, pontoPx);
+        const { dirX: dx, dirY: dy, forca } = empurrao;
+
+        const antes = {
+            x: Number(el.dataset.zapX ?? 0),
+            y: Number(el.dataset.zapY ?? 0),
+            giro: Number(el.dataset.zapGiro ?? 0),
+        };
+        const depois = {
+            x: antes.x + empurrao.x,
+            y: antes.y + empurrao.y,
+            giro: antes.giro + empurrao.giro,
+        };
+        el.dataset.zapX = depois.x;
+        el.dataset.zapY = depois.y;
+        el.dataset.zapGiro = depois.giro;
+
+        const base = el.style.transform;
+        const quadro = (t, subida, angulo, crescer) => {
+            const x = antes.x + (depois.x - antes.x) * t;
+            const y = antes.y + (depois.y - antes.y) * t - subida;
+            const giro = antes.giro + (depois.giro - antes.giro) * t;
+            return {
+                transform: `${base} translate(${x}px, ${y}px) perspective(600px) rotate3d(${-dy}, ${dx}, 0, ${angulo}deg) rotate(${giro}deg) scale(${crescer})`,
+            };
+        };
+        el.getAnimations().filter((a) => a.id === 'zap-empurrao').forEach((a) => a.cancel());
+        const animacao = el.animate(
+            [
+                { ...quadro(0, 0, 0, 1), easing: 'cubic-bezier(.2, .8, .4, 1)' },
+                { ...quadro(0.55, empurrao.altura, empurrao.flip, 1 + 0.12 * forca), offset: 0.4, easing: 'cubic-bezier(.5, 0, .9, .5)' },
+                quadro(1, 0, 0, 1),
+            ],
+            { duration: empurrao.duracaoMs, delay: empurrao.atrasoMs, fill: 'both' },
+        );
+        animacao.id = 'zap-empurrao';
+    }
+}
+
+// Tremor amortecido via WAAPI — não passa por estado, então não re-renderiza
+// nada e pode disparar de novo a qualquer hora.
+export function tremerElemento(elemento, forca = 1) {
+    const amplitudes = [14, -12, 9, -7, 5, -3, 1, 0];
+    const quadros = amplitudes.map((a, i) => ({
+        transform: `translate(${a * forca}px, ${(i % 2 ? 1 : -1) * Math.abs(a) * 0.7 * forca}px)`,
+    }));
+    elemento?.animate(quadros, { duration: OUROS_TREMOR_MS, easing: 'ease-out' });
+}
+
+// Corte na mesa a partir da geometria do golpe (mesmo formato de `faca` e de
+// sortearGeometriaCorte) — a MESMA duração do deslize da faca, é isso que
+// faz o corte se desenhar no ritmo exato dela arrastando de ponta a ponta.
+function corteDaGeometria(faca) {
+    return {
+        x: faca.centro.x,
+        y: faca.centro.y,
+        rot: faca.rot,
+        escala: faca.escalaGolpe,
+        arco: faca.arco,
+        duracaoMs: FACA_DESLIZE_MS,
+    };
+}
+
+// Camada de danos pronta pra mesa de verdade (MesaExperimento): cada dano é
+// { id, geracao, desgaste, tipo: 'cratera' | 'crateraRaio' | 'marca' |
+// 'corte', ...campos do tipo }. Cada `geracao` (uma manilha jogada) vira uma
+// camada própria, com z-index = geracao (a mais nova por cima) e opacidade
+// caindo 1/camadasVisiveis por ponto de desgaste da mesa desde que ela
+// nasceu (`desgasteAtual - desgaste`). Dentro de uma camada, mesma ordem da
+// sandbox — crateras embaixo, cortes por cima.
+const ORDEM_CAMADA_DANO = { cratera: 0, crateraRaio: 1, marca: 2, corte: 3 };
+
+function renderizarDano(dano) {
+    if (dano.tipo === 'cratera') return <CrateraNaMesa key={dano.id} cratera={dano} />;
+    if (dano.tipo === 'crateraRaio') return <CrateraRaio key={dano.id} cratera={dano} />;
+    if (dano.tipo === 'marca') return <MarcaCarbonizada key={dano.id} marca={dano} />;
+    return <CorteNaMesa key={dano.id} corte={dano} />;
+}
+
+export function DanosDaMesa({ danos, desgasteAtual = 0, camadasVisiveis = 10 }) {
+    const porGeracao = new Map();
+    for (const dano of danos) {
+        const geracao = dano.geracao ?? 0;
+        if (!porGeracao.has(geracao)) porGeracao.set(geracao, []);
+        porGeracao.get(geracao).push(dano);
+    }
+    return (
+        <div className="mesa-exp-danos">
+            {[...porGeracao.entries()].map(([geracao, doGrupo]) => {
+                const nasceu = Math.min(...doGrupo.map((d) => d.desgaste ?? 0));
+                const idade = Math.max(0, desgasteAtual - nasceu);
+                const opacidade = Math.max(0, 1 - idade / camadasVisiveis);
+                const ordenados = [...doGrupo].sort((a, b) => ORDEM_CAMADA_DANO[a.tipo] - ORDEM_CAMADA_DANO[b.tipo]);
+                return (
+                    <div key={geracao} className="mesa-exp-dano-camada" style={{ zIndex: geracao, opacity: opacidade }}>
+                        {ordenados.map(renderizarDano)}
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+// Manilha jogada na mesa de verdade: escolhe a coreografia do naipe e traduz
+// o que cada uma deixa na mesa num dano só (`onDano`, formato de
+// DanosDaMesa). `onTremer(forca)` treme a tela; `onEmpurrar(pontoPx)` é o
+// choque do Zap nas outras cartas — quem chama é que sabe quais são elas.
+// `onFim(pouso)` entrega onde a carta ficou ({ x, y, rot, escala }).
+export function JogadaManilha({ naipe, rank, mesaRef, origem, pouso, onDano, onTremer, onEmpurrar, onFim }) {
+    const comum = { mesaRef, origem, pouso, rank, onFim };
+    if (naipe === 'Espadas') {
+        return <CartaSimulada {...comum} onCortar={(geometria) => onDano({ tipo: 'corte', ...corteDaGeometria(geometria) })} />;
+    }
+    if (naipe === 'Copas') {
+        return <CartaCopasSimulada {...comum} onCarbonizar={(marca) => onDano({ tipo: 'marca', ...marca })} />;
+    }
+    if (naipe === 'Ouros') {
+        return (
+            <CartaOurosSimulada
+                {...comum}
+                onCratera={(cratera) => onDano({ tipo: 'cratera', ...cratera })}
+                onTremer={() => onTremer(1)}
+            />
+        );
+    }
+    return (
+        <CartaPausSimulada
+            {...comum}
+            onImpacto={({ cratera, pontoPx }) => {
+                onDano({ tipo: 'crateraRaio', ...cratera });
+                onTremer(ZAP_TREMOR_FORCA);
+                onEmpurrar(pontoPx);
+            }}
+        />
+    );
+}
+
 export default function MesaDanificada({ onVoltar }) {
     const [cortes, setCortes] = useState([]);
     const [facas, setFacas] = useState([]);
@@ -1480,6 +2079,8 @@ export default function MesaDanificada({ onVoltar }) {
     const [marcasCarbonizadas, setMarcasCarbonizadas] = useState([]);
     const [jogadasOuros, setJogadasOuros] = useState([]);
     const [crateras, setCrateras] = useState([]);
+    const [jogadasPaus, setJogadasPaus] = useState([]);
+    const [craterasRaio, setCraterasRaio] = useState([]);
     // Gate do botão "Simular jogada" — trava enquanto a coreografia inteira
     // (ver CartaSimulada) ainda tá rolando, pra não deixar duas brigando
     // pelo centro da tela ao mesmo tempo. As jogadas simuladas já
@@ -1493,6 +2094,8 @@ export default function MesaDanificada({ onVoltar }) {
     const proximoIdMarcaCarbonizada = useRef(0);
     const proximoIdOuros = useRef(0);
     const proximoIdCrateraMesa = useRef(0);
+    const proximoIdPaus = useRef(0);
+    const proximoIdCrateraRaioMesa = useRef(0);
     const telaRef = useRef(null);
     // Pra converter o "meio-comprimento" do corte (em px de verdade, ver
     // MESA_CORTE_METADE_COMPRIMENTO) nas duas pontas em %, precisa saber o
@@ -1511,21 +2114,7 @@ export default function MesaDanificada({ onVoltar }) {
 
     function aoImpactar(faca) {
         const idCorte = ++proximoIdCorte.current;
-        setCortes((atuais) => [
-            ...atuais,
-            {
-                id: idCorte,
-                x: faca.centro.x,
-                y: faca.centro.y,
-                rot: faca.rot,
-                escala: faca.escalaGolpe,
-                arco: faca.arco,
-                // A MESMA duração do deslize (ver FacaCaindo) — é isso que
-                // faz o corte se desenhar no ritmo exato da faca
-                // arrastando de ponta a ponta.
-                duracaoMs: FACA_DESLIZE_MS,
-            },
-        ]);
+        setCortes((atuais) => [...atuais, { id: idCorte, ...corteDaGeometria(faca) }]);
     }
 
     function aoTerminarFaca(id) {
@@ -1570,6 +2159,20 @@ export default function MesaDanificada({ onVoltar }) {
         setCrateras((atuais) => [...atuais, { id, ...cratera }]);
     }
 
+    function simularPaus() {
+        if (simulandoAgora) return;
+        setSimulandoAgora(true);
+        const id = ++proximoIdPaus.current;
+        setJogadasPaus((atuais) => [...atuais, { id }]);
+    }
+
+    function aoImpactoZap({ cratera, pontoPx, proprioElemento }) {
+        const id = ++proximoIdCrateraRaioMesa.current;
+        setCraterasRaio((atuais) => [...atuais, { id, ...cratera }]);
+        tremerTela(ZAP_TREMOR_FORCA);
+        empurrarCartas(mesaRef.current, pontoPx, proprioElemento);
+    }
+
     // Tira todas as cartas jogadas da mesa e deixa só os danos (cortes,
     // marcas carbonizadas, crateras). Uma jogada no meio da coreografia
     // desmonta junto e nunca chama o próprio onFim, então o gate solta aqui.
@@ -1577,17 +2180,12 @@ export default function MesaDanificada({ onVoltar }) {
         setSimulacoes([]);
         setJogadasCopas([]);
         setJogadasOuros([]);
+        setJogadasPaus([]);
         setSimulandoAgora(false);
     }
 
-    // Tremor amortecido na tela inteira via WAAPI — não passa por estado,
-    // então não re-renderiza nada e pode disparar de novo a qualquer hora.
-    function tremerTela() {
-        const amplitudes = [14, -12, 9, -7, 5, -3, 1, 0];
-        const quadros = amplitudes.map((a, i) => ({
-            transform: `translate(${a}px, ${(i % 2 ? 1 : -1) * Math.abs(a) * 0.7}px)`,
-        }));
-        telaRef.current?.animate(quadros, { duration: OUROS_TREMOR_MS, easing: 'ease-out' });
+    function tremerTela(forca = 1) {
+        tremerElemento(telaRef.current, forca);
     }
 
     return (
@@ -1596,6 +2194,7 @@ export default function MesaDanificada({ onVoltar }) {
             <div className="mesa-exp-mesa" ref={mesaRef}>
                 <div className="mesa-exp-danos">
                     {crateras.map((cratera) => <CrateraNaMesa key={cratera.id} cratera={cratera} />)}
+                    {craterasRaio.map((cratera) => <CrateraRaio key={cratera.id} cratera={cratera} />)}
                     {marcasCarbonizadas.map((marca) => <MarcaCarbonizada key={marca.id} marca={marca} />)}
                     {cortes.map((corte) => <CorteNaMesa key={corte.id} corte={corte} />)}
                 </div>
@@ -1636,6 +2235,14 @@ export default function MesaDanificada({ onVoltar }) {
                         onFim={() => setSimulandoAgora(false)}
                     />
                 ))}
+                {jogadasPaus.map((jogada) => (
+                    <CartaPausSimulada
+                        key={jogada.id}
+                        mesaRef={mesaRef}
+                        onImpacto={aoImpactoZap}
+                        onFim={() => setSimulandoAgora(false)}
+                    />
+                ))}
             </div>
             <div className="mesa-exp-botoes-teste">
                 <button type="button" className="mesa-exp-cortar-botao" onClick={cortarLugarAleatorio}>
@@ -1664,6 +2271,14 @@ export default function MesaDanificada({ onVoltar }) {
                     disabled={simulandoAgora}
                 >
                     ⛏️ Simular ouros
+                </button>
+                <button
+                    type="button"
+                    className="mesa-exp-cortar-botao mesa-exp-paus-botao"
+                    onClick={simularPaus}
+                    disabled={simulandoAgora}
+                >
+                    ⚡ Simular zap
                 </button>
                 <button
                     type="button"

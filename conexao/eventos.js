@@ -27,7 +27,9 @@ export const EventosCliente = {
     JOGAR_DE_NOVO: 'jogarDeNovo', // { salaId } -> ack: { ok, salaId, numberPlayers, jogadores, segundosParaIniciar, chatAberto } — só o adm da sala TERMINADA (`salaId` é a sala antiga); cria uma sala nova com a mesma config e avisa quem mais estava lá (ver EventosServidor.CONVITE_REVANCHE)
     APOSTAR: 'apostar',          // { salaId, valor } -> ack: { ok } — valor é o número de vazas que o jogador acha que vai fazer
     JOGAR_CARTA: 'jogarCarta',   // { salaId, indice } -> ack: { ok } — indice é 0-based, posição na mão
-    RECONECTAR: 'reconectar',    // { salaId } -> ack: { ok, salaId, jogadores, mao, cartasRodada, numeroRodada, maosReveladas, mesa, vira, viraValor, apostas, eliminados, desconectados, ultimoPlacar, suaVez, jogadorDaVez, suaVezDaAposta, jogadorDaVezAposta, finalizada, vencedor, chatAberto } — estado pra remontar a tela inteira de uma partida já em andamento (ver PROTOCOLO.md)
+    AINDA_ANIMANDO: 'aindaAnimando', // { salaId } -> ack opcional: { ok } — "ainda estou animando o que já chegou": renova a espera do turno (ver "Segurar pelas animações" no PROTOCOLO.md)
+    ANIMACOES_CONCLUIDAS: 'animacoesConcluidas', // { salaId, seq } -> ack opcional: { ok } — "terminei de animar tudo até o evento `seq`"; seq null = não me espere mais. Quem nunca manda não segura nada (ver "Segurar pelas animações" no PROTOCOLO.md)
+    RECONECTAR: 'reconectar',    // { salaId } -> ack: { ok, salaId, jogadores, ordem, mao, cartasRodada, numeroRodada, maosReveladas, mesa, vira, viraValor, apostas, eliminados, desconectados, ultimoPlacar, suaVez, jogadorDaVez, suaVezDaAposta, jogadorDaVezAposta, finalizada, vencedor, chatAberto } — estado pra remontar a tela inteira de uma partida já em andamento (ver PROTOCOLO.md)
     MINHA_SALA_ATIVA: 'minhaSalaAtiva', // {} -> ack: { ok, salaId: string | null } — existe uma partida em andamento (começou, não terminou) em que eu ainda tenho assento reclamável? pra descobrir sem saber o salaId de antemão (ex.: depois de um refresh de página)
     CHAT: 'chat',                // { salaId, tipo: 'aberta' | 'restrita', texto?, id? } -> ack: { ok } — 'restrita' (id do catálogo, ver conexao/chat/mensagensChat.js) sempre liberada; 'aberta' (texto livre) só se a sala foi criada com chatAberto
 };
@@ -40,13 +42,15 @@ export const EventosCliente = {
 export const EventosServidor = {
     LISTA_JOGADORES: 'listaJogadores', // { salaId, jogadores: [{ nome, adm }] }
     PARTIDA_INICIANDO_EM: 'partidaIniciandoEm', // { salaId, segundos }
-    NOVA_RODADA_INICIADA: 'novaRodadaIniciada', // { salaId, numero, cartas }
+    NOVA_RODADA_INICIADA: 'novaRodadaIniciada', // { salaId, numero, cartas, ordem }
     SUA_MAO: 'suaMao',                          // { salaId, mao: string[] } — PRIVADO
     MAOS_REVELADAS: 'maosReveladas',            // { salaId, maos: [{ jogador, mao: string[] }] } — PRIVADO; conjunto de mãos que ESTE jogador pode ver (hoje: rodada de 1 carta / "testa", cada um vê a mão dos outros menos a sua). Genérico — dá pra reusar em showdown, espectador, debug.
     MANILHA_VIRADA: 'manilhaVirada',            // { salaId, vira, viraValor }
+    DISTRIBUICAO_CONCLUIDA: 'distribuicaoConcluida', // { salaId, numero } — o servidor terminou de segurar o tempo fixo da distribuição da rodada `numero` e vai pedir a primeira aposta (só sai quando algum front aderiu ao segurar)
     TURNO_APOSTA: 'turnoAposta',                // { salaId, id, jogador } — id de quem tem que apostar agora
     APOSTA_FEITA: 'apostaFeita',                // { salaId, jogador, aposta } — só depois que a aposta foi de fato registrada (real ou timeout)
     TURNO_JOGADOR: 'turnoJogador',              // { salaId, id, jogador } — id de quem tem que jogar
+    TIMER_TURNO: 'timerTurno',                  // { salaId, id, jogador, tipo: 'aposta' | 'jogada', tempoMs } — o timer desse jogador começou a correr AGORA; tempoMs até o automático agir. Só humano (bot não tem timer)
     CARTA_JOGADA: 'cartaJogada',                // { salaId, jogador, carta, status }
     VAZA_FINALIZADA: 'vazaFinalizada',          // { salaId, vencedor, carta }
     RODADA_FINALIZADA: 'rodadaFinalizada',      // { salaId, numero, resultado }

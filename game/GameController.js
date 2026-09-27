@@ -10,6 +10,10 @@ import { EventEmitter } from 'node:events';
 import { Game, MAX_DECK_SEM_LIMITE } from './Game.js';
 import { PlayerGame } from './PlayerGame.js';
 import { escolherCarta, escolherAposta } from '../bots/BotBrain.js';
+import {
+    duracaoApostaFeita, duracaoCartaJogada, duracaoVazaFinalizada, duracaoRodadaFinalizada,
+    duracaoEliminacao, duracaoDistribuicaoEVira,
+} from './animacoesFront.js';
 
 // Quando a última vaga de gente de verdade expira (ver _expirarVaga) e só
 // sobra bot jogando contra bot, não faz sentido segurar o atrasoBotMs normal
@@ -18,8 +22,12 @@ import { escolherCarta, escolherAposta } from '../bots/BotBrain.js';
 // 'salaAbandonada').
 const ATRASO_BOT_MS_SALA_ABANDONADA = 50;
 
+// Margem pra lag de rede em cima da linha do tempo do front (ver
+// _esperarDistribuicao).
+const DISTRIBUICAO_FOLGA_MS = 800;
+
 export class GameController extends EventEmitter {
-    constructor({ numberPlayers, roundStart, randomShuffle, maxDeck, seed, tempoTurnoMs, limiteInatividadeMs, atrasoBotMs, tempoReservaMs, pausaVazaMs, pausaRodadaMs } = {}) {
+    constructor({ numberPlayers, roundStart, randomShuffle, maxDeck, seed, tempoTurnoMs, limiteInatividadeMs, atrasoBotMs, tempoReservaMs, pausaVazaMs, pausaRodadaMs, limiteSeguraMs, limiteSeguraTotalMs, duracaoDistribuicaoMs } = {}) {
         super();
         this.numberPlayers = numberPlayers || 4;
         this.roundStart = roundStart || 1;
@@ -77,6 +85,28 @@ export class GameController extends EventEmitter {
         // colados que o Henrique via especificamente na vaza final da
         // rodada.
         this.pausaRodadaMs = pausaRodadaMs ?? 2_000;
+        // Segurar pelas animações do front (ver _segurarPelasAnimacoes):
+        // teto de quanto um turno espera os clientes terminarem de animar
+        // SEM notícia deles — cada "ainda animando" (registrarAnimando)
+        // renova esse prazo, então uma sequência longa (revelação + dano +
+        // distribuição + vira) segura o tempo que precisar; um cliente que
+        // trava ou cai para de avisar e o turno começa mesmo assim. O total
+        // nunca passa de limiteSeguraTotalMs, pra um cliente preso em
+        // "animando" (ou mal-intencionado) não congelar a sala.
+        this.limiteSeguraMs = limiteSeguraMs ?? 10_000;
+        this.limiteSeguraTotalMs = limiteSeguraTotalMs ?? 60_000;
+        // Tempo fixo da distribuição (ver _esperarDistribuicao). null = calcula
+        // do tamanho da rodada; um número fixa (testes usam um valor curto).
+        this.duracaoDistribuicaoMs = duracaoDistribuicaoMs ?? null;
+        // Até quando (Date.now()) o front ainda está animando o que já foi
+        // emitido — estimativa do servidor, somando a duração de cada evento
+        // que anima (ver animacoesFront.js e _somarAnimacaoFront).
+        this._frenteOcupadaAte = 0;
+        // Número do último evento emitido (ver emit abaixo) e, por jogador
+        // que aderiu ao segurar, até qual número ele já terminou de animar.
+        this._seq = 0;
+        this._animacoesEmDia = new Map();
+        this._segura = null;
         this.jogadores = [];
         this.game = null;
         this.rodada = null;
@@ -227,7 +257,7 @@ export class GameController extends EventEmitter {
 
         this.numeroRodada = 1;
         this.rodada = this.game.newRodada();
-        this.emit('novaRodadaIniciada', { numero: this.numeroRodada, cartas: this.rodada.round });
+        this.emit('novaRodadaIniciada', { numero: this.numeroRodada, cartas: this.rodada.round, ordem: this._ordemDosAssentos() });
 
         // A partir daqui a partida roda em segundo plano, pausando pra
         // esperar cada jogada real (ver _aguardarJogada/jogarCarta) — pode
@@ -461,6 +491,131 @@ export class GameController extends EventEmitter {
         });
     }
 
+    // Depois que a partida começa, todo evento com payload de objeto sai
+    // numerado (`seq`, crescente até o fim) — é a referência de "até onde" o
+    // front diz que já terminou de animar (ver registrarAnimacoes). Na sala
+    // de espera não há o que animar, então nada sai numerado. Payload em
+    // array (cartasDistribuidas) sai sem número: sempre vem seguido de
+    // manilhaVirada, que carrega um maior.
+    emit(evento, dados, ...resto) {
+        if (this.game && dados && typeof dados === 'object' && !Array.isArray(dados)) {
+            dados = { ...dados, seq: ++this._seq };
+        }
+        return super.emit(evento, dados, ...resto);
+    }
+
+    // O front avisa que terminou de animar tudo até o evento `seq` (null =
+    // sai do segurar, ex.: trocou pra uma tela sem animação). Só quem já
+    // mandou isto alguma vez conta em _segurarPelasAnimacoes — um cliente que
+    // nunca avisa (tela de debug, testes) não segura nada.
+    registrarAnimacoes(playerId, seq) {
+        if (!this.jogadores.some(j => j.id === playerId)) return false;
+        if (seq == null) {
+            this._animacoesEmDia.delete(playerId);
+        } else if (Number.isInteger(seq)) {
+            this._animacoesEmDia.set(playerId, Math.max(this._animacoesEmDia.get(playerId) ?? 0, seq));
+        } else {
+            return false;
+        }
+        if (this._segura && this._clientesEmDia(this._segura.alvo)) this._segura.soltar();
+        return true;
+    }
+
+    // O front ainda está animando o que já chegou (ver "Segurar pelas
+    // animações" no PROTOCOLO.md) — renova o prazo da espera em andamento,
+    // até o teto total.
+    registrarAnimando(playerId) {
+        if (!this._animacoesEmDia.has(playerId) || !this._segura) return false;
+        this._segura.renovar();
+        return true;
+    }
+
+    // Distribuir cartas é a animação mais longa e a que mais sofre com lag
+    // (depende de todos os fronts confirmarem): em vez de esperar as
+    // confirmações, o servidor espera a própria estimativa de até quando o
+    // front está ocupado — tudo o que ainda está na fila da tela (manilha da
+    // última carta, revelação da última vaza, dano, mortes) mais a
+    // distribuição e a vira desta rodada, mais uma folga — e emite
+    // distribuicaoConcluida, liberando todo mundo junto. Só quando algum
+    // front aderiu ao segurar — sem ninguém animando, não há o que esperar.
+    async _esperarDistribuicao(rodada) {
+        this._somarAnimacaoFront(duracaoDistribuicaoEVira(rodada.gameOrder.length, rodada.round));
+        if (!this._alguemSegurando()) return;
+        const duracao = this.duracaoDistribuicaoMs
+            ?? Math.max(0, this._frenteOcupadaAte - Date.now()) + DISTRIBUICAO_FOLGA_MS;
+        await new Promise((resolve) => {
+            const timer = setTimeout(resolve, duracao);
+            timer.unref?.();
+        });
+        if (this._encerrado) return;
+        this.emit('distribuicaoConcluida', { numero: this.numeroRodada });
+    }
+
+    // O front toca as coreografias em fila, uma depois da outra: cada evento
+    // que anima empurra a linha do tempo a partir de onde ela já estava (ou
+    // de agora, se a tela já estava parada).
+    _somarAnimacaoFront(duracaoMs) {
+        if (!(duracaoMs > 0)) return;
+        this._frenteOcupadaAte = Math.max(Date.now(), this._frenteOcupadaAte) + duracaoMs;
+    }
+
+    // Algum humano aderiu ao segurar pelas animações? (mesmo critério de
+    // _clientesEmDia)
+    _alguemSegurando() {
+        for (const id of this._animacoesEmDia.keys()) {
+            const jogador = this.jogadores.find(j => j.id === id);
+            if (jogador && !jogador.bot) return true;
+        }
+        return false;
+    }
+
+    // Todo humano que aderiu já animou até `alvo`? Só fica de fora assento
+    // que virou bot (expulso, saiu, desistiu — o socket saiu da sala). Um
+    // timeout isolado liga `desconectado` mas a tela continua lá, animando:
+    // se contasse, um único timeout fazia esse jogador parar de segurar a
+    // partida pra sempre.
+    _clientesEmDia(alvo) {
+        for (const [id, seq] of this._animacoesEmDia) {
+            const jogador = this.jogadores.find(j => j.id === id);
+            if (!jogador || jogador.bot) continue;
+            if (seq < alvo) return false;
+        }
+        return true;
+    }
+
+    // Antes de começar um turno (aposta ou jogada, humano ou bot), espera os
+    // clientes que aderiram terminarem de animar tudo o que já foi emitido
+    // — é o que impede o timer de alguém rodar enquanto a tela dele ainda
+    // mostra a vaza/rodada anterior. Nunca mais que limiteSeguraMs.
+    _segurarPelasAnimacoes() {
+        const alvo = this._seq;
+        if (this._clientesEmDia(alvo)) return Promise.resolve();
+        return new Promise((resolve) => {
+            const inicio = Date.now();
+            let timer = null;
+            const soltar = () => {
+                clearTimeout(timer);
+                this._segura = null;
+                resolve();
+            };
+            const renovar = () => {
+                clearTimeout(timer);
+                const restanteTotal = this.limiteSeguraTotalMs - (Date.now() - inicio);
+                timer = setTimeout(soltar, Math.max(0, Math.min(this.limiteSeguraMs, restanteTotal)));
+                timer.unref?.();
+            };
+            renovar();
+            this._segura = { alvo, soltar, renovar };
+        });
+    }
+
+    // Avisa que o timer de `jogador` acabou de começar a correr — emitido
+    // logo depois do setTimeout do turno, então `tempoMs` é exatamente o que
+    // falta pro automático jogar por ele.
+    _emitirTimerTurno(jogador, tipo) {
+        this.emit('timerTurno', { id: jogador.id, jogador: jogador.nome, tipo, tempoMs: this.tempoTurnoMs });
+    }
+
     // Igual _aguardarJogada, mas com prazo: se tempoTurnoMs passar sem
     // jogarCarta() de verdade, joga por conta própria (ver bots/BotBrain.js)
     // e liga jogador.desconectado — é o sinal de que essa cadeira está no
@@ -480,7 +635,12 @@ export class GameController extends EventEmitter {
     // vez que tempoTurnoMs estoura: uma falta isolada é só mais uma jogada
     // decidida automaticamente lá embaixo, sem ligar `bot` — o próximo
     // turno dele continua esperando normalmente.
+    // O timer de um humano começa no MESMO instante em que sai o
+    // timerTurno (ver _emitirTimerTurno) — é por ele que o front sabe
+    // quanto tempo o jogador tem de verdade. Bot não tem timer.
     async _aguardarJogadaOuTimeout(jogador) {
+        await this._segurarPelasAnimacoes();
+        if (this._encerrado) return 0;
         if (jogador.bot) {
             this.emit('turnoJogador', { id: jogador.id, jogador: jogador.nome });
             if (jogador.desconectado) this.emit('jogadaAutomatica', { id: jogador.id, jogador: jogador.nome });
@@ -500,6 +660,7 @@ export class GameController extends EventEmitter {
             resolver(escolherCarta(jogador, this));
         }, this.tempoTurnoMs);
         timer.unref?.();
+        this._emitirTimerTurno(jogador, 'jogada');
 
         const indice = await jogadaFeita;
         clearTimeout(timer);
@@ -536,6 +697,7 @@ export class GameController extends EventEmitter {
         jogador.aposta = valor;
         this._apostasFeitasRodada.add(jogador.id);
         this.emit('apostaFeita', { jogador: jogador.nome, aposta: valor });
+        this._somarAnimacaoFront(duracaoApostaFeita(valor));
     }
 
     // Mesma ideia de _aguardarJogada, mas pra aposta: só resolve quando
@@ -582,7 +744,11 @@ export class GameController extends EventEmitter {
     // (ver _decidirApostaAutomatica) e liga desconectado — só depois de
     // expulso por inatividade de verdade é que `bot` liga e esse assento
     // passa a apostar na hora, pelo mesmo motivo de _aguardarJogadaOuTimeout.
-    async _aguardarApostaOuTimeout(jogador) {
+    // `segurar: false` pula a espera pelas animações — a primeira aposta da
+    // rodada já esperou a distribuição por tempo fixo (_esperarDistribuicao).
+    async _aguardarApostaOuTimeout(jogador, { segurar = true } = {}) {
+        if (segurar) await this._segurarPelasAnimacoes();
+        if (this._encerrado) return;
         if (jogador.bot) {
             this.emit('turnoAposta', { id: jogador.id, jogador: jogador.nome });
             await this._atrasoBot();
@@ -602,6 +768,7 @@ export class GameController extends EventEmitter {
             resolver();
         }, this.tempoTurnoMs);
         timer.unref?.();
+        this._emitirTimerTurno(jogador, 'aposta');
 
         await apostaFeita;
         clearTimeout(timer);
@@ -657,6 +824,15 @@ export class GameController extends EventEmitter {
     // rodada, quem morreu, quem está no automático e — se a partida já
     // acabou — o vencedor. null se esse playerId não faz parte de uma partida
     // em andamento aqui (sala ainda não começou, ou ele nunca esteve nela).
+    // Nomes na ordem dos assentos da mesa (game.ordemOriginal: o sorteio de
+    // setstartsequence, fixo a partida inteira e sem tirar os eliminados) —
+    // a vez sempre anda pra frente nela, só muda quem abre cada rodada. O
+    // front usa pra sentar os jogadores em volta da mesa na ordem em que
+    // jogam, em vez da ordem em que entraram na sala.
+    _ordemDosAssentos() {
+        return this.game.ordemOriginal.map(j => j.nome);
+    }
+
     estadoDeReconexao(playerId) {
         if (!this.game) return null;
         const jogador = this.jogadores.find(j => j.id === playerId);
@@ -686,6 +862,7 @@ export class GameController extends EventEmitter {
             // então sem isto a tela remontada fica sem lista de jogadores até
             // o próximo evento que a mexa (novoAdm, alguém entrando/saindo).
             jogadores: this.jogadores.map(j => ({ nome: j.nome, adm: j.adm })),
+            ordem: this._ordemDosAssentos(),
             mao: jogador.mao.map(c => c.toString()),
             cartasRodada: this.rodada.round,
             numeroRodada: this.numeroRodada,
@@ -849,11 +1026,19 @@ export class GameController extends EventEmitter {
         rodada.virarManilha();
         this.emit('manilhaVirada', { vira: rodada.vira.toString(), viraValor: rodada.viraValor });
 
+        // A primeira aposta não espera a confirmação dos fronts: segura um
+        // tempo fixo do tamanho da distribuição e libera todo mundo junto
+        // (ver _esperarDistribuicao).
+        await this._esperarDistribuicao(rodada);
+        if (this._encerrado) return;
+
         // Ordem da rodada, um de cada vez — a resposta de quem aposta antes
         // pode (e deve) influenciar quem vem depois, então não dá pra
         // paralelizar isso: cada apostaFeita só sai depois da anterior.
+        let primeira = true;
         for (const jogador of rodada.gameOrder) {
-            await this._aguardarApostaOuTimeout(jogador);
+            await this._aguardarApostaOuTimeout(jogador, { segurar: !primeira });
+            primeira = false;
             if (this._encerrado) return;
         }
 
@@ -869,6 +1054,7 @@ export class GameController extends EventEmitter {
                 this._cartasJogadasRodada.add(carta.valorInt * 4 + carta.naipeInt);
                 const status = rodada.registrarJogada(jogador, carta);
                 this.emit('cartaJogada', { jogador: jogador.nome, carta: carta.toString(), status });
+                this._somarAnimacaoFront(duracaoCartaJogada(carta.valorInt === rodada.viraValor ? carta.nomeNaipe : null));
             }
 
             const vencedor = rodada.finalizarVaza();
@@ -876,6 +1062,7 @@ export class GameController extends EventEmitter {
                 vencedor: vencedor ? vencedor.nome : null,
                 carta: vencedor ? rodada.mesaAtiva.melhorJogada.carta.toString() : null
             });
+            this._somarAnimacaoFront(duracaoVazaFinalizada(Boolean(vencedor)));
 
             // Só espera se AINDA vem outra vaza nesta rodada — a última
             // emenda em apostas/distribuição da próxima rodada, que já
@@ -896,6 +1083,7 @@ export class GameController extends EventEmitter {
             diferenca: Math.abs(apostas.get(j) - steaks.get(j)),
             hp: j.hp
         }));
+        this._somarAnimacaoFront(duracaoRodadaFinalizada(this._ultimoPlacar));
         this.emit('rodadaFinalizada', {
             numero: this.numeroRodada,
             resultado: this._ultimoPlacar
@@ -947,12 +1135,13 @@ export class GameController extends EventEmitter {
         const eliminados = this.game.eliminarZerados();
         if (eliminados.length > 0) {
             this.emit('jogadoresEliminados', { eliminados: eliminados.map(j => ({ nome: j.nome, hp: j.hp })) });
+            this._somarAnimacaoFront(duracaoEliminacao());
         }
         this.rodada.resetarApostasSteaks();
         this.game.girarOrdem();
 
         this.numeroRodada++;
         this.rodada = this.game.proximaRodada();
-        this.emit('novaRodadaIniciada', { numero: this.numeroRodada, cartas: this.rodada.round });
+        this.emit('novaRodadaIniciada', { numero: this.numeroRodada, cartas: this.rodada.round, ordem: this._ordemDosAssentos() });
     }
 }

@@ -600,7 +600,7 @@ logar de novo, o `socket.id` é outro); a sala precisa **já ter começado**
 parte daquela partida (ter entrado na sala antes dela começar); e a vaga
 dele não pode ter expirado de vez (ver `VAGA_EXPIRADA` abaixo e a seção
 "Expiração de vaga reservada" mais adiante).
-Ack sucesso: `{ ok: true, salaId, jogadores: [{ nome, adm }],
+Ack sucesso: `{ ok: true, salaId, jogadores: [{ nome, adm }], ordem: string[],
 mao: string[], cartasRodada: number,
 numeroRodada: number, maosReveladas: [{ jogador, mao: string[] }],
 mesa: [{ jogador, carta: string }], vira: string | null,
@@ -615,6 +615,7 @@ estava fora:
 - `jogadores`: o roster da sala com a flag `adm` — o ack de `reconectar` não
   dispara `listaJogadores`, então sem isto a tela remontada ficaria sem
   lista de jogadores até o próximo evento que a mexa.
+- `ordem`: a ordem dos assentos, mesmo conteúdo de `novaRodadaIniciada`.
 - `mao` / `cartasRodada` / `numeroRodada`: a mão atual, quantas cartas tem a
   rodada (pro limite do input de aposta) e o número dela.
 - `suaVez`/`jogadorDaVez` e `suaVezDaAposta`/`jogadorDaVezAposta`: de quem é
@@ -722,13 +723,15 @@ adicionado:
 
 | Evento | Payload (além de `salaId`) |
 |---|---|
-| `novaRodadaIniciada` | `{ numero, cartas }` |
+| `novaRodadaIniciada` | `{ numero, cartas, ordem: string[] }` — `ordem`: nomes na ordem dos assentos (sorteada no início da partida e fixa até o fim, eliminados inclusos); a vez sempre anda pra frente nela, só muda quem abre cada rodada |
 | `suaMao` **(privado)** | `{ mao: string[] }` — só a mão de quem recebe |
 | `maosReveladas` **(privado)** | `{ maos: [{ jogador, mao: string[] }] }` — conjunto de mãos que ESTE jogador pode ver; ver seção "Rodada de 1 carta" abaixo |
 | `manilhaVirada` | `{ vira, viraValor }` |
+| `distribuicaoConcluida` | `{ numero }` — o servidor terminou de segurar o tempo fixo da distribuição da rodada `numero` (ver "Segurar pelas animações") e vai pedir a primeira aposta. Só sai quando algum cliente aderiu ao segurar |
 | `turnoAposta` | `{ id, jogador }` — `id` é de quem tem que mandar `apostar` agora |
 | `apostaFeita` | `{ jogador, aposta }` — só depois que a aposta foi de fato registrada (real ou timeout) |
 | `turnoJogador` | `{ id, jogador }` — `id` é de quem tem que mandar `jogarCarta` |
+| `timerTurno` | `{ id, jogador, tipo: 'aposta' \| 'jogada', tempoMs }` — o timer desse jogador começou a correr **agora**; `tempoMs` é quanto falta até o servidor apostar/jogar sozinho por ele. Sai logo depois do `turnoAposta`/`turnoJogador` de um humano (bot não tem timer, não sai) |
 | `cartaJogada` | `{ jogador, carta, status }` |
 | `vazaFinalizada` | `{ vencedor, carta }` — se ainda vem outra vaza na mesma rodada, o servidor segura `pausaVazaMs` (`GameController`, 1.6s por padrão, pareado com `PAUSA_VAZA_MS` do front) antes de emitir o próximo `turnoJogador`/`cartaJogada`, pra não pisar na animação de "quem levou". Se essa vaza FECHA a rodada, quem segura o próximo evento (`rodadaFinalizada`) é `pausaVazaMs` normalmente (o servidor só sabe que é a última DEPOIS de fechar a vaza) — e `rodadaFinalizada` abaixo tem sua própria pausa antes da rodada seguinte |
 | `rodadaFinalizada` | `{ numero, resultado }` — resultado é `[{ nome, aposta, steak, diferenca, hp }]`. Antes de emitir `manilhaVirada`/`cartasDistribuidas` da rodada seguinte (ou `jogoFinalizado`, se a partida acabou aqui), o servidor segura `pausaRodadaMs` (`GameController`, 2s por padrão) — dá folga pro front terminar a revelação da carta vencedora da última vaza + a animação de dano do placar (ver `danoRodadaAtivoRef` em `MesaExperimento.jsx`) antes da rodada nova começar a distribuir por cima |
@@ -875,3 +878,43 @@ de conexão, não do jogo), então chega igual na sala de espera e na partida.
   oferece `reconectar` logo após o login (checa `minhaSalaAtiva`) e tem um
   comando `sair` durante a partida (`sairSala`/`sairDaPartida`); o que falta
   é só não pedir nome/senha toda vez.
+
+### Segurar pelas animações (`seq` / `animacoesConcluidas`)
+Todo evento de partida com payload de objeto sai com um `seq` a mais — um
+número crescente da partida inteira (`suaMao` e `maosReveladas` saem sem,
+mas sempre vêm seguidos de `manilhaVirada`, que carrega um maior).
+
+Um cliente com animações pode mandar `animacoesConcluidas { salaId, seq }`
+sempre que terminar de animar tudo até aquele evento — inclusive antes da
+partida começar (com `seq: 0`), pra já contar na distribuição da primeira
+rodada. A partir do primeiro
+aviso, ele passa a **segurar** a partida: antes de começar cada turno
+(aposta ou jogada, de humano ou de bot), o servidor espera todo cliente que
+aderiu (e que não esteja no automático) chegar no `seq` do último evento
+emitido — só então emite `turnoAposta`/`turnoJogador` e começa a contar o
+timer (anunciado pelo `timerTurno`). Sem notícia dos clientes, a espera
+dura no máximo `limiteSeguraMs` (10 s por padrão); cada
+`aindaAnimando { salaId }` de um cliente que aderiu renova esse prazo — o
+front manda um a cada ~2 s enquanto ainda tem animação de eventos já
+recebidos, então sequências longas (revelação + dano + distribuição + vira)
+seguram o tempo que precisarem. Um cliente que trava ou cai para de avisar
+e o turno começa. Em qualquer caso a espera inteira nunca passa de
+`limiteSeguraTotalMs` (60 s). `seq: null` tira o cliente da conta.
+Cliente que nunca manda o aviso não muda nada no ritmo da partida.
+
+**Exceção — a distribuição.** A primeira aposta de cada rodada não espera
+confirmação: distribuir é a animação mais longa e a que mais sofre com lag
+(dependeria de todos os clientes). Em vez disso, logo depois de
+`manilhaVirada` o servidor espera a própria estimativa de até quando o
+front está ocupado e só então emite `distribuicaoConcluida` e pede a
+primeira aposta direto, liberando todo mundo junto. A estimativa é uma
+linha do tempo: cada evento que anima no front (carta jogada — muito mais
+longa se for manilha —, revelação da vaza, dano do placar, eliminação,
+fichas da aposta, distribuição, vira) soma a duração da própria animação a
+partir de onde a fila da tela já estava (ver `game/animacoesFront.js`, com
+as durações copiadas do front), mais uma folga pra lag. Uma manilha na
+última carta da última vaza, por exemplo, empurra a liberação pelo tempo
+inteiro da coreografia dela. Isso só acontece se
+algum cliente aderiu ao segurar; sem ninguém, a primeira aposta sai na hora
+como sempre. As apostas seguintes e as jogadas voltam a esperar as
+confirmações normalmente.

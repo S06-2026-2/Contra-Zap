@@ -128,6 +128,8 @@ polimento.
 - **Banco de testes em produção**
 - **fantasminhas em ordem sentido horario**
 - **timer pra aposta e tacar a carta*
+- timer para fantasminha 
+- menu de chat mais proximo da estetica 
  
 
 ### PIN — só mexer se alguém reclamar
