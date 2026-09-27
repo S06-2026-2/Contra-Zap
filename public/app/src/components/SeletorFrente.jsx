@@ -1,3 +1,5 @@
+import Casca from './arcade/Casca.jsx';
+
 const CHAVE_FRENTE = 'contrazap-frente';
 
 // Escolha fica no localStorage (por navegador/aba, não pelo servidor) —
@@ -6,12 +8,16 @@ const CHAVE_FRENTE = 'contrazap-frente';
 // alguém no "novo", no "arcade" e no "debugging" jogam na mesma sala normalmente.
 const FRENTES_VALIDAS = ['novo', 'arcade', 'debugging'];
 
+// Sem escolha salva (primeira visita, aba privada) abre direto na arcade —
+// o seletor só aparece quando alguém pede pelo botão 🔄 FRONT.
+export const FRENTE_PADRAO = 'arcade';
+
 export function lerFrenteSalva() {
     try {
         const valor = localStorage.getItem(CHAVE_FRENTE);
-        return FRENTES_VALIDAS.includes(valor) ? valor : null;
+        return FRENTES_VALIDAS.includes(valor) ? valor : FRENTE_PADRAO;
     } catch {
-        return null;
+        return FRENTE_PADRAO;
     }
 }
 
@@ -19,27 +25,92 @@ export function salvarFrente(frente) {
     try {
         localStorage.setItem(CHAVE_FRENTE, frente);
     } catch {
-        // sem localStorage (aba privada etc.) só volta a perguntar no próximo F5
+        // sem localStorage (aba privada etc.) volta pro padrão no próximo F5
     }
 }
 
-export default function SeletorFrente({ onEscolher }) {
+const OPCOES = [
+    {
+        id: 'arcade',
+        icone: '👾',
+        nome: 'ARCADE',
+        desc: 'Pixel, chiptune e duelos de manilha animados na mesa.',
+        tags: ['PIXEL', 'SOM', 'FILTRO CRT'],
+        cor: '#ff4b3e',
+        botao: 'az-btn-vermelho',
+    },
+    {
+        id: 'novo',
+        icone: '✨',
+        nome: 'NOVO',
+        desc: 'Visual em construção, com a mesa experimental nas salas solo.',
+        tags: ['EM OBRAS'],
+        cor: '#f5c451',
+        botao: 'az-btn-amarelo',
+    },
+    {
+        id: 'debugging',
+        icone: '🐞',
+        nome: 'DEBUGGING',
+        desc: 'Interface crua, com log de eventos, pra testar o protocolo.',
+        tags: ['DEV'],
+        cor: '#8d93a6',
+        botao: 'az-btn-cinza',
+    },
+];
+
+// Tela de trocar de front, sempre na casca arcade (é a frente padrão).
+// Não mexe em sessão nem sala — ver trocarFrente no App.jsx.
+export default function SeletorFrente({ atual, onEscolher, onVoltar, conectado }) {
     function escolher(frente) {
         salvarFrente(frente);
         onEscolher(frente);
     }
 
     return (
-        <div className="cartao">
-            <h1>Contra ZAP</h1>
-            <p>Qual front você quer usar?</p>
-            <div className="botoes">
-                <button type="button" onClick={() => escolher('novo')}>✨ Novo</button>
-                <button type="button" onClick={() => escolher('arcade')}>👾 Arcade</button>
-                <button type="button" className="secundario" onClick={() => escolher('debugging')}>
-                    🐞 Debugging
-                </button>
+        <Casca conectado={conectado}>
+            <div className="az-tela az-tela-frente" data-screen-label="Escolher front">
+                <div className="az-login-cabeca">
+                    <div className="az-px az-login-titulo">CONTRA<br />ZAP</div>
+                    <div className="az-sub">Escolha a cara do jogo — dá pra trocar quando quiser.</div>
+                </div>
+
+                <div className="az-grade-frentes">
+                    {OPCOES.map((op) => {
+                        const ehAtual = op.id === atual;
+                        return (
+                            <div
+                                key={op.id}
+                                className={`az-frente${ehAtual ? ' az-ativo' : ''}`}
+                                style={{ '--cor-frente': op.cor }}
+                            >
+                                <div className="az-sala-topo">
+                                    <span className="az-frente-icone">{op.icone}</span>
+                                    <div className="az-px az-sala-nome">{op.nome}</div>
+                                    {ehAtual && <div className="az-px az-sala-vagas az-frente-atual">ATUAL</div>}
+                                </div>
+                                <div className="az-texto az-cresce">{op.desc}</div>
+                                <div className="az-tags">
+                                    {op.tags.map((t) => <span key={t} className="az-px az-tag">{t}</span>)}
+                                </div>
+                                <button
+                                    type="button"
+                                    className={`az-b az-px az-btn az-btn-p ${op.botao}`}
+                                    onClick={() => escolher(op.id)}
+                                >
+                                    {ehAtual ? 'CONTINUAR' : 'USAR ESTE'}
+                                </button>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {onVoltar && (
+                    <button type="button" data-som="aba" className="az-b az-btn-fantasma az-frente-voltar" onClick={onVoltar}>
+                        Voltar
+                    </button>
+                )}
             </div>
-        </div>
+        </Casca>
     );
 }

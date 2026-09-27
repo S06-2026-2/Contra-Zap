@@ -14,7 +14,7 @@ const ETAPA = {
 // Mesmo fluxo em etapas do novo/Login.jsx (nome decide o resto: senha pra
 // nome registrado; oferta de cadastro ou convidado pra nome livre) — só a
 // casca visual é arcade.
-export default function Login({ onAutenticado, conectado }) {
+export default function Login({ onAutenticado, onTrocarFrente, conectado }) {
     const [etapa, setEtapa] = useState(ETAPA.NOME);
     const [nome, setNome] = useState('');
     const [senha, setSenha] = useState('');
@@ -184,8 +184,22 @@ export default function Login({ onAutenticado, conectado }) {
         );
     }
 
+    // Mesmo botão da Lobby — como a arcade é a frente padrão, é por aqui que
+    // dá pra trocar de front antes mesmo de entrar.
+    const cabecaDireita = onTrocarFrente && (
+        <button
+            type="button"
+            data-som="aba"
+            className="az-b az-px az-topo-btn"
+            onClick={onTrocarFrente}
+            title="Trocar de frente visual"
+        >
+            🔄 FRONT
+        </button>
+    );
+
     return (
-        <Casca conectado={conectado}>
+        <Casca conectado={conectado} direita={cabecaDireita}>
             <div className="az-tela az-tela-login" data-screen-label="Login">
                 <div className="az-login-cabeca">
                     <div className="az-px az-login-titulo">CONTRA<br />ZAP</div>
