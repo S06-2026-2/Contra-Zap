@@ -130,6 +130,9 @@ polimento.
 - **timer pra aposta e tacar a carta*
 - timer para fantasminha 
 - menu de chat mais proximo da estetica 
+- carta zap raios nao mexe passivamente 
+- consertar os merge issues, 
+- deixar o botão de apostar mais bonito 
  
 
 ### PIN — só mexer se alguém reclamar
