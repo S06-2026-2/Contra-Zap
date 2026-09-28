@@ -21,18 +21,113 @@ const DURACAO_MAX_S = 4.2;
 // Balanço da cauda: mesma ideia do flutuar (duração/atraso sorteados por
 // instância), mas numa faixa própria — não precisa ser síncrona com o
 // flutuar vertical, os dois rodam em relógios separados.
-const DURACAO_CAUDA_MIN_S = 1.6;
-const DURACAO_CAUDA_MAX_S = 3;
-// Quanto a PONTA da cauda anda pra cada lado do centro (x=50 no viewBox);
-// o resto do corpo (dome + ombros) não muda de posição nenhuma.
-const AMPLITUDE_CAUDA = 3;
+const DURACAO_CAUDA_MIN_S = 7;
+const DURACAO_CAUDA_MAX_S = 10;
+// Quanto a PONTA da cauda e a JUNTA do meio dela andam pra cada lado (x=50
+// no viewBox); o resto do corpo (dome + ombros) não muda de posição.
+const AMPLITUDE_CAUDA = 2.2;
+const AMPLITUDE_JUNTA = 1.4;
+// Quantas poses sorteadas por volta do ciclo da cauda (ver
+// sortearBalancoCauda) — sempre par, alternando os lados.
+const POSES_CAUDA = 4;
+// Contorno pixelado (ver useContornoPixelado): o viewBox 0-100 dividido em
+// quadrados de PIXEL_CONTORNO unidades. 5/3 de unidade = 3px exatos no
+// fantasminha de 180px (1.8px por unidade), então todo "pixel" tem o mesmo
+// tamanho na tela, sem meio-pixel variando. Um quadrado acende quando a
+// linha do contorno percorre dentro dele pelo menos PIXEL_COBERTURA do
+// lado dele; recalcula PIXEL_INTERVALO_MS (a cauda mexe devagar). A
+// espessura (PIXEL_ESPESSURA) vem de repetir a mesma linha deslocada um
+// pixel de cada vez pra dentro do corpo (na direção de PIXEL_CENTRO).
+const PIXEL_CONTORNO = 5 / 3;
+const PIXEL_ESPESSURA = 2;
+const PIXEL_CENTRO = { x: 50, y: 45 };
+const PIXEL_COBERTURA = 0.5;
+const PIXEL_PASSO = 0.25;
+const PIXEL_INTERVALO_MS = 60;
 
-// A cauda é só o final da mesma <path> do corpo (os dois "C" que convergem
-// num ponto só, ver corpoComPonta) — balançar ela é reaproveitar essa
-// mesma forma com a ponta (x) deslocada, e deixar o <animate> do SVG
-// interpolar do centro até cada lado e voltar.
-function corpoComPonta(x) {
-    return `M${x},97 C${x},97 13,58 13,33 A37,37 0 1,1 87,33 C87,58 ${x},97 ${x},97 Z`;
+// Percorre o contorno ATUAL do path (com a animação da cauda aplicada) e
+// escreve em `alvo` um único `d` com um quadrado por célula acesa.
+function useContornoPixelado(corpoRef, alvoRef, ativo) {
+    useEffect(() => {
+        if (!ativo) return undefined;
+        let quadro;
+        let ultimo = -Infinity;
+        let dAnterior = '';
+        const passo = (agora) => {
+            quadro = requestAnimationFrame(passo);
+            if (agora - ultimo < PIXEL_INTERVALO_MS) return;
+            ultimo = agora;
+            const corpo = corpoRef.current;
+            const alvo = alvoRef.current;
+            if (!corpo || !alvo) return;
+            const total = corpo.getTotalLength();
+            const percorrido = new Map();
+            for (let l = 0; l < total; l += PIXEL_PASSO) {
+                const { x, y } = corpo.getPointAtLength(l);
+                const dx = PIXEL_CENTRO.x - x;
+                const dy = PIXEL_CENTRO.y - y;
+                const dist = Math.hypot(dx, dy) || 1;
+                for (let camada = 0; camada < PIXEL_ESPESSURA; camada++) {
+                    const px = x + (dx / dist) * PIXEL_CONTORNO * camada;
+                    const py = y + (dy / dist) * PIXEL_CONTORNO * camada;
+                    const chave = `${Math.floor(px / PIXEL_CONTORNO)},${Math.floor(py / PIXEL_CONTORNO)}`;
+                    percorrido.set(chave, (percorrido.get(chave) ?? 0) + PIXEL_PASSO);
+                }
+            }
+            let d = '';
+            const lado = PIXEL_CONTORNO.toFixed(4);
+            for (const [chave, comprimento] of percorrido) {
+                if (comprimento < PIXEL_CONTORNO * PIXEL_COBERTURA) continue;
+                const [cx, cy] = chave.split(',').map(Number);
+                d += `M${(cx * PIXEL_CONTORNO).toFixed(4)},${(cy * PIXEL_CONTORNO).toFixed(4)}h${lado}v${lado}h-${lado}z`;
+            }
+            if (d !== dAnterior) {
+                alvo.setAttribute('d', d);
+                dAnterior = d;
+            }
+        };
+        quadro = requestAnimationFrame(passo);
+        return () => cancelAnimationFrame(quadro);
+    }, [corpoRef, alvoRef, ativo]);
+}
+
+// A cauda é o final da mesma <path> do corpo. Cada lado dela é a curva
+// original (ombro -> ponta) cortada ao meio por de Casteljau: duas cúbicas
+// que, com os deslocamentos em zero, desenham EXATAMENTE a gota de sempre.
+// A junta do meio (e os dois controles colados nela, pra curva continuar
+// lisa ali) anda `junta` pro lado; a ponta anda `ponta`. O <animate> do
+// SVG interpola entre poses.
+function corpoComPonta(ponta, junta = 0) {
+    const t = 50 + ponta;
+    const j = junta;
+    const n = (v) => v.toFixed(2);
+    return `M${n(t)},97 C${n(t)},97 ${n(40.75 + j)},87.25 ${n(31.5 + j)},74.375 C${n(22.25 + j)},61.5 13,45.5 13,33 `
+        + `A37,37 0 1,1 87,33 C87,45.5 ${n(77.75 + j)},61.5 ${n(68.5 + j)},74.375 C${n(59.25 + j)},87.25 ${n(t)},97 ${n(t)},97 Z`;
+}
+
+// Ciclo da cauda sorteado por fantasminha: um vaivém lento e suave, a
+// ponta alternando de lado com um alcance sorteado a cada ida (nunca duas
+// idas iguais), e a junta ATRASADA — ainda a caminho do lado de onde a
+// ponta veio — pra cauda ondular de leve em vez de pendular dura. Tempos
+// entre poses variam pouco; volta à primeira pose pra fechar o laço.
+function sortearBalancoCauda() {
+    const lado = Math.random() < 0.5 ? 1 : -1;
+    const pontas = Array.from({ length: POSES_CAUDA }, (_, i) => (i % 2 ? -lado : lado) * AMPLITUDE_CAUDA * (0.55 + Math.random() * 0.45));
+    const poses = pontas.map((ponta, i) => {
+        const anterior = pontas[(i - 1 + POSES_CAUDA) % POSES_CAUDA];
+        const junta = (anterior / AMPLITUDE_CAUDA) * AMPLITUDE_JUNTA * 0.7;
+        return corpoComPonta(ponta, junta);
+    });
+    const pesos = poses.map(() => 0.85 + Math.random() * 0.3);
+    const total = pesos.reduce((a, b) => a + b, 0);
+    let acumulado = 0;
+    const tempos = [0, ...pesos.map((p) => (acumulado += p) / total)];
+    tempos[tempos.length - 1] = 1;
+    return {
+        values: [...poses, poses[0]].join(';'),
+        keyTimes: tempos.map((v) => v.toFixed(4)).join(';'),
+        keySplines: poses.map(() => '0.42 0 0.58 1').join(';'),
+    };
 }
 
 // Animação de dano ("impact frame"): um corte atravessando o rosto. Não é
@@ -172,6 +267,141 @@ function Engrenagem({ className, dentes = 8, corBase = '#cbd1d6', corSombra = '#
     );
 }
 
+// Pensamento (ver `pensamento` no componente): depois de PENSAMENTO_APOS_MS
+// seguidos na vez dele, aparece em cima da cabeça um de três sinais de
+// "tá pensando", sorteado a cada vez — tudo na cor do próprio fantasminha
+// (corpo claro + contorno escuro, os mesmos tons do corpo/contorno).
+const PENSAMENTO_APOS_MS = 10_000;
+export const TIPOS_PENSAMENTO = ['interrogacao', 'engrenagens', 'lampada'];
+
+function Pensamento({ tipo, hue }) {
+    const cor = `hsl(${hue}, 80%, 82%)`;
+    const corEscura = `hsl(${hue}, 45%, 16%)`;
+    if (tipo === 'interrogacao') {
+        // Duas "?" nascendo de baixo, uma maior que a outra, cada uma
+        // balançando no próprio ritmo.
+        return (
+            <div className="fantasminha-pensamento fantasminha-pensamento-interrogacao">
+                {[{ tamanho: 'grande' }, { tamanho: 'pequena' }].map(({ tamanho }) => (
+                    <span key={tamanho} className={`fantasminha-interrogacao fantasminha-interrogacao-${tamanho}`}>
+                        <svg viewBox="0 0 40 60">
+                            <text x="20" y="50" textAnchor="middle" fill={cor} stroke={corEscura} strokeWidth="5" paintOrder="stroke" strokeLinejoin="round">?</text>
+                        </svg>
+                    </span>
+                ))}
+            </div>
+        );
+    }
+    if (tipo === 'engrenagens') {
+        return (
+            <div className="fantasminha-pensamento fantasminha-pensamento-engrenagens">
+                <Engrenagem className="fantasminha-pensamento-engrenagem-grande" dentes={9} corBase={cor} corSombra={corEscura} />
+                <Engrenagem className="fantasminha-pensamento-engrenagem-pequena" dentes={7} corBase={cor} corSombra={corEscura} />
+            </div>
+        );
+    }
+    // Lâmpada de filamento: a versão apagada por baixo, e a acesa (vidro
+    // claro, filamento brilhando, halo) por cima com a opacidade piscando
+    // — apagada, uma ligadinha rápida, apaga, liga de vez por um tempo,
+    // apaga (ver @keyframes fantasminha-lampada-acender).
+    return (
+        <div className="fantasminha-pensamento fantasminha-pensamento-lampada">
+            <svg viewBox="0 0 60 90" overflow="visible">
+                <circle className="fantasminha-lampada-aceso" cx="30" cy="30" r="30" fill={cor} opacity=".45" filter="blur(6px)" />
+                <path d="M30,4 C16,4 7,14 7,27 C7,37 13,43 17,49 C19,52 20,56 20,60 L40,60 C40,56 41,52 43,49 C47,43 53,37 53,27 C53,14 44,4 30,4 Z" fill={`hsl(${hue}, 25%, 28%)`} stroke={corEscura} strokeWidth="3.5" />
+                <path className="fantasminha-lampada-aceso" d="M30,4 C16,4 7,14 7,27 C7,37 13,43 17,49 C19,52 20,56 20,60 L40,60 C40,56 41,52 43,49 C47,43 53,37 53,27 C53,14 44,4 30,4 Z" fill={cor} stroke={corEscura} strokeWidth="3.5" />
+                <polyline points="22,58 24,40 27,32 30,40 33,32 36,40 38,58" fill="none" stroke={corEscura} strokeWidth="2.5" strokeLinejoin="round" />
+                <polyline className="fantasminha-lampada-aceso" points="24,40 27,32 30,40 33,32 36,40" fill="none" stroke="#fff" strokeWidth="2" strokeLinejoin="round" />
+                <rect x="19" y="61" width="22" height="7" rx="2" fill={cor} stroke={corEscura} strokeWidth="3" />
+                <rect x="20" y="68" width="20" height="7" rx="2" fill={cor} stroke={corEscura} strokeWidth="3" />
+                <rect x="24" y="75" width="12" height="6" rx="3" fill={corEscura} />
+            </svg>
+        </div>
+    );
+}
+
+// Rosto parado (idle): cada fantasminha tem o próprio "cérebro" de
+// timers que só escreve variáveis CSS no .fantasminha-rosto (ver
+// --olhar-x/-y, --piscar, --boca-sx/-sy em index.css) — sem re-render, o
+// CSS faz as transições. Três coisas independentes:
+// - olhar: de tempos em tempos os olhos (e a boca, menos) deslizam pra um
+//   ponto novo perto do centro, às vezes voltam pro meio;
+// - piscar: fecha e abre rápido, às vezes duas vezes seguidas;
+// - boca: ~60% do tempo é a forma de sempre; no resto, fecha um pouco,
+//   encolhe ou cresce por um instante e volta.
+const OLHAR_MAX_X_PX = 3.5;
+const OLHAR_MAX_Y_PX = 2.5;
+const OLHAR_INTERVALO_MS = [900, 3200];
+const PISCAR_INTERVALO_MS = [2200, 6000];
+const PISCAR_FECHADO_MS = 110;
+const PISCAR_DUPLO_CHANCE = 0.25;
+const BOCA_CHANCE_NORMAL = 0.6;
+const BOCA_INTERVALO_MS = [1200, 3200];
+const BOCA_VARIACOES = [
+    { sx: 1.1, sy: 0.45 },  // fecha um pouco
+    { sx: 0.75, sy: 0.75 }, // encolhe
+    { sx: 1.2, sy: 1.15 },  // cresce
+    { sx: 0.9, sy: 1.25 },  // abre em "o"
+];
+
+function sortearEntre([min, max]) {
+    return min + Math.random() * (max - min);
+}
+
+function useRostoVivo(rostoRef, ativo) {
+    useEffect(() => {
+        const rosto = rostoRef.current;
+        if (!rosto || !ativo) return undefined;
+        const timers = new Set();
+        const depois = (ms, fn) => {
+            const id = setTimeout(() => {
+                timers.delete(id);
+                fn();
+            }, ms);
+            timers.add(id);
+        };
+        const definir = (nome, valor) => rosto.style.setProperty(nome, valor);
+
+        const olhar = () => {
+            const centro = Math.random() < 0.3;
+            definir('--olhar-x', `${centro ? 0 : (Math.random() * 2 - 1) * OLHAR_MAX_X_PX}px`);
+            definir('--olhar-y', `${centro ? 0 : (Math.random() * 2 - 1) * OLHAR_MAX_Y_PX}px`);
+            depois(sortearEntre(OLHAR_INTERVALO_MS), olhar);
+        };
+        const piscar = () => {
+            definir('--piscar', '0.08');
+            depois(PISCAR_FECHADO_MS, () => {
+                definir('--piscar', '1');
+                if (Math.random() < PISCAR_DUPLO_CHANCE) {
+                    depois(PISCAR_FECHADO_MS * 1.6, () => {
+                        definir('--piscar', '0.08');
+                        depois(PISCAR_FECHADO_MS, () => definir('--piscar', '1'));
+                    });
+                }
+            });
+            depois(sortearEntre(PISCAR_INTERVALO_MS), piscar);
+        };
+        const boca = () => {
+            const forma = Math.random() < BOCA_CHANCE_NORMAL
+                ? { sx: 1, sy: 1 }
+                : BOCA_VARIACOES[Math.floor(Math.random() * BOCA_VARIACOES.length)];
+            definir('--boca-sx', String(forma.sx));
+            definir('--boca-sy', String(forma.sy));
+            depois(sortearEntre(BOCA_INTERVALO_MS), boca);
+        };
+
+        // Primeiro passo de cada um sorteado, pra fantasminhas lado a lado
+        // não piscarem/olharem em sincronia.
+        depois(sortearEntre(OLHAR_INTERVALO_MS), olhar);
+        depois(sortearEntre(PISCAR_INTERVALO_MS), piscar);
+        depois(sortearEntre(BOCA_INTERVALO_MS), boca);
+        return () => {
+            timers.forEach(clearTimeout);
+            for (const nome of ['--olhar-x', '--olhar-y', '--piscar', '--boca-sx', '--boca-sy']) rosto.style.removeProperty(nome);
+        };
+    }, [rostoRef, ativo]);
+}
+
 // `chapeu` e `hue` vêm de FORA agora (ver MesaExperimento.jsx:
 // chapeusPorAssento/huesPorAssento) — não são mais sorteados aqui dentro.
 // Precisa disso por DOIS motivos: (1) a ficha de aposta de cada
@@ -192,11 +422,14 @@ function Engrenagem({ className, dentes = 8, corBase = '#cbd1d6', corSombra = '#
 // — cada chapéu tem o seu próprio nudge calibrado à mão (ver `ajuste` em
 // chapeus.js/assets/chapeus/calibracao-chapeus.csv), já que a maioria não
 // nasceu desenhada pro mesmo lugar em cima do fantasminha.
-export default function Fantasminha({ children, destacado, danoVersao, bot, monitor = true, hue, naVez, chapeu, estadoMorte, ajusteChapeuPct = 0 }) {
+export default function Fantasminha({ children, destacado, danoVersao, bot, monitor = true, hue, naVez, chapeu, estadoMorte, ajusteChapeuPct = 0, contornoPixelado = false, pensamentoForcado = null }) {
     const idGradiente = useId();
+    const corpoRef = useRef(null);
+    const pixelsRef = useRef(null);
+    useContornoPixelado(corpoRef, pixelsRef, contornoPixelado);
     const idCorteClip = useId();
     const idTelaClip = useId();
-    const { duracao, atraso, duracaoCauda, atrasoCauda } = useMemo(() => ({
+    const { duracao, atraso, duracaoCauda, atrasoCauda, balancoCauda } = useMemo(() => ({
         duracao: DURACAO_MIN_S + Math.random() * (DURACAO_MAX_S - DURACAO_MIN_S),
         // Atraso NEGATIVO adianta o relógio da animação em vez de esperar
         // pra começar — é isso que faz cada fantasminha nascer num ponto
@@ -205,6 +438,7 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
         atraso: Math.random() * DURACAO_MAX_S,
         duracaoCauda: DURACAO_CAUDA_MIN_S + Math.random() * (DURACAO_CAUDA_MAX_S - DURACAO_CAUDA_MIN_S),
         atrasoCauda: Math.random() * DURACAO_CAUDA_MAX_S,
+        balancoCauda: sortearBalancoCauda(),
     }), []);
 
     // `danoVersao` é o mesmo truque de `versaoChapeu`: um contador que só
@@ -266,6 +500,42 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
     // ainda liga a animação de desmanchar + as partículas.
     const morrendo = estadoMorte != null;
     const desintegrando = estadoMorte === 'desintegrando';
+    // Mesmo balanço de cauda no corpo e no contorno (camadas separadas):
+    // mesmos valores e mesmo `begin`, então andam juntos. Poses sorteadas
+    // por instância (ver sortearBalancoCauda).
+    const animacaoCauda = (
+        <animate
+            attributeName="d"
+            values={balancoCauda.values}
+            keyTimes={balancoCauda.keyTimes}
+            calcMode="spline"
+            keySplines={balancoCauda.keySplines}
+            dur={`${duracaoCauda.toFixed(2)}s`}
+            begin={`-${atrasoCauda.toFixed(2)}s`}
+            repeatCount="indefinite"
+        />
+    );
+    // Rosto vivo só enquanto não está morrendo (aí fica travado na cara de
+    // dor, ver acima).
+    const rostoRef = useRef(null);
+    useRostoVivo(rostoRef, !morrendo);
+
+    // Pensando = na vez dele (aposta ou jogada), menos morrendo. Passados
+    // PENSAMENTO_APOS_MS seguidos, sorteia qual sinal mostrar; sai da vez,
+    // some. `pensamentoForcado` (vitrine) mostra um tipo direto.
+    const pensando = naVez && !morrendo;
+    const [pensamento, setPensamento] = useState(null);
+    useEffect(() => {
+        if (!pensando) {
+            setPensamento(null);
+            return undefined;
+        }
+        const id = setTimeout(() => {
+            setPensamento(TIPOS_PENSAMENTO[Math.floor(Math.random() * TIPOS_PENSAMENTO.length)]);
+        }, PENSAMENTO_APOS_MS);
+        return () => clearTimeout(id);
+    }, [pensando]);
+    const pensamentoVisivel = morrendo ? null : pensamentoForcado ?? pensamento;
 
     return (
         <div
@@ -325,35 +595,34 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
                         <stop offset="100%" stopColor={`hsl(${hue}, 65%, 68%)`} />
                     </radialGradient>
                 </defs>
-                {/* `destacado` (ver MesaExperimento.jsx: assento de quem
-                    jogou a carta em hover, OU o próprio assento em hover)
-                    contorna o CONTORNO DE VERDADE do fantasma — a
-                    silhueta do path, não um retângulo por cima dele — via
-                    stroke direto no SVG. `naVez` (de quem é a vez agora,
-                    NÃO depende do mouse) usa a MESMA técnica e o mesmo
-                    amarelo — azul claro sumia demais em cima do feltro. */}
-                <path
-                    d={corpoComPonta(50)}
-                    fill={`url(#${idGradiente})`}
-                    stroke={destacado || naVez ? '#ffcc00' : 'none'}
-                    strokeWidth={destacado || naVez ? 3 : 0}
-                >
-                    {/* centro -> direita -> centro -> esquerda -> centro,
-                        num ciclo só — "andar pra direita pra esquerda" em
-                        vaivém, não só ida. */}
-                    <animate
-                        attributeName="d"
-                        values={[50, 50 + AMPLITUDE_CAUDA, 50, 50 - AMPLITUDE_CAUDA, 50]
-                            .map(corpoComPonta)
-                            .join(';')}
-                        keyTimes="0;0.25;0.5;0.75;1"
-                        calcMode="spline"
-                        keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0.42 0 0.58 1;0.42 0 0.58 1"
-                        dur={`${duracaoCauda.toFixed(2)}s`}
-                        begin={`-${atrasoCauda.toFixed(2)}s`}
-                        repeatCount="indefinite"
-                    />
+                <path ref={corpoRef} d={corpoComPonta(0)} fill={`url(#${idGradiente})`}>
+                    {animacaoCauda}
                 </path>
+                {/* Contorno de desenho animado sempre ligado, por cima do
+                    corpo: a silhueta na cor do próprio fantasminha, puxada
+                    pro preto — em blocos (ver useContornoPixelado) ou como
+                    traço liso. A MESMA cor vira amarelo com `destacado` (ver
+                    MesaExperimento.jsx: assento de quem jogou a carta em
+                    hover, OU o próprio assento em hover) ou `naVez` (de
+                    quem é a vez agora, não depende do mouse). */}
+                {contornoPixelado ? (
+                    <path
+                        ref={pixelsRef}
+                        className="fantasminha-contorno-pixels"
+                        fill={destacado || naVez ? '#ffcc00' : `hsl(${hue}, 45%, 16%)`}
+                    />
+                ) : (
+                    <path
+                        className="fantasminha-contorno"
+                        d={corpoComPonta(0)}
+                        fill="none"
+                        stroke={destacado || naVez ? '#ffcc00' : `hsl(${hue}, 45%, 16%)`}
+                        strokeWidth="3"
+                        strokeLinejoin="round"
+                    >
+                        {animacaoCauda}
+                    </path>
+                )}
                 {/* Flash branco por cima da silhueta inteira — bem mais
                     rápido que o resto do impact frame (o corte/aperto de
                     olho seguram DURACAO_DANO_MS inteiro), some sozinho
@@ -361,7 +630,7 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
                     animação da cauda) de propósito: dura tão pouco que o
                     descompasso com a cauda balançando não dá pra notar. */}
                 {machucado && (
-                    <path key={`flash-${danoVersao}`} className="fantasminha-flash" d={corpoComPonta(50)} fill="#ffffff" />
+                    <path key={`flash-${danoVersao}`} className="fantasminha-flash" d={corpoComPonta(0)} fill="#ffffff" />
                 )}
                 {/* O corte só existe enquanto machucado — `key={danoVersao}`
                     força remontar (e reiniciar as animações do zero, tanto
@@ -452,11 +721,15 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
                 (olhos "apertam"/fecham, boca aumenta, ver .fantasminha-
                 machucado no CSS) — só que aqui fica PRA SEMPRE, não volta
                 sozinho: "toma a animação de dano e fica naquele estado". */}
-            <div className={`fantasminha-rosto${(machucado || morrendo) ? ' fantasminha-machucado' : ''}${bot ? ' fantasminha-rosto-bot' : ''}`}>
+            {/* `naVez` também liga o rosto "pensando" (olhos semicerrados
+                e olhar pra baixo, pras próprias cartas — ver
+                .fantasminha-rosto-pensando no CSS), menos morrendo. */}
+            <div ref={rostoRef} className={`fantasminha-rosto${(machucado || morrendo) ? ' fantasminha-machucado' : ''}${bot ? ' fantasminha-rosto-bot' : ''}${pensando ? ' fantasminha-rosto-pensando' : ''}`}>
                 <div className="fantasminha-olho fantasminha-olho-esq" />
                 <div className="fantasminha-olho fantasminha-olho-dir" />
                 <div className="fantasminha-boca" />
             </div>
+            {pensamentoVisivel && <Pensamento key={pensamentoVisivel} tipo={pensamentoVisivel} hue={hue} />}
             {/* Partículas da desintegração (ver particulas/desintegrando
                 lá em cima) — só existem no DOM na fase 'desintegrando',
                 cada uma some sozinha no fim da própria animação. */}

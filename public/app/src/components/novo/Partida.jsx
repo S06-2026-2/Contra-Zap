@@ -209,6 +209,11 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
             cartaJogada(p) {
                 if (!daSala(p)) return;
                 setPrazoTurno((atual) => (atual?.jogador === p.jogador ? null : atual));
+                // Jogou, a vez dele acabou — sem isto a vez (e o rosto
+                // "pensando"/banner) ficava nele até o PRÓXIMO turnoJogador,
+                // que na última carta da rodada só sai depois da revelação,
+                // do dano e da distribuição seguinte.
+                setJogadorDaVez((atual) => (atual === p.jogador ? null : atual));
                 // Se a vaza anterior ainda está congelada na mesa (pausa
                 // rodando), a primeira carta da vaza nova abre a mesa do
                 // zero em vez de empilhar em cima da que acabou.

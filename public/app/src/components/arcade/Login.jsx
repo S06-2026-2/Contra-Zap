@@ -3,6 +3,12 @@ import { chamar } from '../../socket.js';
 import { NOME_MIN, NOME_MAX, SENHA_MIN, SENHA_MAX } from '../../../../../conexao/limites.js';
 import Casca from './Casca.jsx';
 import { tocarSom } from './somArcade.js';
+import VitrineFantasminha from '../novo/VitrineFantasminha.jsx';
+
+// Botão "👻 FANTASMINHA" no topo, que abre a vitrine de estudo do
+// fantasminha (novo/VitrineFantasminha.jsx). Escondido por padrão; true
+// mostra de novo.
+const MOSTRAR_VITRINE_FANTASMINHA = false;
 
 const ETAPA = {
     NOME: 'nome',
@@ -20,6 +26,9 @@ export default function Login({ onAutenticado, onTrocarFrente, conectado }) {
     const [senha, setSenha] = useState('');
     const [carregando, setCarregando] = useState(false);
     const [erro, setErro] = useState(null);
+    // Vitrine de estudo do fantasminha (ver novo/VitrineFantasminha.jsx) —
+    // tela à parte, fora do fluxo de login.
+    const [vitrineFantasminha, setVitrineFantasminha] = useState(false);
 
     function irPara(proxima) {
         setEtapa(proxima);
@@ -184,18 +193,37 @@ export default function Login({ onAutenticado, onTrocarFrente, conectado }) {
         );
     }
 
+    if (vitrineFantasminha) {
+        return <VitrineFantasminha onVoltar={() => setVitrineFantasminha(false)} />;
+    }
+
     // Mesmo botão da Lobby — como a arcade é a frente padrão, é por aqui que
     // dá pra trocar de front antes mesmo de entrar.
-    const cabecaDireita = onTrocarFrente && (
-        <button
-            type="button"
-            data-som="aba"
-            className="az-b az-px az-topo-btn"
-            onClick={onTrocarFrente}
-            title="Trocar de frente visual"
-        >
-            🔄 FRONT
-        </button>
+    const cabecaDireita = (
+        <>
+            {MOSTRAR_VITRINE_FANTASMINHA && (
+                <button
+                    type="button"
+                    data-som="aba"
+                    className="az-b az-px az-topo-btn"
+                    onClick={() => setVitrineFantasminha(true)}
+                    title="Estudar o design do fantasminha"
+                >
+                    👻 FANTASMINHA
+                </button>
+            )}
+            {onTrocarFrente && (
+                <button
+                    type="button"
+                    data-som="aba"
+                    className="az-b az-px az-topo-btn"
+                    onClick={onTrocarFrente}
+                    title="Trocar de frente visual"
+                >
+                    🔄 FRONT
+                </button>
+            )}
+        </>
     );
 
     return (

@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Fantasminha from './Fantasminha.jsx';
 import Carta, { ManilhaContext } from './Carta.jsx';
 import { JogadaManilha, DanosDaMesa, tremerElemento, calcularEmpurraoZap } from './MesaDanificada.jsx';
@@ -111,6 +111,16 @@ const MORTE_DESINTEGRAR_MS = 900;
 // (pedido do Henrique: "uns 1s depois que a animação de dano tocar").
 const PAUSA_MORTE_APOS_DANO_MS = 1000;
 
+// Luzes de vez (sua, de baixo; e a do fantasminha da vez, da borda mais
+// perto dele — ver luzVez). Desligadas por enquanto; true religa as duas.
+const LUZ_DE_VEZ_ATIVA = false;
+
+// Banner de vez: quando a vez fica vazia (entre um jogador e o próximo) o
+// último texto segura esse tanto antes de sumir — nas trocas normais o
+// próximo chega antes e só substitui, sem a barra piscar. Pausas longas
+// (revelação de vaza, fim de rodada) passam disso e aí a barra some.
+const BANNER_VEZ_SEGURA_MS = 1500;
+
 const FICHA_TAMANHO_PX = 64;
 const ESCALA_FICHA_CANTO = 0.62;
 const FICHA_EMPILHA_POPUP_PX = 10;
@@ -182,6 +192,26 @@ const VAZA_EXPLOSAO_DURACAO_MS = 900;
 // null): mesma pausa/overlay da revelação normal, só que sem carta nenhuma
 // crescendo/viajando — todo mundo que estava na mesa "explode" junto.
 const VAZA_MELADA_PAUSA_MS = 1400;
+// Choque das meladas (ver ChoqueMeladas): as cartas que se anularam sobem
+// por cima do escuro até o centro da revelação, recuam pra pegar embalo,
+// se chocam no meio (clarão + tremor + onda de choque), quicam pra trás e
+// ficam um instante — aí a mesa explode como sempre.
+const MELADA_SUBIR_MS = 550;
+const MELADA_SEGURAR_MS = 350;
+const MELADA_RECUAR_MS = 180;
+const MELADA_INVESTIR_MS = 170;
+const MELADA_QUICAR_MS = 260;
+const MELADA_PARADA_MS = 900;
+const MELADA_ESCALA = 1.35;
+const MELADA_ESPACO_PX = 190;
+const MELADA_ESPACO_CHOQUE_PX = 50;
+const MELADA_ESPACO_QUIQUE_PX = 120;
+const MELADA_RECUO_PX = 45;
+const MELADA_INCLINACAO_GRAUS = 10;
+const MELADA_TREMOR_FORCA = 0.8;
+// Tamanho da .carta-exp (110x154, ver index.css) — base das poses dos clones.
+const CARTA_LARGURA = 110;
+const CARTA_ALTURA = 154;
 
 // "Sisteminha" de dano do fim de rodada (ver dispararCartasDeDano): sempre
 // `diferenca` cartas (MESMA conta de `hp -= diferenca` em game/Rodada.js),
@@ -518,6 +548,77 @@ function duracaoFaseRevelacaoVaza(fase) {
     if (fase === 'impacto') return VAZA_IMPACTO_DURACAO_MS;
     if (fase === 'viajando' || fase === 'pousada') return VAZA_VIAGEM_DURACAO_MS;
     return VAZA_REVELACAO_TRANSICAO_MS;
+}
+
+// Clones das cartas que melaram (as originais na mesa ficam escondidas
+// enquanto isso), animados por WAAPI numa linha do tempo só: da posição na
+// mesa até uma fila no centro -> recuo -> investida até se sobreporem ->
+// quique pra trás, inclinadas pra fora. `onImpacto` no instante do choque,
+// `onFim` depois de MELADA_PARADA_MS paradas. `saindo` derruba e apaga os
+// clones enquanto a mesa explode.
+function ChoqueMeladas({ cartas, saindo, onImpacto, onFim }) {
+    const refs = useRef([]);
+    const [chocou, setChocou] = useState(false);
+
+    useEffect(() => {
+        const cx = window.innerWidth * VAZA_REVELACAO_X_FRACAO;
+        const cy = window.innerHeight * VAZA_REVELACAO_Y_FRACAO;
+        const meio = (cartas.length - 1) / 2;
+        const total = MELADA_SUBIR_MS + MELADA_SEGURAR_MS + MELADA_RECUAR_MS + MELADA_INVESTIR_MS + MELADA_QUICAR_MS;
+        const marcas = [];
+        let t = 0;
+        for (const d of [MELADA_SUBIR_MS, MELADA_SEGURAR_MS, MELADA_RECUAR_MS, MELADA_INVESTIR_MS, MELADA_QUICAR_MS]) {
+            t += d;
+            marcas.push(t / total);
+        }
+        const pose = (x, y, escala, rot) => `translate(${x - CARTA_LARGURA / 2}px, ${y - CARTA_ALTURA / 2}px) rotate(${rot}deg) scale(${escala})`;
+        const animacoes = cartas.map((carta, i) => {
+            const el = refs.current[i];
+            if (!el) return null;
+            const lado = Math.sign(i - meio);
+            const x0 = carta.rect.left + carta.rect.width / 2;
+            const y0 = carta.rect.top + carta.rect.height / 2;
+            const escala0 = carta.rect.width / CARTA_LARGURA;
+            const xFila = cx + (i - meio) * MELADA_ESPACO_PX;
+            const inclina = -lado * MELADA_INCLINACAO_GRAUS;
+            return el.animate([
+                { transform: pose(x0, y0, escala0, 0), offset: 0, easing: 'cubic-bezier(.2, .8, .3, 1)' },
+                { transform: pose(xFila, cy, MELADA_ESCALA, inclina), offset: marcas[0] },
+                { transform: pose(xFila, cy, MELADA_ESCALA, inclina), offset: marcas[1], easing: 'ease-out' },
+                { transform: pose(xFila + lado * MELADA_RECUO_PX, cy, MELADA_ESCALA, inclina * 1.4), offset: marcas[2], easing: 'cubic-bezier(.6, 0, 1, .6)' },
+                { transform: pose(cx + (i - meio) * MELADA_ESPACO_CHOQUE_PX, cy, MELADA_ESCALA * 1.05, 0), offset: marcas[3], easing: 'cubic-bezier(.2, .9, .3, 1)' },
+                { transform: pose(cx + (i - meio) * MELADA_ESPACO_QUIQUE_PX, cy + 10, MELADA_ESCALA * 0.97, lado * 12), offset: 1 },
+            ], { duration: total, fill: 'forwards' });
+        });
+        const instanteImpacto = MELADA_SUBIR_MS + MELADA_SEGURAR_MS + MELADA_RECUAR_MS + MELADA_INVESTIR_MS;
+        const tImpacto = setTimeout(() => {
+            setChocou(true);
+            onImpacto?.();
+        }, instanteImpacto);
+        const tFim = setTimeout(() => onFim?.(), total + MELADA_PARADA_MS);
+        return () => {
+            clearTimeout(tImpacto);
+            clearTimeout(tFim);
+            animacoes.forEach((a) => a?.cancel());
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- roda uma vez por choque; callbacks lidos na hora
+    }, [cartas]);
+
+    return (
+        <div className={`mesa-exp-melada-choque${saindo ? ' mesa-exp-melada-choque-saindo' : ''}`}>
+            {cartas.map((carta, i) => (
+                <div key={carta.id} ref={(el) => { refs.current[i] = el; }} className="mesa-exp-melada-carta">
+                    <Carta rank={carta.rank} naipe={carta.naipe} />
+                </div>
+            ))}
+            {chocou && (
+                <div
+                    className="mesa-exp-melada-clarao"
+                    style={{ left: window.innerWidth * VAZA_REVELACAO_X_FRACAO, top: window.innerHeight * VAZA_REVELACAO_Y_FRACAO }}
+                />
+            )}
+        </div>
+    );
 }
 
 function CartaRevelando({ origem, destino, fase, carta }) {
@@ -1081,7 +1182,7 @@ function ArcoTimer({ prazo, tamanho }) {
     );
 }
 
-function MaoEmLeque({ quantidade, cartas }) {
+export function MaoEmLeque({ quantidade, cartas }) {
     const total = cartas ? cartas.length : quantidade;
     if (total <= 0) return null;
     const meio = (total - 1) / 2;
@@ -1116,12 +1217,14 @@ function MaoEmLeque({ quantidade, cartas }) {
 // `onJogar` pode vir undefined (ver `acoes` em MesaExperimento — Fatia 1
 // ainda não pluga suas próprias ações): `?.()` deixa a mão clicável sem
 // quebrar nada enquanto isso, o clique simplesmente não faz nada ainda.
-function SuaMaoEmLeque({ cartas, idSaindo, onJogar, escondida }) {
+// `naVez`: sua vez de JOGAR carta — a mão inteira avança um pouco pra
+// frente (ver .mesa-exp-sua-mao-vez) e recua quando a vez passa.
+function SuaMaoEmLeque({ cartas, idSaindo, onJogar, escondida, naVez }) {
     if (cartas.length === 0) return null;
     const meio = (cartas.length - 1) / 2;
 
     return (
-        <div className="mesa-exp-sua-mao">
+        <div className={`mesa-exp-sua-mao${naVez ? ' mesa-exp-sua-mao-vez' : ''}`}>
             {cartas.map((carta, i) => {
                 const offset = i - meio;
                 const saindo = carta.id === idSaindo;
@@ -1179,15 +1282,22 @@ function LequeManilha({ rank }) {
 // vencedor, vazaResultado, mensagensChat, erro }. `acoes` (opcional, ainda
 // não usado na Fatia 1): funções que chamam o servidor de verdade.
 // Cabeçalho no idioma do front arcade (ver Casca.jsx/.az-logo e
-// .az-mesa-info lá), sem faixa de fundo: logo e número da sala soltos no
-// canto de cima à esquerda; seu nome e o que vier em `children` (o "Sair da
-// partida") no da direita.
-function CabecalhoMesa({ salaId, meuNome, children }) {
+// .az-mesa-info lá), sem faixa de fundo: logo, número da sala, senha (só
+// sala privada) e contador de rodada (só com a partida andando, `rodada`
+// > 0) soltos no canto de cima à esquerda; seu nome e o que vier em
+// `children` (o botão de sair) no da direita.
+function CabecalhoMesa({ salaId, senha, rodada, meuNome, children }) {
     return (
         <>
             <div className="mesa-exp-cabecalho-titulo">
                 <span className="mesa-exp-logo">CONTRA ZAP</span>
                 <span className="mesa-exp-cabecalho-sala">SALA <span>{salaId}</span></span>
+                {senha && <span className="mesa-exp-cabecalho-sala">SENHA <span>{senha}</span></span>}
+                {rodada > 0 && (
+                    <span className="mesa-exp-cabecalho-sala">
+                        RODADA <span className="mesa-exp-cabecalho-rodada">{rodada}</span>
+                    </span>
+                )}
             </div>
             <div className="mesa-exp-cabecalho-direita">
                 {meuNome && <span className="mesa-exp-cabecalho-nome" title="Você">{meuNome}</span>}
@@ -1330,6 +1440,11 @@ export default function MesaExperimento({ estado, acoes }) {
     const [vazaRevelando, setVazaRevelando] = useState(null);
     const [faseRevelacaoVaza, setFaseRevelacaoVaza] = useState(null);
     const [choqueVaza, setChoqueVaza] = useState(0);
+    // Choque das meladas em cena (ver ChoqueMeladas/iniciarRevelacaoVazaMelada):
+    // { cartas, saindo, onImpacto, onFim } ou null. `melouVisivel` liga o
+    // texto "MELOU!" só a partir do choque.
+    const [choqueMeladas, setChoqueMeladas] = useState(null);
+    const [melouVisivel, setMelouVisivel] = useState(false);
     const [cartasVazaGanhas, setCartasVazaGanhas] = useState([]);
     const [cartasExplodindo, setCartasExplodindo] = useState({});
     const vazaProcessadaRef = useRef(null);
@@ -1543,6 +1658,9 @@ export default function MesaExperimento({ estado, acoes }) {
 
         return { idVencedora, idsMeladas, gruposMeladas };
     }, [cartasNaMesa, vira]);
+    // Lido na revelação da melada, que roda fora do render (async).
+    const analiseMesaRef = useRef(analiseMesa);
+    analiseMesaRef.current = analiseMesa;
 
     function localizarGrupoMelada(id) {
         for (let g = 0; g < analiseMesa.gruposMeladas.length; g++) {
@@ -2309,16 +2427,46 @@ export default function MesaExperimento({ estado, acoes }) {
     }, [cartasNaMesa, cartasVoando, distribuindo, viraAnimando]);
 
     async function iniciarRevelacaoVazaMelada() {
-        // Melada: ninguém pontuou — sem carta crescendo/viajando, só o
-        // aviso + a mesa inteira explodindo junto.
+        // Melada: ninguém pontuou. As cartas que se anularam (analiseMesa,
+        // mesma regra do servidor) sobem e se chocam no centro (ver
+        // ChoqueMeladas); depois a mesa inteira explode junto. Sem pelo
+        // menos duas pra mostrar (estado local fora de sincronia), só o
+        // aviso e a explosão.
         setFaseRevelacaoVaza('melada');
-        await esperar(VAZA_MELADA_PAUSA_MS);
-        setChoqueVaza((v) => v + 1);
+        const cartas = [...(analiseMesaRef.current?.idsMeladas ?? [])]
+            .map((id) => {
+                const carta = cartasNaMesaRef.current.find((c) => c.id === id);
+                const el = cartaMesaRefs.current[id];
+                return carta && el ? { id, rank: carta.rank, naipe: carta.naipe, rect: el.getBoundingClientRect(), el } : null;
+            })
+            .filter(Boolean);
+        if (cartas.length >= 2) {
+            for (const carta of cartas) carta.el.style.visibility = 'hidden';
+            await new Promise((resolver) => {
+                setChoqueMeladas({
+                    cartas,
+                    saindo: false,
+                    onImpacto: () => {
+                        setMelouVisivel(true);
+                        setChoqueVaza((v) => v + 1);
+                        tremerElemento(telaRef.current, MELADA_TREMOR_FORCA);
+                    },
+                    onFim: resolver,
+                });
+            });
+            setChoqueMeladas((atual) => atual && { ...atual, saindo: true });
+        } else {
+            setMelouVisivel(true);
+            await esperar(VAZA_MELADA_PAUSA_MS);
+            setChoqueVaza((v) => v + 1);
+        }
         explodirCartasDaMesa();
         await esperar(VAZA_EXPLOSAO_DURACAO_MS);
         setCartasNaMesa([]);
         setCartasExplodindo({});
         setCartaEmHoverId(null);
+        setChoqueMeladas(null);
+        setMelouVisivel(false);
         setFaseRevelacaoVaza(null);
         revelacaoVazaAtivaRef.current = false;
         setRevelacaoVazaAtiva(false);
@@ -2726,10 +2874,58 @@ export default function MesaExperimento({ estado, acoes }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- indiceDoNome lido fresco
     }, [estado.mensagensChat]);
 
+    // Luz de vez de um fantasminha (ver .mesa-exp-luz-vez): vem da borda da
+    // tela mais perto do assento dele (esquerda, direita ou topo), alinhada
+    // com o centro do assento nessa borda — o mesmo jeito da sua luz, que
+    // vem de baixo. Medida no DOM (assentoRefs) e remedida no resize.
+    const indiceLuzVez = (() => {
+        const nome = estado.jogadorDaVezAposta ?? estado.jogadorDaVez;
+        const i = LUZ_DE_VEZ_ATIVA && estado.iniciada && !estado.vencedor && nome !== estado.meuNome ? indiceDoNome(nome) : -1;
+        return i > 0 && (estadoMortePorAssento[i] ?? null) == null ? i : -1;
+    })();
+    // Texto do banner de vez (ver BANNER_VEZ_SEGURA_MS): troca na hora
+    // quando chega um novo, segura o último quando a vez esvazia.
+    const nomeDaVezAgora = estado.iniciada && !estado.vencedor ? estado.jogadorDaVezAposta ?? estado.jogadorDaVez : null;
+    const textoVezAgora = nomeDaVezAgora == null ? null
+        : nomeDaVezAgora === estado.meuNome
+            ? (estado.jogadorDaVezAposta ? 'Sua vez de apostar!' : 'Sua vez! Escolha uma carta.')
+            : `Vez de ${nomeDaVezAgora}${estado.jogadorDaVezAposta ? ' apostar' : ''}`;
+    const [textoBannerVez, setTextoBannerVez] = useState(textoVezAgora);
+    useEffect(() => {
+        if (textoVezAgora != null) {
+            setTextoBannerVez(textoVezAgora);
+            return undefined;
+        }
+        const id = setTimeout(() => setTextoBannerVez(null), BANNER_VEZ_SEGURA_MS);
+        return () => clearTimeout(id);
+    }, [textoVezAgora]);
+    const [luzVez, setLuzVez] = useState(null);
+    useLayoutEffect(() => {
+        if (indiceLuzVez < 0) {
+            setLuzVez(null);
+            return undefined;
+        }
+        const medir = () => {
+            const el = assentoRefs.current[indiceLuzVez];
+            if (!el) return;
+            const r = el.getBoundingClientRect();
+            const cx = r.left + r.width / 2;
+            const cy = r.top + r.height / 2;
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            const distancias = { esquerda: cx / w, direita: (w - cx) / w, topo: cy / h };
+            const lado = Object.entries(distancias).sort((a, b) => a[1] - b[1])[0][0];
+            setLuzVez({ indice: indiceLuzVez, lado, x: cx, y: cy });
+        };
+        medir();
+        window.addEventListener('resize', medir);
+        return () => window.removeEventListener('resize', medir);
+    }, [indiceLuzVez]);
+
     if (!estado.iniciada) {
         return (
             <div className="mesa-exp-tela mesa-exp-tela-espera">
-                <CabecalhoMesa salaId={estado.salaId} meuNome={estado.meuNome}>
+                <CabecalhoMesa salaId={estado.salaId} senha={estado.senha} rodada={estado.iniciada ? estado.numeroRodada : 0} meuNome={estado.meuNome}>
                     {/* Antes de começar, acoes.sair é sairSala (libera a vaga e
                         volta pra lista de salas) — ver sair() em novo/Partida.jsx. */}
                     <button type="button" className="mesa-exp-sair" onClick={() => acoes?.sair?.()} disabled={!acoes?.sair}>
@@ -2769,7 +2965,7 @@ export default function MesaExperimento({ estado, acoes }) {
     return (
         <ManilhaContext.Provider value={vira ? vira.valorInt : null}>
         <div ref={telaRef} className={`mesa-exp-tela${faseRevelacaoVaza === 'impacto' ? ' mesa-exp-tela-tremendo' : ''}`}>
-            <CabecalhoMesa salaId={estado.salaId} meuNome={estado.meuNome}>
+            <CabecalhoMesa salaId={estado.salaId} senha={estado.senha} rodada={estado.iniciada ? estado.numeroRodada : 0} meuNome={estado.meuNome}>
                 <button type="button" className="mesa-exp-sair" onClick={() => acoes?.sair?.()} disabled={!acoes?.sair}>
                     Sair da partida
                 </button>
@@ -2779,22 +2975,31 @@ export default function MesaExperimento({ estado, acoes }) {
                 a SUA vez, o seu assento não tem fantasminha nenhum pra ganhar
                 o contorno azul de sempre, então esse banner cobre os dois
                 casos — sua vez OU vez de alguém — logo abaixo do CONTRA ZAP. */}
-            {nomeDaVez && !estado.vencedor && (
-                <div className="mesa-exp-turno-banner">
-                    {nomeDaVez === estado.meuNome
-                        ? (estado.jogadorDaVezAposta ? 'Sua vez de apostar!' : 'Sua vez! Escolha uma carta.')
-                        : `Vez de ${nomeDaVez}${estado.jogadorDaVezAposta ? ' apostar' : ''}`}
-                </div>
+            {textoBannerVez && !estado.vencedor && (
+                <div className="mesa-exp-turno-banner">{textoBannerVez}</div>
             )}
 
             {/* Só chama de verdade na SUA vez — o servidor recusaria fora
                 dela mesmo (NAO_E_SUA_VEZ, ver PROTOCOLO.md), isto aqui só
                 evita a chamada de rede/erro confuso por engano. */}
+            {/* Luz de vez: na SUA vez (aposta ou jogada) vem de baixo, atrás
+                da sua mão; na vez de um fantasminha, da borda mais perto
+                dele (ver luzVez). */}
+            {LUZ_DE_VEZ_ATIVA && nomeDaVez === estado.meuNome && !estado.vencedor && <div className="mesa-exp-luz-sua-vez" />}
+            {luzVez && (
+                <div
+                    key={luzVez.indice}
+                    className={`mesa-exp-luz-vez mesa-exp-luz-vez-${luzVez.lado}`}
+                    style={luzVez.lado === 'topo' ? { left: luzVez.x } : { top: luzVez.y }}
+                />
+            )}
+
             <SuaMaoEmLeque
                 cartas={suaMao}
                 idSaindo={cartaSaindoId}
                 onJogar={(carta) => estado.jogadorDaVez === estado.meuNome && acoes?.jogar?.(carta)}
                 escondida={rodadaCegaAtiva}
+                naVez={estado.jogadorDaVez === estado.meuNome && !estado.jogadorDaVezAposta && !estado.vencedor}
             />
 
             <BarraFichas
@@ -3294,10 +3499,20 @@ export default function MesaExperimento({ estado, acoes }) {
             {!vazaRevelando && faseRevelacaoVaza === 'melada' && (
                 <>
                     <div className="mesa-exp-vaza-overlay mesa-exp-vaza-overlay-escuro" />
-                    <div className="mesa-exp-vaza-texto">
-                        <strong>Vaza melada</strong>
-                        <span>ninguém pontuou</span>
-                    </div>
+                    {choqueMeladas && (
+                        <ChoqueMeladas
+                            cartas={choqueMeladas.cartas}
+                            saindo={choqueMeladas.saindo}
+                            onImpacto={choqueMeladas.onImpacto}
+                            onFim={choqueMeladas.onFim}
+                        />
+                    )}
+                    {melouVisivel && (
+                        <div className="mesa-exp-vaza-texto mesa-exp-vaza-texto-melou">
+                            <strong>MELOU!</strong>
+                            <span>ninguém pontuou</span>
+                        </div>
+                    )}
                 </>
             )}
             {faseRevelacaoVaza && faseRevelacaoVaza !== 'crescendo' && (
