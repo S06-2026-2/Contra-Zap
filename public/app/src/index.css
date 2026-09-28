@@ -493,6 +493,20 @@ button.secundario {
     color: #f3ead6;
 }
 
+/* Número da rodada num quadradinho mais escuro, em amarelo do arcade
+   (#f5c451) pra destacar do resto do cabeçalho. */
+.mesa-exp-cabecalho-sala .mesa-exp-cabecalho-rodada {
+    display: inline-block;
+    min-width: 1.4em;
+    margin-left: 4px;
+    padding: 3px 6px;
+    text-align: center;
+    color: #f5c451;
+    background: #0a0b0f;
+    border: 2px solid #23252f;
+    border-radius: 4px;
+}
+
 .mesa-exp-cabecalho-direita {
     position: fixed;
     top: 12px;
@@ -1399,13 +1413,67 @@ button.secundario {
     animation: mesa-exp-vaza-texto-entrada .35s ease-out .15s backwards;
 }
 
+/* Mesmo esquema do "MELOU!" (ver .mesa-exp-vaza-texto-melou), em Silkscreen
+   com sombra dura: o vencedor da vaza no amarelo do arcade, a carta
+   vencedora em claro embaixo. */
 .mesa-exp-vaza-texto strong {
-    font-size: 26px;
+    font: 400 32px Silkscreen, monospace;
+    letter-spacing: 1px;
+    color: #f5c451;
+    text-shadow: 3px 3px 0 #5c4210, 0 0 14px rgba(245, 196, 81, .4);
 }
 
 .mesa-exp-vaza-texto span {
-    font-size: 20px;
-    color: #ffd75e;
+    font: 400 16px Silkscreen, monospace;
+    color: #f3ead6;
+}
+
+/* Choque das meladas (ver ChoqueMeladas em MesaExperimento.jsx): clones
+   por cima do escuro (46). A posição inteira vem do WAAPI no transform, a
+   partir do canto (0,0) da tela. */
+.mesa-exp-melada-choque {
+    position: fixed;
+    inset: 0;
+    z-index: 48;
+    pointer-events: none;
+}
+.mesa-exp-melada-carta {
+    position: absolute;
+    left: 0;
+    top: 0;
+    filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .6));
+}
+/* Saindo: caem e somem enquanto a mesa explode (translate avulso, pra não
+   brigar com o transform do WAAPI). */
+.mesa-exp-melada-choque-saindo .mesa-exp-melada-carta {
+    translate: 0 70px;
+    opacity: 0;
+    transition: translate .5s cubic-bezier(.5, 0, .9, .4), opacity .5s ease-in;
+}
+/* Clarão do choque no ponto de encontro. */
+.mesa-exp-melada-clarao {
+    position: absolute;
+    width: 360px;
+    height: 360px;
+    translate: -50% -50%;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(255, 255, 255, .95), rgba(255, 236, 170, .55) 35%, rgba(255, 236, 170, 0));
+    animation: mesa-exp-melada-clarao .45s ease-out forwards;
+}
+@keyframes mesa-exp-melada-clarao {
+    from { opacity: 1; scale: .3; }
+    to   { opacity: 0; scale: 1.4; }
+}
+/* "MELOU!" no vermelho do logo do arcade, em Silkscreen. */
+.mesa-exp-vaza-texto-melou strong {
+    font: 400 44px Silkscreen, monospace;
+    letter-spacing: 1px;
+    color: #ff4b3e;
+    text-shadow: 3px 3px 0 #5c1712, 0 0 14px rgba(255, 75, 62, .45);
+}
+.mesa-exp-vaza-texto-melou span {
+    font: 400 16px Silkscreen, monospace;
+    color: #f3ead6;
 }
 
 @keyframes mesa-exp-vaza-texto-entrada {
@@ -2971,6 +3039,16 @@ button.secundario {
     50% { transform: translateY(8px); }
 }
 
+/* Contorno do corpo (ver Fantasminha.jsx): troca de cor suave entre o
+   escuro de sempre e o amarelo de vez/hover. */
+.fantasminha-contorno {
+    transition: stroke .2s ease;
+}
+.fantasminha-contorno-pixels {
+    shape-rendering: crispEdges;
+    transition: fill .2s ease;
+}
+
 /* Rosto: mesmas % e mesmo ângulo de public/experimento/src/bola/bola.css
    (branch experimentando-front) — divs de HTML por cima do SVG, não
    elementos do próprio SVG. Cor fixa (roxo escuro), independente do
@@ -2981,14 +3059,41 @@ button.secundario {
     pointer-events: none;
 }
 
+/* Rosto vivo (ver useRostoVivo em Fantasminha.jsx): as variáveis vêm do JS,
+   com padrão "parado". Cada efeito do olho mora numa propriedade própria,
+   pra transicionar no próprio ritmo sem um atropelar o outro:
+   - `translate`: olhar (JS) + descer pras cartas (pensando);
+   - `scale`: piscar, rápido, achatando na vertical da TELA;
+   - `transform`: inclinação de base + semicerrar (pensando, na vertical da
+     tela, antes do rotate) — a cara de dor sobrescreve inteiro.
+   O centro do olho fica no ponto (left/top) por margem negativa de meio
+   tamanho, não por translate(-50%) no transform — assim a origem das
+   escalas é o centro do próprio olho e ele não escorrega ao piscar. As
+   margens em % são da LARGURA do rosto (quadrado): 4.5% = metade de 9%;
+   7.5% = metade de 15%. */
 .fantasminha-olho {
     position: absolute;
     top: 22%;
     width: 9%;
     height: 15%;
+    margin: -7.5% 0 0 -4.5%;
     background: #3b0764;
     border-radius: 50%;
-    transition: transform .15s ease;
+    translate: var(--olhar-x, 0) calc(var(--olhar-y, 0px) + var(--olhar-baixo, 0px));
+    scale: 1 var(--piscar, 1);
+    transition: transform .3s ease, translate .35s cubic-bezier(.3, .7, .4, 1), scale .07s ease;
+    animation: fantasminha-olho-respirar 3.2s ease-in-out infinite;
+}
+.fantasminha-olho-dir {
+    animation-delay: -1.6s;
+}
+
+/* Contorno do olho respirando devagar: a elipse deforma de leve, nunca
+   fica parada numa forma só. */
+@keyframes fantasminha-olho-respirar {
+    0%, 100% { border-radius: 50%; }
+    33%      { border-radius: 46% 54% 52% 48% / 53% 47% 53% 47%; }
+    66%      { border-radius: 54% 46% 47% 53% / 48% 52% 48% 52%; }
 }
 
 /* rotate(42deg)/rotate(-42deg) veio direto da referência (ver comentário
@@ -2996,12 +3101,135 @@ button.secundario {
    de novo é pra esse valor que se volta). */
 .fantasminha-olho-esq {
     left: 38%;
-    transform: translate(-50%, -50%) rotate(42deg);
+    transform: scaleY(var(--olho-abertura, 1)) rotate(42deg);
 }
 
 .fantasminha-olho-dir {
     left: 62%;
-    transform: translate(-50%, -50%) rotate(-42deg);
+    transform: scaleY(var(--olho-abertura, 1)) rotate(-42deg);
+}
+
+/* Pensando (na vez dele — ver naVez em Fantasminha.jsx): olhos
+   semicerrados, como quem tenta ler algo pequeno, e olhos e boca descendo
+   um pouco, olhando pras próprias cartas. O olhar do JS continua por cima
+   (passeia de leve, como lendo). */
+.fantasminha-rosto-pensando {
+    --olho-abertura: .55;
+    --olhar-baixo: 9px;
+    --boca-baixo: 6px;
+}
+
+/* Pensamento (ver Pensamento em Fantasminha.jsx): acima e à direita da
+   cabeça, fora do chapéu. Entra subindo de baixo. */
+.fantasminha-pensamento {
+    position: absolute;
+    top: -2%;
+    right: -10%;
+    width: 28%;
+    height: 28%;
+    pointer-events: none;
+    z-index: 3;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .45));
+    animation: fantasminha-pensamento-entrar .45s cubic-bezier(.34, 1.4, .64, 1) both;
+}
+@keyframes fantasminha-pensamento-entrar {
+    from { opacity: 0; translate: 0 14px; scale: .6; }
+    to   { opacity: 1; translate: 0 0; scale: 1; }
+}
+
+/* Duas "?": a grande embaixo à esquerda, a pequena mais alta à direita,
+   cada uma subindo com um atraso e depois balançando no próprio ritmo. */
+.fantasminha-interrogacao {
+    position: absolute;
+    display: block;
+    transform-origin: 50% 90%;
+    animation:
+        fantasminha-interrogacao-subir .5s cubic-bezier(.34, 1.4, .64, 1) both,
+        fantasminha-interrogacao-mexer 1.4s ease-in-out .5s infinite;
+}
+.fantasminha-interrogacao svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    font: 800 52px Archivo, system-ui, sans-serif;
+}
+.fantasminha-interrogacao-grande {
+    left: 8%;
+    bottom: 0;
+    width: 60%;
+    height: 90%;
+}
+.fantasminha-interrogacao-pequena {
+    right: 4%;
+    top: -6%;
+    width: 42%;
+    height: 63%;
+    animation-delay: .18s, .9s;
+    animation-duration: .5s, 1.1s;
+}
+@keyframes fantasminha-interrogacao-subir {
+    from { opacity: 0; translate: 0 18px; }
+    to   { opacity: 1; translate: 0 0; }
+}
+@keyframes fantasminha-interrogacao-mexer {
+    0%, 100% { rotate: -8deg; }
+    50%      { rotate: 10deg; }
+}
+
+/* Engrenagens: uma grande e uma pequena encaixadas, girando em sentidos
+   opostos (a pequena mais rápido, como engrenagem de verdade). */
+.fantasminha-pensamento-engrenagens > svg {
+    position: absolute;
+}
+.fantasminha-pensamento-engrenagem-grande {
+    left: 6%;
+    bottom: 4%;
+    width: 70%;
+    height: 70%;
+    animation: fantasminha-engrenagem-girar 4s linear infinite;
+}
+.fantasminha-pensamento-engrenagem-pequena {
+    right: 6%;
+    top: 8%;
+    width: 46%;
+    height: 46%;
+    animation: fantasminha-pensamento-girar-reverso 2.6s linear infinite;
+}
+@keyframes fantasminha-pensamento-girar-reverso {
+    from { transform: rotate(360deg); }
+    to   { transform: rotate(0deg); }
+}
+
+/* Lâmpada: tudo que é "aceso" (halo, vidro claro, filamento branco) pisca
+   junto — apagada, uma ligadinha rápida, apaga, liga de vez um tempo,
+   apaga. */
+/* Chacoalha de leve pendurada pela rosca (origem embaixo), com um
+   tranco mais forte de vez em quando. */
+.fantasminha-pensamento-lampada svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    transform-origin: 50% 90%;
+    animation: fantasminha-lampada-chacoalhar 1.8s ease-in-out infinite;
+}
+@keyframes fantasminha-lampada-chacoalhar {
+    0%, 100% { rotate: -4deg; }
+    20%      { rotate: 5deg; }
+    28%      { rotate: -9deg; }
+    36%      { rotate: 8deg; }
+    44%      { rotate: -3deg; }
+    70%      { rotate: 4deg; }
+}
+.fantasminha-lampada-aceso {
+    animation: fantasminha-lampada-acender 3.6s linear infinite;
+}
+@keyframes fantasminha-lampada-acender {
+    0%, 22%   { opacity: 0; }
+    24%, 28%  { opacity: 1; }
+    30%, 50%  { opacity: 0; }
+    52%, 86%  { opacity: 1; }
+    88%, 100% { opacity: 0; }
 }
 
 .fantasminha-boca {
@@ -3011,9 +3239,12 @@ button.secundario {
     width: 12%;
     height: 8%;
     background: #3b0764;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%) scale(var(--boca-sx, 1), var(--boca-sy, 1));
     border-radius: 60% 40% 30% 70% / 70% 60% 40% 30%;
-    transition: transform .15s ease, border-radius .15s ease, width .15s ease, height .15s ease;
+    /* Acompanha o olhar com menos amplitude, e muda de forma pelas
+       variáveis da boca (ver useRostoVivo). */
+    translate: calc(var(--olhar-x, 0px) * .45) calc(var(--olhar-y, 0px) * .45 + var(--boca-baixo, 0px));
+    transition: transform .3s cubic-bezier(.34, 1.4, .64, 1), border-radius .15s ease, width .15s ease, height .15s ease, translate .35s cubic-bezier(.3, .7, .4, 1);
 }
 
 /* Bot (ver `bot`/botPorAssento em Fantasminha.jsx/MesaExperimento.jsx) —
@@ -3024,6 +3255,7 @@ button.secundario {
    alarga/achata) mudam, então continua encaixando no mesmo rosto. */
 .fantasminha-rosto-bot .fantasminha-olho {
     border-radius: 2px;
+    animation: none;
 }
 
 .fantasminha-rosto-bot .fantasminha-boca {
@@ -3038,11 +3270,11 @@ button.secundario {
    normal (não uma @keyframes) já cuida da volta sozinha quando a classe
    sai — só precisa do estado "apertado" aqui. */
 .fantasminha-machucado .fantasminha-olho-esq {
-    transform: translate(-50%, -50%) rotate(42deg) scaleY(0.15);
+    transform: rotate(42deg) scaleY(0.15);
 }
 
 .fantasminha-machucado .fantasminha-olho-dir {
-    transform: translate(-50%, -50%) rotate(-42deg) scaleY(0.15);
+    transform: rotate(-42deg) scaleY(0.15);
 }
 
 .fantasminha-machucado .fantasminha-boca {
@@ -4033,6 +4265,69 @@ button.secundario {
        atrapalhar cliques em outra coisa. */
 }
 
+/* Sua vez de jogar: a mão toda avança (translate avulso, não mexe no
+   transform de centralizar) e recua quando a vez passa. */
+.mesa-exp-sua-mao {
+    translate: 0 0;
+    transition: translate .35s cubic-bezier(.34, 1.3, .64, 1);
+}
+.mesa-exp-sua-mao-vez {
+    translate: 0 -36px;
+}
+
+/* Luz de vez: um foco quente e suave vindo da borda da tela, como um
+   holofote — de baixo na sua vez (atrás da sua mão), e da borda mais perto
+   do fantasminha da vez (ver luzVez em MesaExperimento.jsx), centrada na
+   altura/largura dele. Acende devagar e respira de leve. */
+.mesa-exp-luz-vez,
+.mesa-exp-luz-sua-vez {
+    position: absolute;
+    pointer-events: none;
+    background: radial-gradient(closest-side, rgba(255, 236, 170, .34), rgba(255, 214, 120, .14) 45%, rgba(255, 214, 120, 0));
+    animation:
+        mesa-exp-luz-acender .5s ease-out both,
+        mesa-exp-luz-respirar 2.8s ease-in-out .5s infinite;
+}
+.mesa-exp-luz-vez {
+    position: fixed;
+    z-index: 14;
+}
+.mesa-exp-luz-vez-esquerda,
+.mesa-exp-luz-vez-direita {
+    width: 520px;
+    height: 640px;
+    translate: 0 -50%;
+}
+.mesa-exp-luz-vez-esquerda {
+    left: -260px;
+}
+.mesa-exp-luz-vez-direita {
+    right: -260px;
+}
+.mesa-exp-luz-vez-topo {
+    top: -260px;
+    width: 640px;
+    height: 520px;
+    translate: -50% 0;
+}
+.mesa-exp-luz-sua-vez {
+    position: fixed;
+    left: 50%;
+    bottom: -220px;
+    width: 900px;
+    height: 520px;
+    translate: -50% 0;
+    z-index: 19;
+}
+@keyframes mesa-exp-luz-acender {
+    from { opacity: 0; scale: .7; }
+    to   { opacity: 1; scale: 1; }
+}
+@keyframes mesa-exp-luz-respirar {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: .75; }
+}
+
 .mesa-exp-sua-mao-carta {
     position: absolute;
     left: 50%;
@@ -4188,3 +4483,130 @@ button.secundario {
     color: #cfcfcf;
     font-weight: 600;
 }
+
+/* Vitrine do fantasminha (ver novo/VitrineFantasminha.jsx): painel de
+   botões na esquerda, fantasminha ampliado no meio. Mesmo fundo e
+   painel ardósia do front arcade. */
+.vitrine-tela {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    background: radial-gradient(120% 90% at 50% 0%, #1b1d26 0%, #0c0d11 65%);
+    color: #f3ead6;
+    font-family: Silkscreen, monospace;
+    user-select: none;
+}
+
+.vitrine-painel {
+    box-sizing: border-box;
+    width: 250px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    overflow-y: auto;
+    background: linear-gradient(180deg, #1a1c25, #14161d);
+    border-right: 2px solid #262935;
+}
+
+.vitrine-grupo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.vitrine-rotulo {
+    font-size: 11px;
+    color: #6f7488;
+    text-transform: uppercase;
+}
+
+.vitrine-linha {
+    display: flex;
+    gap: 6px;
+}
+.vitrine-linha .vitrine-btn {
+    flex: 1;
+}
+
+.vitrine-btn {
+    box-sizing: border-box;
+    min-height: 34px;
+    margin: 0;
+    padding: 0 10px;
+    font: 400 11px Silkscreen, monospace;
+    text-align: left;
+    color: #cfd3de;
+    background: #171922;
+    border: 2px solid #262935;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color .12s ease, color .12s ease, background .12s ease;
+}
+.vitrine-linha .vitrine-btn {
+    text-align: center;
+}
+.vitrine-btn:not(:disabled):hover {
+    border-color: #4a4f60;
+    color: #f3ead6;
+}
+.vitrine-btn:disabled {
+    opacity: .4;
+    cursor: default;
+}
+.vitrine-btn-ligado {
+    border-color: #7dd3fc;
+    color: #7dd3fc;
+}
+.vitrine-btn-perigo:not(:disabled):hover {
+    background: #ff4b3e;
+    border-color: #ff4b3e;
+    color: #fff2ef;
+}
+.vitrine-voltar {
+    align-self: flex-start;
+}
+
+/* Trilho do slider pinta o círculo de matiz inteiro; o polegar mostra a
+   cor atual (mesma fórmula do corpo em Fantasminha.jsx). */
+.vitrine-slider {
+    width: 100%;
+    height: 12px;
+    margin: 4px 0;
+    appearance: none;
+    border-radius: 6px;
+    background: linear-gradient(90deg, hsl(0, 80%, 82%), hsl(60, 80%, 82%), hsl(120, 80%, 82%), hsl(180, 80%, 82%), hsl(240, 80%, 82%), hsl(300, 80%, 82%), hsl(360, 80%, 82%));
+    outline: none;
+}
+.vitrine-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: hsl(var(--vitrine-hue), 80%, 82%);
+    border: 3px solid #0c0d11;
+    cursor: pointer;
+}
+.vitrine-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: hsl(var(--vitrine-hue), 80%, 82%);
+    border: 3px solid #0c0d11;
+    cursor: pointer;
+}
+
+.vitrine-palco {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+/* Ampliado pra estudar detalhe (o de verdade tem 180px na mesa). */
+.vitrine-escala {
+    transform: scale(2);
+}
+
