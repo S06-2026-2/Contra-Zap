@@ -17,6 +17,7 @@ export const MENSAGENS_CHAT = [
     { id: 2, texto: 'Não faça essa!!' },
     { id: 3, texto: 'Deixa essa passar/fazer' },
     { id: 4, texto: 'Vou fazer na próxima!!' },
+    { id: 5, texto: 'Mata essa!!' },
 ];
 
 // Cooldown entre envios de chat aceitos (qualquer sala, qualquer tipo), em ms.

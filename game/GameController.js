@@ -615,9 +615,10 @@ export class GameController extends EventEmitter {
 
     // Avisa que o timer de `jogador` acabou de começar a correr — emitido
     // logo depois do setTimeout do turno, então `tempoMs` é exatamente o que
-    // falta pro automático jogar por ele.
-    _emitirTimerTurno(jogador, tipo) {
-        this.emit('timerTurno', { id: jogador.id, jogador: jogador.nome, tipo, tempoMs: this.tempoTurnoMs });
+    // falta pro automático jogar por ele. Pra bot, sai logo antes do
+    // _atrasoBot com `tempoMs` = atrasoBotMs: é quanto falta pra ele decidir.
+    _emitirTimerTurno(jogador, tipo, tempoMs = this.tempoTurnoMs) {
+        this.emit('timerTurno', { id: jogador.id, jogador: jogador.nome, tipo, tempoMs });
     }
 
     // Igual _aguardarJogada, mas com prazo: se tempoTurnoMs passar sem
@@ -641,13 +642,14 @@ export class GameController extends EventEmitter {
     // turno dele continua esperando normalmente.
     // O timer de um humano começa no MESMO instante em que sai o
     // timerTurno (ver _emitirTimerTurno) — é por ele que o front sabe
-    // quanto tempo o jogador tem de verdade. Bot não tem timer.
+    // quanto tempo o jogador tem de verdade. O do bot é o atrasoBotMs.
     async _aguardarJogadaOuTimeout(jogador) {
         await this._segurarPelasAnimacoes();
         if (this._encerrado) return 0;
         if (jogador.bot) {
             this.emit('turnoJogador', { id: jogador.id, jogador: jogador.nome });
             if (jogador.desconectado) this.emit('jogadaAutomatica', { id: jogador.id, jogador: jogador.nome });
+            this._emitirTimerTurno(jogador, 'jogada', this.atrasoBotMs);
             await this._atrasoBot();
             return escolherCarta(jogador, this);
         }
@@ -755,6 +757,7 @@ export class GameController extends EventEmitter {
         if (this._encerrado) return;
         if (jogador.bot) {
             this.emit('turnoAposta', { id: jogador.id, jogador: jogador.nome });
+            this._emitirTimerTurno(jogador, 'aposta', this.atrasoBotMs);
             await this._atrasoBot();
             this._registrarAposta(jogador, this._decidirApostaAutomatica(jogador));
             return;

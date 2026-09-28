@@ -411,7 +411,12 @@ button.secundario {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    height: 200px;
+    /* height 0 + flex-grow: o feed não conta na altura do histórico, então
+       quem manda na altura da linha é só o painel ao lado (o histórico
+       estica até ela) — senão, com mensagens suficientes, o histórico
+       passava do topo do painel. O feed ocupa o que sobra e rola. */
+    flex-grow: 1;
+    height: 0;
     overflow-y: auto;
     font-size: 13px;
 }
@@ -447,7 +452,8 @@ button.secundario {
 .mesa-exp-tela {
     position: fixed;
     inset: 0;
-    background: var(--bg); /* mesmo fundo da Partida de verdade */
+    /* Teste: mesmo fundo do front arcade (.az-app em arcade.css). */
+    background: radial-gradient(120% 90% at 50% 0%, #1b1d26 0%, #0c0d11 65%);
     user-select: none;
     display: flex;
     align-items: center;
@@ -460,22 +466,50 @@ button.secundario {
    pra abrir espaço). z-index maior que os 40 dos botões de debug. */
 .mesa-exp-cabecalho-titulo {
     position: fixed;
-    top: 12px;
-    left: 16px;
+    top: 16px;
+    left: 20px;
     z-index: 41;
-    font-size: 20px;
-    color: #f1e6d2;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, .6);
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    font-family: Silkscreen, monospace;
+    font-weight: 400;
+}
+
+/* Mesmo logo do topo do front arcade (.az-logo em arcade.css). */
+.mesa-exp-logo {
+    font-size: 16px;
+    letter-spacing: 1px;
+    color: #ff4b3e;
+    text-shadow: 2px 2px 0 #5c1712;
+}
+
+/* Mesmo "SALA N" da cabeça da mesa do arcade (.az-mesa-info/.az-claro). */
+.mesa-exp-cabecalho-sala {
+    font-size: 16px;
+    color: #6f7488;
+}
+.mesa-exp-cabecalho-sala span {
+    color: #f3ead6;
 }
 
 .mesa-exp-cabecalho-direita {
     position: fixed;
-    top: 16px;
+    top: 12px;
     right: 16px;
     z-index: 41;
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 10px;
+}
+
+.mesa-exp-cabecalho-nome {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: 400 16px Silkscreen, monospace;
+    color: #8d93a6;
 }
 
 .mesa-exp-cabecalho-senha {
@@ -491,26 +525,54 @@ button.secundario {
     z-index: 40;
 }
 
-/* Indicação de vez no topo-centro (ver nomeDaVez em MesaExperimento.jsx) —
-   cobre tanto "vez de um fantasminha" (que já tem contorno azul + legenda
-   própria, ver mesa-exp-assento-turno-legenda) quanto "sua vez", caso sem
-   nenhum equivalente visual antes (você não tem <Fantasminha> renderizado
-   fora da tela de vitória). Mesmo azul do contorno de vez (#7dd3fc), pra
-   ler como o mesmo aviso em dois lugares. */
+/* "Sair da partida": sem fundo até o mouse passar, só o contorno (mesmo
+   cinza do .az-btn-mini do arcade) pra ler como botão; no hover acende no
+   vermelho dos botões do arcade (.az-btn-vermelho). Zera o estilo global
+   de `button` do index.css. */
+.mesa-exp-sair {
+    min-height: 38px;
+    margin: 0;
+    padding: 0 14px;
+    border: 2px solid #3a3e4d;
+    border-radius: 8px;
+    background: transparent;
+    color: #8d93a6;
+    font: 400 13px Silkscreen, monospace;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background .12s ease, color .12s ease, border-color .12s ease;
+}
+.mesa-exp-sair:not(:disabled):hover {
+    background: #ff4b3e;
+    border-color: #ff4b3e;
+    color: #fff2ef;
+}
+.mesa-exp-sair:disabled {
+    opacity: .5;
+    cursor: default;
+}
+
+/* Indicação de vez (ver nomeDaVez em MesaExperimento.jsx), logo abaixo do
+   CONTRA ZAP do cabeçalho — cobre tanto "vez de um fantasminha" (que já
+   tem contorno azul + legenda própria, ver mesa-exp-assento-turno-legenda)
+   quanto "sua vez", caso sem nenhum equivalente visual (você não tem
+   <Fantasminha> renderizado fora da tela de vitória). Placa quase preta e
+   retangular no idioma do arcade, letra em Silkscreen no mesmo azul do
+   contorno de vez (#7dd3fc), pra ler como o mesmo aviso em dois lugares. */
 .mesa-exp-turno-banner {
     position: fixed;
-    top: 16px;
-    left: 50%;
-    transform: translateX(-50%);
+    top: 50px;
+    left: 20px;
     z-index: 41;
-    font-size: 15px;
-    font-weight: 600;
+    max-width: calc(100vw - 40px);
+    padding: 10px 16px;
+    font: 400 20px/1.2 Silkscreen, monospace;
     color: #7dd3fc;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, .6);
-    background: rgba(20, 21, 26, .55);
-    padding: 6px 16px;
-    border-radius: 999px;
-    border: 1px solid rgba(125, 211, 252, .35);
+    text-shadow: 0 0 8px rgba(125, 211, 252, .35);
+    background: rgba(8, 9, 12, .88);
+    border: 2px solid #23252f;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .5);
 }
 
 /* Sala de espera (ver !estado.iniciada em MesaExperimento.jsx) — mesmo
@@ -530,6 +592,15 @@ button.secundario {
     min-width: 260px;
     text-align: center;
     color: var(--texto);
+    font-family: Silkscreen, monospace;
+    font-weight: 400;
+}
+
+.mesa-exp-espera-cartao h2,
+.mesa-exp-espera-cartao strong,
+.mesa-exp-espera-cartao button {
+    font-family: inherit;
+    font-weight: 400;
 }
 
 .mesa-exp-espera-cartao ul {
@@ -733,20 +804,13 @@ button.secundario {
 
 /* Chat (item do checklist) — bola no canto inferior esquerdo, grande e
    cortada pelas bordas de baixo e da esquerda da tela (o container começa
-   CHAT_RECORTE fora do quadro), com a barra das fichas saindo de trás dela
-   (ver BarraFichas). column-reverse pra a linha painel+histórico (2º
-   filho no JSX) desenhar ACIMA da bola (1º filho), crescendo pra cima
-   conforme o feed cresceria num chat de verdade, sem empurrar a bola de
-   lugar. z-index acima da barra (38). */
+   24px fora do quadro), com a barra das fichas saindo de trás dela (ver
+   BarraFichas). z-index acima da barra (38). */
 .mesa-exp-chat {
     position: fixed;
     bottom: -24px;
     left: -24px;
     z-index: 42;
-    display: flex;
-    flex-direction: column-reverse;
-    align-items: flex-start;
-    gap: 10px;
 }
 
 /* Madeira com aro de ouro (degradê no border-box). Ícone no centro do
@@ -794,19 +858,26 @@ button.secundario {
 }
 
 /* Painel + histórico lado a lado — só existem no DOM enquanto `chatClicado`
-   (ver JSX). Histórico é o módulo À DIREITA do painel, não embaixo. A
-   margem da esquerda desconta o recorte do container. */
+   (ver JSX). Histórico é o módulo À DIREITA do painel, não embaixo. Fixo
+   no pé da tela e ABAIXO da barra das fichas (38): o painel fica acima da
+   bola (margin-bottom = 80px visíveis da bola + 10 de folga) e o histórico
+   estica do topo do painel até o chão, passando por trás da barra. */
 .mesa-exp-chat-linha {
+    position: fixed;
+    left: 16px;
+    bottom: 0;
+    z-index: 37;
     display: flex;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 10px;
-    margin-left: 40px;
 }
 
 /* Painel: hover NÃO abre/fecha, só o clique, de propósito (senão fechava
    sozinho ao mover o mouse pra digitar no campo livre). Dimensões 1.1x
    maiores que o primeiro rascunho (era 240px/12px/10px/13px). */
 .mesa-exp-chat-painel {
+    align-self: flex-end;
+    margin-bottom: 90px;
     display: flex;
     flex-direction: column;
     gap: 11px;
@@ -826,10 +897,14 @@ button.secundario {
 
 .mesa-exp-chat-prontas button {
     text-align: left;
+    font-family: Silkscreen, monospace;
+    font-weight: 400;
     font-size: 14px;
     padding: 7px 11px;
 }
 
+/* Campo livre (só em sala com chat aberto): campo no tom dos campos do
+   arcade (.az-input), texto em Archivo pra ler fácil; botão em Silkscreen. */
 .mesa-exp-chat-form {
     display: flex;
     gap: 6px;
@@ -838,6 +913,27 @@ button.secundario {
 .mesa-exp-chat-form input {
     flex: 1;
     min-width: 0;
+    padding: 8px 10px;
+    font: 400 14px Archivo, system-ui, sans-serif;
+    color: #f3ead6;
+    background: #0f1016;
+    border: 2px solid #2e313d;
+    border-radius: 8px;
+    outline: none;
+}
+.mesa-exp-chat-form input:focus {
+    border-color: #f5c451;
+}
+
+.mesa-exp-chat-form button {
+    padding: 0 12px;
+    font: 400 12px Silkscreen, monospace;
+    text-transform: uppercase;
+}
+
+.mesa-exp-chat-erro {
+    color: var(--erro);
+    font-size: 12px;
 }
 
 .mesa-exp-chat-cooldown {
@@ -856,10 +952,14 @@ button.secundario {
     width: 220px;
     background: rgba(0, 0, 0, .55);
     border: 1px solid var(--borda);
-    border-radius: 10px;
-    padding: 13px;
+    border-radius: 10px 10px 0 0;
+    border-bottom: none;
+    /* Embaixo, a altura da barra das fichas (BARRA_ALTURA_PX = 76) + 13: o
+       fim do feed termina acima dela, não escondido atrás. */
+    padding: 13px 13px 89px;
     backdrop-filter: blur(2px);
     color: #f1e6d2;
+    font-family: Archivo, system-ui, sans-serif;
 }
 
 .mesa-exp-chat-hora {
@@ -870,6 +970,8 @@ button.secundario {
 
 .mesa-exp-chat-historico h3 {
     margin: 0;
+    font-family: Silkscreen, monospace;
+    font-weight: 400;
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: .06em;
@@ -910,30 +1012,30 @@ button.secundario {
     position: absolute;
     transform: translate(-50%, -50%);
     pointer-events: auto;
-    padding: 9px 30px;
-    font: 800 16px system-ui, sans-serif;
-    letter-spacing: .16em;
+    padding: 9px 26px;
+    font: 400 16px Silkscreen, monospace;
+    letter-spacing: .08em;
     text-transform: uppercase;
-    color: #ffd75e;
-    text-shadow: 0 0 6px rgba(255, 215, 94, .45), 0 1px 0 rgba(0, 0, 0, .8);
+    color: #ff8a70;
+    text-shadow: 0 0 6px rgba(255, 90, 60, .5), 0 1px 0 rgba(0, 0, 0, .8);
     border: 2px solid transparent;
-    border-radius: 999px;
+    border-radius: 6px;
     background:
-        linear-gradient(180deg, #3a2415 0%, #1a1009 100%) padding-box,
-        linear-gradient(90deg, #c8861a, #ffd75e 55%, #fff4c2) border-box;
+        linear-gradient(180deg, #3d1512 0%, #1c0907 100%) padding-box,
+        linear-gradient(90deg, #a81e1a, #e8402f 55%, #ff9d80) border-box;
     box-shadow: inset 0 0 0 3px rgba(0, 0, 0, .35), 0 4px 10px rgba(0, 0, 0, .55);
     animation:
         mesa-exp-aposta-botao-entrar .3s ease-out,
         mesa-exp-aposta-botao-pulsar 1.6s ease-in-out .3s infinite;
     transition: color .15s ease, background .15s ease, text-shadow .15s ease;
 }
-/* Hover: a placa "acende" — vira ouro com letra escura. */
+/* Hover: a placa "acende" — vira vermelho vivo com letra escura. */
 .mesa-exp-aposta-botao:hover {
-    color: #2a1608;
-    text-shadow: 0 1px 0 rgba(255, 244, 194, .6);
+    color: #2a0806;
+    text-shadow: 0 1px 0 rgba(255, 200, 185, .6);
     background:
-        linear-gradient(180deg, #fff4c2 0%, #ffd75e 45%, #c8861a 100%) padding-box,
-        linear-gradient(90deg, #c8861a, #ffd75e 55%, #fff4c2) border-box;
+        linear-gradient(180deg, #ffb09a 0%, #e8402f 45%, #a81e1a 100%) padding-box,
+        linear-gradient(90deg, #a81e1a, #e8402f 55%, #ff9d80) border-box;
 }
 @keyframes mesa-exp-aposta-botao-entrar {
     from { opacity: 0; scale: .85; }
@@ -942,8 +1044,8 @@ button.secundario {
 /* Brilho quente e lento em volta, no ritmo da brasa do pavio — chama a
    atenção sem piscar. */
 @keyframes mesa-exp-aposta-botao-pulsar {
-    0%, 100% { box-shadow: inset 0 0 0 3px rgba(0, 0, 0, .35), 0 4px 10px rgba(0, 0, 0, .55), 0 0 0 rgba(255, 190, 60, 0); }
-    50%      { box-shadow: inset 0 0 0 3px rgba(0, 0, 0, .35), 0 4px 10px rgba(0, 0, 0, .55), 0 0 14px rgba(255, 190, 60, .5); }
+    0%, 100% { box-shadow: inset 0 0 0 3px rgba(0, 0, 0, .35), 0 4px 10px rgba(0, 0, 0, .55), 0 0 0 rgba(232, 64, 47, 0); }
+    50%      { box-shadow: inset 0 0 0 3px rgba(0, 0, 0, .35), 0 4px 10px rgba(0, 0, 0, .55), 0 0 14px rgba(232, 64, 47, .55); }
 }
 
 /* Fundo escurecido — clicar NELE (não no popup, ver stopPropagation no
@@ -964,17 +1066,20 @@ button.secundario {
     to   { background: rgba(0, 0, 0, .6); }
 }
 
+/* Fundo no idioma dos painéis do front arcade (.az-painel/.az-sala em
+   arcade.css: ardósia escura, contorno fino, cantos bem redondos); botões
+   e letras seguem os da mesa (ouro/vermelho, Silkscreen). */
 .mesa-exp-aposta-popup {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 16px;
-    width: 300px;
-    padding: 24px;
-    background: #1c1d24;
-    border: 1px solid var(--borda);
-    border-radius: 14px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, .6);
+    width: 320px;
+    padding: 22px 24px 24px;
+    border: 2px solid #262935;
+    border-radius: 20px;
+    background: linear-gradient(180deg, #1a1c25, #14161d);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, .65);
     animation: mesa-exp-aposta-popup-entrada .22s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -986,10 +1091,33 @@ button.secundario {
 .mesa-exp-aposta-popup h3 {
     margin: 0;
     text-align: center;
-    font-size: 15px;
-    color: var(--texto);
-    text-transform: none;
-    letter-spacing: normal;
+    font: 400 14px/1.4 Silkscreen, monospace;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: #ffd75e;
+    text-shadow: 0 0 6px rgba(255, 215, 94, .35), 0 1px 0 rgba(0, 0, 0, .8);
+}
+
+/* Aviso de aposta que fecharia a mesa (ver apostaQueFechaMesa em
+   MesaExperimento.jsx) — aparece logo abaixo do título enquanto o número
+   escolhido for o proibido, antes de tentar apostar. Absoluto em relação
+   ao título: flutua por cima do topo (vazio) da pilha de fichas, sem mudar
+   a altura do popup. */
+.mesa-exp-aposta-titulo {
+    position: relative;
+    align-self: stretch;
+}
+.mesa-exp-aposta-aviso {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 1;
+    margin: 0;
+    color: #ff8a70;
+    font: 400 10px/1.5 Silkscreen, monospace;
+    text-align: center;
+    animation: mesa-exp-aposta-campo-tremer .35s ease-out;
 }
 
 /* Pilha flutuante — cresce PRA CIMA (empilha uma ficha em cima da outra,
@@ -1006,8 +1134,9 @@ button.secundario {
 }
 
 .mesa-exp-aposta-pilha-vazia {
-    color: var(--texto-fraco);
-    font-size: 12px;
+    color: rgba(243, 234, 214, .45);
+    font: 400 10px Silkscreen, monospace;
+    text-transform: uppercase;
     text-align: center;
     align-self: center;
 }
@@ -1033,6 +1162,9 @@ button.secundario {
     to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+/* − [N] +: o número fica num campo afundado no mesmo tom dos campos do
+   arcade (.az-input) e os botões são plaquinhas de madeira com aro de ouro
+   que acendem no hover. */
 .mesa-exp-aposta-campo {
     display: flex;
     align-items: center;
@@ -1040,10 +1172,47 @@ button.secundario {
 }
 
 .mesa-exp-aposta-campo input {
-    width: 60px;
+    box-sizing: border-box;
+    width: 72px;
+    height: 48px;
+    padding: 0;
     text-align: center;
-    font-size: 18px;
-    font-weight: 700;
+    font: 400 24px Silkscreen, monospace;
+    color: #ffd75e;
+    text-shadow: 0 0 6px rgba(255, 215, 94, .4);
+    background: #0f1016;
+    border: 2px solid #2e313d;
+    border-radius: 12px;
+    box-shadow: inset 0 3px 6px rgba(0, 0, 0, .5);
+    outline: none;
+}
+.mesa-exp-aposta-campo input:focus {
+    border-color: #f5c451;
+}
+
+.mesa-exp-aposta-campo button {
+    box-sizing: border-box;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    font: 400 20px Silkscreen, monospace;
+    color: #ffd75e;
+    border: 2px solid transparent;
+    border-radius: 6px;
+    background:
+        linear-gradient(180deg, #3a2415 0%, #1a1009 100%) padding-box,
+        linear-gradient(45deg, #c8861a, #ffd75e 55%, #fff4c2) border-box;
+    box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .35), 0 3px 8px rgba(0, 0, 0, .5);
+    transition: color .12s ease, background .12s ease;
+}
+.mesa-exp-aposta-campo button:not(:disabled):hover {
+    color: #2a1608;
+    background:
+        linear-gradient(180deg, #fff4c2 0%, #ffd75e 45%, #c8861a 100%) padding-box,
+        linear-gradient(45deg, #c8861a, #ffd75e 55%, #fff4c2) border-box;
+}
+.mesa-exp-aposta-campo button:disabled {
+    opacity: .35;
 }
 
 /* Erro de validação (ver apostaErro/confirmarAposta em
@@ -1051,7 +1220,7 @@ button.secundario {
    PROTOCOLO.md) — borda + campo tremem uma vez só pra chamar atenção,
    mesma cor de erro (--erro) que o resto do app já usa. */
 .mesa-exp-aposta-campo-erro input {
-    border-color: var(--erro);
+    border-color: #ff4b3e;
     animation: mesa-exp-aposta-campo-tremer .35s ease-out;
 }
 
@@ -1065,15 +1234,40 @@ button.secundario {
 
 .mesa-exp-aposta-erro {
     margin: -6px 0 0;
-    color: var(--erro);
-    font-size: 13px;
+    color: #ff8a70;
+    font: 400 10px/1.5 Silkscreen, monospace;
     text-align: center;
 }
 
+/* Confirmar: a mesma placa vermelha do botão "Apostar" da barra (ver
+   .mesa-exp-aposta-botao), sem o pulso — aqui ela já é o foco. */
 .mesa-exp-aposta-confirmar {
+    box-sizing: border-box;
     width: 100%;
-    padding: 10px;
-    font-size: 15px;
+    padding: 11px;
+    font: 400 16px Silkscreen, monospace;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #ff8a70;
+    text-shadow: 0 0 6px rgba(255, 90, 60, .5), 0 1px 0 rgba(0, 0, 0, .8);
+    border: 2px solid transparent;
+    border-radius: 6px;
+    background:
+        linear-gradient(180deg, #3d1512 0%, #1c0907 100%) padding-box,
+        linear-gradient(90deg, #a81e1a, #e8402f 55%, #ff9d80) border-box;
+    box-shadow: inset 0 0 0 3px rgba(0, 0, 0, .35), 0 4px 10px rgba(0, 0, 0, .55);
+    transition: color .15s ease, background .15s ease, text-shadow .15s ease;
+}
+.mesa-exp-aposta-confirmar:disabled {
+    opacity: .45;
+    cursor: default;
+}
+.mesa-exp-aposta-confirmar:not(:disabled):hover {
+    color: #2a0806;
+    text-shadow: 0 1px 0 rgba(255, 200, 185, .6);
+    background:
+        linear-gradient(180deg, #ffb09a 0%, #e8402f 45%, #a81e1a 100%) padding-box,
+        linear-gradient(90deg, #a81e1a, #e8402f 55%, #ff9d80) border-box;
 }
 
 /* Camada de tela inteira só pras fichas EM VOO (ver FichaVoando) — mesmo
@@ -2130,8 +2324,45 @@ button.secundario {
    fade) — só o NOME precisa se destacar, o resto do hitbox (tracejado)
    continua discreto igual antes. */
 .mesa-exp-assento-legenda {
+    display: inline-flex;
+    align-items: center;
     color: #f1e6d2;
     font-size: 15px;
+}
+
+/* Timer dos outros jogadores (ver TimerNome em MesaExperimento.jsx): vaga
+   à esquerda do nome que abre com transição, e dentro dela o disco branco
+   estilo medidor de vida do Mario 64 — fundo escuro, o que resta do prazo
+   em branco, divisórias das fatias e aro por cima. */
+.mesa-exp-timer-nome-vaga {
+    display: inline-flex;
+    width: 0;
+    margin-right: 0;
+    overflow: hidden;
+    transition: width .2s ease, margin-right .2s ease;
+}
+.mesa-exp-timer-nome-vaga-aberta {
+    width: 28px;
+    margin-right: 7px;
+}
+.mesa-exp-timer-nome {
+    flex-shrink: 0;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6));
+}
+.mesa-exp-timer-nome-fundo {
+    fill: rgba(0, 0, 0, .45);
+}
+.mesa-exp-timer-nome-resto {
+    fill: #fff;
+}
+.mesa-exp-timer-nome-divisoria {
+    stroke: rgba(0, 0, 0, .35);
+    stroke-width: 1;
+}
+.mesa-exp-timer-nome-aro {
+    fill: none;
+    stroke: #fff;
+    stroke-width: 2;
 }
 
 /* Marcador de bot (ver botPorAssento/alternarBotFantasma em
@@ -2630,9 +2861,9 @@ button.secundario {
     color: #241a0f;
     padding: 10px 14px;
     border-radius: 14px;
-    font-family: system-ui, sans-serif;
-    font-size: 16px;
-    font-weight: 600;
+    font-family: Silkscreen, monospace;
+    font-size: 14px;
+    font-weight: 400;
     line-height: 1.3;
     text-align: center;
     box-shadow: 0 6px 14px rgba(0, 0, 0, .45);
@@ -3166,8 +3397,9 @@ button.secundario {
 }
 
 /* Borda elétrica (só Paus/Zap, ver BordaEletrica em Carta.jsx): por cima da
-   borda de verdade da carta, mesmo raio de canto. A .linha é a única que
-   passa pelo filtro de turbulência; as outras são brilho parado. */
+   borda de verdade da carta, mesmo raio de canto. A .linha (o <rect> dentro
+   do SVG) é a única que passa pelo filtro de turbulência; as outras são
+   brilho parado. */
 .carta-exp-zap-borda {
     position: absolute;
     inset: -2px;
@@ -3175,13 +3407,14 @@ button.secundario {
     z-index: 3;
     pointer-events: none;
 }
-.carta-exp-zap-filtro-svg {
+.carta-exp-zap-borda-svg {
     position: absolute;
-    width: 0;
-    height: 0;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
 }
 .carta-exp-zap-borda-externa,
-.carta-exp-zap-borda-linha,
 .carta-exp-zap-borda-brilho,
 .carta-exp-zap-borda-reflexo {
     position: absolute;
@@ -3194,7 +3427,9 @@ button.secundario {
     border: 1.5px solid rgba(127, 217, 255, .45);
 }
 .carta-exp-zap-borda-linha {
-    border: 2px solid #8fdfff;
+    fill: none;
+    stroke: #8fdfff;
+    stroke-width: 2;
 }
 .carta-exp-zap-borda-brilho-1 {
     border: 2px solid rgba(143, 223, 255, .6);

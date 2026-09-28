@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { socket, chamar } from '../../socket.js';
 import { assinarSessaoRetomada } from '../../sessao.js';
 import MesaExperimento from './MesaExperimento.jsx';
 // Catálogo e cooldown vêm direto da fonte única do back — não há mais espelho
 // no front (ver server.fs.allow em vite.config.js).
-import { MENSAGENS_CHAT, CHAT_COOLDOWN_MS } from '../../../../../conexao/chat/mensagensChat.js';
+import { CHAT_COOLDOWN_MS } from '../../../../../conexao/chat/mensagensChat.js';
 
 // Tela 3: uma sala inteira, da espera até o fim da partida. É um componente
 // só (não um por fase) porque é uma assinatura contínua dos mesmos eventos
@@ -31,78 +30,7 @@ import { MENSAGENS_CHAT, CHAT_COOLDOWN_MS } from '../../../../../conexao/chat/me
 // ver quem levou. Cancelada na hora se a partida andar antes disso.
 const PAUSA_VAZA_MS = 1600;
 
-// Naipe -> símbolo + cor. Toda carta é desenhada assim: rank grande no
-// meio + naipe colorido embaixo, uma cor sólida por naipe — continua
-// legível mesmo com um filtro pesado (pixelado etc.) por cima da tela.
-const NAIPES = {
-    Ouros:   { simbolo: '♦', cor: '#f2555a' },
-    Copas:   { simbolo: '♥', cor: '#f2555a' },
-    Espadas: { simbolo: '♠', cor: '#5c9dff' },
-    Paus:    { simbolo: '♣', cor: '#42c98a' },
-};
-
-// As cartas chegam do servidor como a string "[4 de Ouros]"
-// (Carta.toString()) — quebra em rank/naipe pra desenhar a carta.
-function lerCarta(texto) {
-    const m = /^\[(.+) de (.+)]$/.exec(String(texto ?? '').trim());
-    return m ? { rank: m[1], naipe: m[2] } : null;
-}
-
-function CartaGrande({ texto }) {
-    const carta = lerCarta(texto);
-    if (!carta) return <>{texto}</>;
-    const naipe = NAIPES[carta.naipe] ?? { simbolo: '', cor: 'var(--texto)' };
-    return (
-        <span className="carta-grande-face" style={{ color: naipe.cor }}>
-            <span className="carta-grande-rank">{carta.rank}</span>
-            <span className="carta-grande-naipe">{naipe.simbolo}</span>
-        </span>
-    );
-}
-
-// Filtro CSS aplicado na TELA INTEIRA (no #root) — brincadeira de estética,
-// sem nada especial por trás, só troca a string. `url(#fx-pixelar)` é o
-// filtro SVG definido no portal lá embaixo (tamanho do pixel vem do slider).
-const FILTROS = {
-    nenhum:    '',
-    pixelado:  'url(#fx-pixelar)',
-    gameboy:   'url(#fx-pixelar) grayscale(1) sepia(1) saturate(2.6) hue-rotate(55deg) contrast(1.4) brightness(0.95)',
-    crt:       'saturate(1.6) contrast(1.35) brightness(1.12) drop-shadow(0 0 1px rgba(255,255,255,0.35))',
-    sepia:     'sepia(0.85) contrast(1.1)',
-    negativo:  'invert(1) hue-rotate(180deg)',
-    cinza:     'grayscale(1) contrast(1.15)',
-    desfoque:  'blur(2px)',
-};
-const USA_PIXEL = new Set(['pixelado', 'gameboy']);
-
-// Mapa de deslocamento pro feDisplacementMap da curvatura CRT: um
-// gradiente num eixo só (X -> canal R, Y -> canal G), com stops em "S"
-// (varia devagar no meio, rápido perto das bordas) pra dar cara de
-// barril/tubo em vez de um esticão linear. 128 no canal do eixo = "não
-// desloca". Os outros canais ficam em 0 pra os dois mapas (X e Y) poderem
-// ser somados por um feBlend screen num único feDisplacementMap. Sai como
-// data-URI de SVG esticado com preserveAspectRatio="none".
-function mapaCurvatura(eixo) {
-    const stops = [[0, 0], [0.15, 30], [0.35, 85], [0.5, 128], [0.65, 171], [0.85, 225], [1, 255]];
-    const paradas = stops
-        .map(([o, v]) => `<stop offset='${o}' stop-color='${eixo === 'x' ? `rgb(${v},0,0)` : `rgb(0,${v},0)`}'/>`)
-        .join('');
-    const svg =
-        `<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'>` +
-        `<defs><linearGradient id='m' x1='0' y1='0' x2='${eixo === 'x' ? 1 : 0}' y2='${eixo === 'x' ? 0 : 1}'>` +
-        `${paradas}</linearGradient></defs><rect width='64' height='64' fill='url(#m)'/></svg>`;
-    return `data:image/svg+xml,${encodeURIComponent(svg)}`;
-}
-const MAPA_CURV_X = mapaCurvatura('x');
-const MAPA_CURV_Y = mapaCurvatura('y');
-
 export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, reconexao, chatAberto, senha, meuNome, onSairDaSala, onSairDaPartida, onEntrouNaSala }) {
-    // Alterna pro visual novo (ver components/novo/MesaExperimento.jsx,
-    // hoje um componente de APRESENTAÇÃO — só a camada de socket abaixo
-    // continua alimentando ele via `estado`/`acoes`). Só o botão "🃏 Front
-    // provisório" (ver salaSoVoceEBots mais abaixo) liga; uma vez ligado
-    // fica ligado até essa instância de Partida desmontar (trocar de sala).
-    const [visualNovo, setVisualNovo] = useState(false);
     // Semeado do ack de criarSala/entrarSala (ou de reconectar, no caminho de
     // reconexão — o ack de reconectar não dispara listaJogadores), não do
     // broadcast de listaJogadores — o primeiro broadcast sai antes desta tela
@@ -128,7 +56,6 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
         () => Object.fromEntries((reconexao?.maosReveladas ?? []).map((m) => [m.jogador, m.mao]))
     );
     const [jogadorDaVezAposta, setJogadorDaVezAposta] = useState(reconexao?.jogadorDaVezAposta ?? null);
-    const [valorAposta, setValorAposta] = useState('');
     const [cartasRodada, setCartasRodada] = useState(reconexao?.cartasRodada ?? 0);
     // Só pro visual novo (ver estado.numeroRodada em MesaExperimento.jsx —
     // é o sinal de "rodada NOVA começou" que dispara o reset/distribuição
@@ -155,32 +82,6 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
     const [vazaResultado, setVazaResultado] = useState(null);
     const vazaResultadoRef = useRef(null);
     const limparVazaTimerRef = useRef(null);
-    // Painel flutuante de filtro de tela — brincadeira de estética, 100%
-    // local, não toca no servidor nem no protocolo. `efeito` é uma chave
-    // de FILTROS; `pixel` é o tamanho do quadradinho do filtro pixelado.
-    const [efeito, setEfeito] = useState('nenhum');
-    const [pixel, setPixel] = useState(7);
-    // Grão / dither: ruído por-pixel somado à tela toda pra quebrar as
-    // áreas de cor chapada — a mesma ideia do filtro "Old_Data" de
-    // Inscryption. `grao` é a intensidade (0 = desligado); `graoColorido`
-    // mexe em cada canal RGB em vez de só no brilho; `graoAnimado`
-    // re-semeia o ruído a ~15fps pra ele "ferver" que nem grão de filme.
-    // `graoSeed` é o seed atual do feTurbulence (só muda com o animado).
-    const [grao, setGrao] = useState(0);
-    const [graoColorido, setGraoColorido] = useState(false);
-    const [graoAnimado, setGraoAnimado] = useState(false);
-    const [graoSeed, setGraoSeed] = useState(1);
-    // CRT: três peças independentes, cada uma no seu slider (0 = off).
-    // `curvatura` = feDisplacementMap em barril (a tela "boja" pra fora);
-    // `scanlines` = intensidade do overlay de linhas escuras (multiply, é
-    // uma div dentro do #root, então curva junto), e `scanlinePasso` é o
-    // período em px (grande = linhas grossas e esparsas; pequeno = finas e
-    // densas); `aberracao` = separa os canais RGB e empurra cada um um
-    // tanto diferente (franja cromática de tubo).
-    const [curvatura, setCurvatura] = useState(0);
-    const [scanlines, setScanlines] = useState(0);
-    const [scanlinePasso, setScanlinePasso] = useState(3);
-    const [aberracao, setAberracao] = useState(0);
     const [vira, setVira] = useState(
         reconexao?.vira ? { carta: reconexao.vira, valor: reconexao.viraValor } : null
     );
@@ -212,7 +113,6 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
     // `cooldownAte` é o timestamp até quando os botões de envio ficam
     // travados — 3s depois de qualquer envio, pra não virar spam.
     const [mensagensChat, setMensagensChat] = useState([]);
-    const [textoChat, setTextoChat] = useState('');
     const [erroChat, setErroChat] = useState(null);
     const [cooldownAte, setCooldownAte] = useState(0);
     const [agora, setAgora] = useState(() => Date.now());
@@ -449,89 +349,6 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
         };
     }, [salaId]);
 
-    // String de filtro CSS montada na ordem da cadeia: cor/base -> grão ->
-    // ótica do tubo (aberração + curvatura por último, pra tudo — inclusive
-    // o ruído — bojar junto). O pixelado entra ANTES do grão (senão o
-    // feFlood dele amostra 1 ponto por célula e engole o ruído).
-    //
-    // O #fx-pixelar carrega o tamanho no id (#fx-pixelar-7) porque a Chrome
-    // não reavalia esse filtro só por mudar atributo de feTile/feFlood. Já
-    // grão e CRT usam id FIXO: um <filter> sem ninguém referenciando não
-    // custa nada, e id estável evita recriar/re-rasterizar feTurbulence e
-    // feImage a cada mexida de slider (era isso que travava ao arrastar).
-    // Exceção: o grão animado precisa do seed no id pra "ferver" de fato.
-    const grId = grao > 0 && graoAnimado ? `fx-grao-${graoSeed}` : 'fx-grao';
-    const crtAtivo = curvatura > 0 || aberracao > 0;
-    const filtroCss = [
-        (FILTROS[efeito] ?? '').replaceAll('#fx-pixelar', `#fx-pixelar-${pixel}`),
-        grao > 0 ? `url(#${grId})` : '',
-        crtAtivo ? 'url(#fx-crt)' : '',
-    ].filter(Boolean).join(' ');
-    const usaPixel = USA_PIXEL.has(efeito);
-    // feComponentTransfer linear em torno de 0.5: saída = 0.5 + k*(ruído -
-    // 0.5), com k = 2*(grao/100). k=0 não mexe no pixel (soft-light com
-    // cinza 50% é no-op); k alto satura em preto/branco puro (chiado).
-    const grK = (grao / 100) * 2;
-    const grC = 0.5 - grao / 100;
-    // Aberração: deslocamento em px INTEIROS (feOffset sub-pixel cai no
-    // caminho lento de reamostragem bilinear — e isso re-roda a cada
-    // repaint, inclusive ao scrollar o log). Curvatura negativa = barril
-    // (feDisplacementMap desloca por scale*(canal-0.5); gradiente 0->255,
-    // scale<0 empurra as bordas pra fora).
-    const abInt = aberracao > 0 ? Math.max(1, Math.round((aberracao / 100) * 8)) : 0;
-    const curvPx = -(curvatura / 100) * 28;
-
-    // Filtro de tela: aplicado direto no #root (a app inteira), não em cada
-    // carta — a ideia é "tacar um filtro na estética do jogo" e ver como
-    // fica, sem mexer em mais nada. O painel de controle fica num portal
-    // pro <body>, fora do #root, então não é afetado pelo próprio filtro.
-    //
-    // `filter` só pega o elemento + descendentes: o #root é a coluna de
-    // 720px, então o FUNDO que sobra dos lados (pintado pelo <body>, pai do
-    // #root) ficava de fora. Enquanto tem filtro ligado a gente "promove" o
-    // #root a tela cheia e joga o background nele, pro filtro pegar o fundo
-    // junto; ao desligar, volta tudo pro que o CSS define. A .partida-layout
-    // já se centraliza sozinha na viewport (left:50% + translateX(-50%)),
-    // então tirar o max-width do #root não mexe no layout.
-    // Overscan quando a curvatura tá ligada: o barril puxa o conteúdo pra
-    // dentro e deixaria cunhas de fundo nos 4 cantos (não dá pra ver o
-    // canto). Um scale de leve empurra isso pra fora da viewport — que é
-    // exatamente o overscan de uma TV de tubo de verdade.
-    const overscan = curvatura > 0 ? 1 + (curvatura / 100) * 0.06 : 1;
-    useEffect(() => {
-        const root = document.getElementById('root');
-        if (!root) return;
-        root.style.filter = filtroCss;
-        root.style.maxWidth = filtroCss ? 'none' : '';
-        root.style.minHeight = filtroCss ? '100vh' : '';
-        root.style.background = filtroCss ? 'var(--bg)' : '';
-        root.style.transform = overscan !== 1 ? `scale(${overscan})` : '';
-        return () => {
-            root.style.filter = '';
-            root.style.maxWidth = '';
-            root.style.minHeight = '';
-            root.style.background = '';
-            root.style.transform = '';
-        };
-    }, [filtroCss, overscan]);
-
-    // "Ferve" o grão re-semeando o feTurbulence a ~15fps — capado bem
-    // baixo de propósito (feTurbulence é caro, e frame rate baixo combina
-    // com o look lo-fi). Só roda com o grão ligado E animado.
-    useEffect(() => {
-        if (grao <= 0 || !graoAnimado) return;
-        let raf;
-        let ultimo = 0;
-        const passo = (t) => {
-            raf = requestAnimationFrame(passo);
-            if (t - ultimo < 66) return;
-            ultimo = t;
-            setGraoSeed((s) => (s % 97) + 1);
-        };
-        raf = requestAnimationFrame(passo);
-        return () => cancelAnimationFrame(raf);
-    }, [grao, graoAnimado]);
-
     // Reconexão de rede enquanto esta tela já estava aberta (ver App.jsx e
     // sessao.js): o socket muda de id, então o servidor não sabe mais que
     // este socket pertence a esta room — sem chamar `reconectar` de novo,
@@ -614,28 +431,13 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
         enviarChat({ tipo: 'restrita', id });
     }
 
-    async function enviarChatLivre(evento) {
-        evento.preventDefault();
-        if (chatEmCooldown) return;
-        const texto = textoChat.trim();
-        if (!texto) return;
-        if (await enviarChat({ tipo: 'aberta', texto })) setTextoChat('');
-    }
-
-    async function apostar(evento) {
-        evento.preventDefault();
-        setErro(null);
-        const valor = Number(valorAposta);
-        if (!Number.isInteger(valor) || valor < 0 || valor > cartasRodada) {
-            setErro(`Aposta precisa ser um número inteiro entre 0 e ${cartasRodada}.`);
-            return;
-        }
-        try {
-            await chamar('apostar', { salaId, valor });
-            setValorAposta('');
-        } catch (erroDaChamada) {
-            setErro(erroDaChamada.message);
-        }
+    // Texto livre (só em sala com chatAberto — o servidor recusa nas
+    // outras). Devolve se foi aceito, pra o campo saber se limpa.
+    async function enviarChatLivre(texto) {
+        if (chatEmCooldown) return false;
+        const limpo = texto.trim();
+        if (!limpo) return false;
+        return enviarChat({ tipo: 'aberta', texto: limpo });
     }
 
     async function jogar(indice) {
@@ -756,516 +558,45 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
         onSairDaPartida(salaId);
     }
 
-    const souEuNaVez = iniciada && jogadorDaVez === meuNome && !vencedor;
-    const souEuNaVezDaAposta = iniciada && jogadorDaVezAposta === meuNome && !vencedor;
     const souDono = jogadores.find((j) => j.nome === meuNome)?.adm === true;
-    // Atalho de dev pra sala de espera: o roster pré-início não manda flag
-    // `bot` nenhuma (ver criarSala em PROTOCOLO.md — só { nome, adm }), mas
-    // bots/Bot.js sempre nomeia como "Bot N" (nunca customizado por
-    // botNumber), então dá pra reconhecer uma sala de teste solo (você +
-    // só bots) só pelo nome. `every` em lista vazia (sala só com você, sem
-    // bot nenhum ainda) daria true por vacuidade — por isso o `.length > 0`.
-    const outrosJogadores = jogadores.filter((j) => j.nome !== meuNome);
-    const salaSoVoceEBots = outrosJogadores.length > 0
-        && outrosJogadores.every((j) => /^Bot \d+$/.test(j.nome));
-    // Rodada de 1 carta: a própria carta fica virada (o servidor manda o
-    // valor em suaMao, mas aqui a gente não mostra — a mão continua jogável
-    // normalmente por índice). As cartas dos outros vêm em maosReveladas.
-    const rodadaCega = iniciada && cartasRodada === 1;
-    const outrosNaTesta = Object.entries(maosReveladas);
-
-    // Visual novo (ver visualNovo acima) — SUBSTITUI o resto do render
-    // desta tela inteira, igual o antigo `if (mostrarGaleria)` que o
-    // MesaExperimento.jsx tinha antes de virar componente de apresentação.
-    // `estado` é só uma leitura do que este componente JÁ monta a partir
+    // A tela inteira (espera, mesa e fim) é o MesaExperimento. `estado` é
+    // só uma leitura do que este componente JÁ monta a partir
     // dos handlers de socket lá em cima — nenhum evento novo é assinado
     // aqui, nenhuma lógica de jogo é duplicada. `acoes.jogar`/`acoes.apostar`
     // reaproveitam `jogar`/`apostarValor` de cima (mesma chamada de
-    // verdade pro servidor) — jogar de novo/chat livre ainda não estão
-    // plugados aqui (a tela de lá não tem form de texto livre, só as
-    // mensagens prontas via acoes.enviarChatPronta).
-    if (visualNovo) {
-        return (
-            <MesaExperimento
-                estado={{
-                    salaId, meuNome, senha,
-                    iniciada, jogadores, ordem, segundosParaIniciar, chatAberto,
-                    ultimoSeq, prazoTurno, distribuicaoLiberada,
-                    mao, cartasRodada, numeroRodada, maosReveladas,
-                    mesa, vira, jogadorDaVez, jogadorDaVezAposta, apostas,
-                    eliminados, desconectados, ultimoPlacar, vencedor,
-                    vazaResultado, mensagensChat, conviteRevanche,
-                }}
-                acoes={{
-                    jogar: jogarCartaClicada,
-                    // Sem ack: é só um aviso de andamento da tela.
-                    animacoesConcluidas: (seq) => socket.emit('animacoesConcluidas', { salaId, seq }),
-                    aindaAnimando: () => socket.emit('aindaAnimando', { salaId }),
-                    apostar: apostarValor,
-                    forcarInicio,
-                    enviarChatPronta,
-                    sair,
-                    aceitarConviteRevanche,
-                    // Mesma regra da tela antiga (ver botão condicionado a
-                    // `souDono` lá embaixo, linha ~1075): só o adm pode
-                    // chamar jogarDeNovo de verdade (o servidor recusa quem
-                    // não é), então só passa a ação quando é o caso — sem
-                    // isso todo mundo veria o botão na tela de vitória e
-                    // levaria NAO_AUTORIZADO ao clicar.
-                    jogarDeNovo: souDono ? jogarDeNovo : undefined,
-                }}
-                onFechar={() => setVisualNovo(false)}
-            />
-        );
-    }
-
+    // verdade pro servidor) — chat livre ainda não está plugado (a tela
+    // não tem form de texto livre, só as mensagens prontas via
+    // acoes.enviarChatPronta).
     return (
-        <>
-        <div className="partida-layout">
-            {/* Portal pro <body>: fica FORA do #root, então o filtro de tela
-                (aplicado no #root) não pega o painel nem o próprio <filter>.
-                O filtro SVG "pixelado": feFlood/feComposite/feTile amostra 1
-                ponto por célula e feMorphology infla pra encher o quadradinho;
-                o id carrega o tamanho (#fx-pixelar-7) pra reavaliar ao mexer
-                no slider. */}
-            {createPortal(
-                <>
-                    <svg className="fx-defs" aria-hidden="true">
-                        {/* região justa: com filtro ligado o #root já é a
-                            viewport inteira (a .partida-layout não estoura
-                            mais pros lados), então não precisa de folga
-                            gigante — quanto menor a região, menos pixel o
-                            filtro reprocessa a cada repaint. */}
-                        <filter id={`fx-pixelar-${pixel}`} x="-6%" y="-6%" width="112%" height="112%" colorInterpolationFilters="sRGB">
-                            <feFlood x={pixel / 2} y={pixel / 2} width="2" height="2" />
-                            <feComposite width={pixel} height={pixel} />
-                            <feTile result="grade" />
-                            <feComposite in="SourceGraphic" in2="grade" operator="in" />
-                            <feMorphology operator="dilate" radius={pixel / 2} />
-                        </filter>
-                        {/* Grão/dither: feTurbulence só num quadrado de 220px
-                            (stitchTiles + feTile repete sem emenda) — calcular
-                            ruído na viewport inteira era ~40x mais caro. Daí
-                            feColorMatrix achata pra cinza (modo brilho),
-                            feComponentTransfer faz o contraste em torno de 0.5
-                            = intensidade, e soft-light aplica na tela. */}
-                        <filter id={grId} x="-6%" y="-6%" width="112%" height="112%" colorInterpolationFilters="sRGB">
-                            <feTurbulence
-                                type="fractalNoise" baseFrequency="0.9" numOctaves="1" seed={graoSeed}
-                                x="0" y="0" width="220" height="220" stitchTiles="stitch" result="grTile"
-                            />
-                            <feTile in="grTile" result="grBruto" />
-                            {!graoColorido && (
-                                <feColorMatrix
-                                    in="grBruto" type="matrix"
-                                    values="0.333 0.333 0.333 0 0 0.333 0.333 0.333 0 0 0.333 0.333 0.333 0 0 0 0 0 0 1"
-                                    result="grLum"
-                                />
-                            )}
-                            <feComponentTransfer in={graoColorido ? 'grBruto' : 'grLum'} result="grFinal">
-                                <feFuncR type="linear" slope={grK} intercept={grC} />
-                                <feFuncG type="linear" slope={grK} intercept={grC} />
-                                <feFuncB type="linear" slope={grK} intercept={grC} />
-                                <feFuncA type="linear" slope="0" intercept="1" />
-                            </feComponentTransfer>
-                            <feBlend mode="soft-light" in="grFinal" in2="SourceGraphic" result="grMix" />
-                            <feComposite in="grMix" in2="SourceGraphic" operator="in" />
-                        </filter>
-                        {/* CRT. Aberração: só R e B deslocados no eixo X (px
-                            inteiro), G no lugar e carregando o alpha; soma os
-                            três (canais não se sobrepõem). Curvatura: um
-                            feDisplacementMap com os dois mapas de rampa (X no
-                            canal R, Y no G, stops em "S" = barril) somados.
-                            Cada bloco só entra na cadeia se o slider dele > 0
-                            — com só aberração ligada não paga feImage nenhum. */}
-                        <filter id="fx-crt" x="-8%" y="-8%" width="116%" height="116%" colorInterpolationFilters="sRGB">
-                            {aberracao > 0 && (
-                                <>
-                                    <feOffset in="SourceGraphic" dx={abInt} dy="0" result="shR" />
-                                    <feOffset in="SourceGraphic" dx={-abInt} dy="0" result="shB" />
-                                    {/* cada camada FICA opaca (alpha 1) — zerar
-                                        o alpha some com a cor no compositing
-                                        premultiplicado e a tela fica só verde.
-                                        screen de canais que não se sobrepõem
-                                        (R/G/B) reconstrói a imagem exata. */}
-                                    <feColorMatrix in="shR" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="rOnly" />
-                                    <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="gOnly" />
-                                    <feColorMatrix in="shB" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="bOnly" />
-                                    <feBlend mode="screen" in="rOnly" in2="gOnly" result="rg" />
-                                    <feBlend mode="screen" in="rg" in2="bOnly" result="aberrada" />
-                                </>
-                            )}
-                            {curvatura > 0 && (
-                                <>
-                                    <feImage href={MAPA_CURV_X} preserveAspectRatio="none" x="-8%" y="-8%" width="116%" height="116%" result="mapaX" />
-                                    <feImage href={MAPA_CURV_Y} preserveAspectRatio="none" x="-8%" y="-8%" width="116%" height="116%" result="mapaY" />
-                                    <feBlend mode="screen" in="mapaX" in2="mapaY" result="mapaXY" />
-                                    <feDisplacementMap in={aberracao > 0 ? 'aberrada' : 'SourceGraphic'} in2="mapaXY" scale={curvPx} xChannelSelector="R" yChannelSelector="G" />
-                                </>
-                            )}
-                        </filter>
-                    </svg>
-                    <details className="experimentos" open>
-                        <summary>🎨 filtro de tela</summary>
-                        <div className="experimentos-corpo">
-                            <label>
-                                Filtro
-                                <select value={efeito} onChange={(e) => setEfeito(e.target.value)}>
-                                    {Object.keys(FILTROS).map((nome) => (
-                                        <option key={nome} value={nome}>{nome}</option>
-                                    ))}
-                                </select>
-                            </label>
-                            {usaPixel && (
-                                <label>
-                                    Tamanho do pixel: {pixel}px
-                                    <input
-                                        type="range" min="2" max="16" step="1"
-                                        value={pixel}
-                                        onChange={(e) => setPixel(Number(e.target.value))}
-                                    />
-                                </label>
-                            )}
-                            <label>
-                                Grão / dither: {grao || 'off'}
-                                <input
-                                    type="range" min="0" max="100" step="1"
-                                    value={grao}
-                                    onChange={(e) => setGrao(Number(e.target.value))}
-                                />
-                            </label>
-                            {grao > 0 && (
-                                <>
-                                    <label className="linha-check">
-                                        <input
-                                            type="checkbox"
-                                            checked={graoColorido}
-                                            onChange={(e) => setGraoColorido(e.target.checked)}
-                                        />
-                                        ruído colorido (RGB, não só brilho)
-                                    </label>
-                                    <label className="linha-check">
-                                        <input
-                                            type="checkbox"
-                                            checked={graoAnimado}
-                                            onChange={(e) => setGraoAnimado(e.target.checked)}
-                                        />
-                                        animar (grão "fervendo")
-                                    </label>
-                                </>
-                            )}
-                            <hr className="experimentos-sep" />
-                            <label>
-                                CRT · curvatura: {curvatura || 'off'}
-                                <input
-                                    type="range" min="0" max="100" step="1"
-                                    value={curvatura}
-                                    onChange={(e) => setCurvatura(Number(e.target.value))}
-                                />
-                            </label>
-                            <label>
-                                CRT · scanlines: {scanlines || 'off'}
-                                <input
-                                    type="range" min="0" max="100" step="1"
-                                    value={scanlines}
-                                    onChange={(e) => setScanlines(Number(e.target.value))}
-                                />
-                            </label>
-                            {scanlines > 0 && (
-                                <label>
-                                    CRT · linha: {scanlinePasso}px ({scanlinePasso <= 4 ? 'finas/densas' : scanlinePasso >= 10 ? 'grossas/esparsas' : 'meio-termo'})
-                                    <input
-                                        type="range" min="2" max="16" step="1"
-                                        value={scanlinePasso}
-                                        onChange={(e) => setScanlinePasso(Number(e.target.value))}
-                                    />
-                                </label>
-                            )}
-                            <label>
-                                CRT · aberração: {aberracao || 'off'}
-                                <input
-                                    type="range" min="0" max="100" step="1"
-                                    value={aberracao}
-                                    onChange={(e) => setAberracao(Number(e.target.value))}
-                                />
-                            </label>
-                        </div>
-                    </details>
-                </>,
-                document.body
-            )}
-            <aside className="chat-painel">
-                <h3>Chat</h3>
-                <div className="chat-prontas">
-                    {MENSAGENS_CHAT.map((m) => (
-                        <button
-                            key={m.id}
-                            type="button"
-                            className="secundario"
-                            disabled={chatEmCooldown}
-                            onClick={() => enviarChatPronta(m.id)}
-                        >
-                            {m.texto}
-                        </button>
-                    ))}
-                </div>
-
-                <div className="chat-feed" ref={feedChatRef}>
-                    {mensagensChat.length === 0
-                        ? <span className="vazio">(sem mensagens)</span>
-                        : mensagensChat.map((m, i) => (
-                            m.tipo === 'sistema'
-                                ? (
-                                    <div key={i} className="chat-msg chat-msg-sistema">
-                                        <em>{m.jogador} {m.texto}</em>
-                                    </div>
-                                )
-                                : (
-                                    <div key={i} className="chat-msg">
-                                        <strong>{m.jogador === meuNome ? 'Você' : m.jogador}:</strong> {m.texto}
-                                    </div>
-                                )
-                        ))}
-                </div>
-
-                {chatAberto && (
-                    <form className="chat-livre" onSubmit={enviarChatLivre}>
-                        <input
-                            type="text"
-                            maxLength={200}
-                            placeholder="Mensagem..."
-                            value={textoChat}
-                            onChange={(e) => setTextoChat(e.target.value)}
-                        />
-                        <button type="submit" disabled={chatEmCooldown || !textoChat.trim()}>
-                            Enviar
-                        </button>
-                    </form>
-                )}
-
-                {chatEmCooldown && <span className="vazio">aguarde {segundosCooldown}s pra enviar de novo</span>}
-                {erroChat && <p className="erro">{erroChat}</p>}
-            </aside>
-
-            <div className="cartao cartao-larga">
-            <div className="linha" style={{ justifyContent: 'space-between' }}>
-                <h1>Sala {salaId}</h1>
-                <button className="secundario" onClick={sair} type="button">
-                    {iniciada ? 'Sair da partida' : 'Sair da sala'}
-                </button>
-            </div>
-
-            {/* senha só vem preenchida no ack de QUEM criou uma sala privada
-                (ver eventos.js/PROTOCOLO.md) — nunca chega aqui de novo depois
-                de um F5/reconexão, então só aparece nesse primeiro momento pro
-                criador repassar pra quem for convidar. */}
-            {!iniciada && senha && (
-                <p>🔒 Senha da sala: <strong>{senha}</strong></p>
-            )}
-
-            {!iniciada && (
-                <section>
-                    <h2>Aguardando ({jogadores.length})</h2>
-                    <ul>
-                        {jogadores.map((j) => <li key={j.nome}>{j.nome}</li>)}
-                    </ul>
-                    {/* Só aparece numa sala de teste solo (você + só bots, ver
-                        salaSoVoceEBots acima) — troca esta MESMA tela pro
-                        visual novo (components/novo/MesaExperimento.jsx),
-                        agora alimentado pelos eventos de socket de verdade
-                        que este componente já processa (ver `estado`/`acoes`
-                        no early-return mais abaixo), não mais o sandbox
-                        desconectado. "← Voltar" de dentro dele volta pra cá. */}
-                    {salaSoVoceEBots && (
-                        <button type="button" className="secundario" onClick={() => setVisualNovo(true)}>
-                            🃏 Front provisório (debugging)
-                        </button>
-                    )}
-                    {segundosParaIniciar != null && (
-                        <>
-                            <p>Sala cheia — começa sozinha em {segundosParaIniciar}s.</p>
-                            <button onClick={forcarInicio} type="button">Forçar início agora porra</button>
-                        </>
-                    )}
-                </section>
-            )}
-
-            {iniciada && (
-                <section>
-                    <div className="status-jogadores">
-                        {jogadores.map((j) => {
-                            const morreu = eliminados.includes(j.nome);
-                            const bot = desconectados.includes(j.nome);
-                            const aposta = apostas[j.nome];
-                            return (
-                                <span
-                                    key={j.nome}
-                                    className={`status-jogador${morreu ? ' status-jogador-morto' : bot ? ' status-jogador-bot' : ''}`}
-                                >
-                                    {morreu
-                                        ? `💀 ${j.nome} morreu`
-                                        : bot
-                                            ? `🤖 ${j.nome} (bot)`
-                                            : aposta !== undefined
-                                                ? `${j.nome} apostou ${aposta}`
-                                                : j.nome}
-                                </span>
-                            );
-                        })}
-                    </div>
-
-                    <h2>{vencedor ? `Vencedor: ${vencedor}` : `Vez de: ${jogadorDaVez ?? '...'}`}</h2>
-
-                    {vencedor && souDono && (
-                        <div className="botoes">
-                            <button type="button" onClick={jogarDeNovo} disabled={criandoRevanche}>
-                                {criandoRevanche ? 'Criando sala...' : 'Jogar de novo'}
-                            </button>
-                        </div>
-                    )}
-
-                    {vencedor && conviteRevanche && (
-                        <section>
-                            <p>{conviteRevanche.jogador} está te chamando pra outra partida.</p>
-                            <div className="botoes">
-                                <button type="button" onClick={aceitarConviteRevanche}>Sim</button>
-                                <button type="button" onClick={sair} className="secundario">Não</button>
-                            </div>
-                        </section>
-                    )}
-
-                    <h3>Mesa</h3>
-                    <div className="mesa">
-                        {mesa.map((jogada, i) => {
-                            const venceu = vazaResultado?.vencedor === jogada.jogador;
-                            return (
-                                <span
-                                    key={i}
-                                    className={`carta${venceu ? ' carta-vencedora' : ''}`}
-                                >
-                                    <span className="carta-face">
-                                        <CartaGrande texto={jogada.carta} />
-                                    </span>
-                                    <small>{jogada.jogador}</small>
-                                </span>
-                            );
-                        })}
-                        {mesa.length === 0 && <span className="vazio">(vazia)</span>}
-                    </div>
-                    {vazaResultado && (
-                        <p className="vaza-resultado">
-                            {vazaResultado.vencedor
-                                ? `✅ ${vazaResultado.vencedor} levou a vaza`
-                                : '🫠 vaza melada — ninguém levou'}
-                        </p>
-                    )}
-
-                    {vira && (
-                        <>
-                            <h3>Vira</h3>
-                            <div className="mao">
-                                <span className="carta">
-                                    <span className="carta-face">
-                                        <CartaGrande texto={vira.carta} />
-                                    </span>
-                                    <small>manilha: {vira.valor}</small>
-                                </span>
-                            </div>
-                        </>
-                    )}
-
-                    {outrosNaTesta.length > 0 && (
-                        <>
-                            <h3>Rodada cega — cartas dos outros (você não vê a sua)</h3>
-                            <div className="mao">
-                                {outrosNaTesta.map(([nome, cartas]) => (
-                                    <span key={nome} className="carta">
-                                        <span className="carta-face">
-                                            {cartas.length === 1
-                                                ? <CartaGrande texto={cartas[0]} />
-                                                : cartas.join(' ')}
-                                        </span>
-                                        <small>{nome}</small>
-                                    </span>
-                                ))}
-                            </div>
-                        </>
-                    )}
-
-                    {jogadorDaVezAposta && (
-                        <>
-                            <h3>Aposta{souEuNaVezDaAposta ? ' — sua vez' : ` — vez de ${jogadorDaVezAposta}`}</h3>
-                            {souEuNaVezDaAposta ? (
-                                <form className="linha" onSubmit={apostar}>
-                                    <label>
-                                        Quantas vazas você acha que vai fazer?
-                                        <input
-                                            type="number" min="0" max={cartasRodada}
-                                            value={valorAposta}
-                                            onChange={(e) => setValorAposta(e.target.value)}
-                                            autoFocus
-                                        />
-                                    </label>
-                                    <button type="submit">Apostar</button>
-                                </form>
-                            ) : (
-                                <p>Aguardando {jogadorDaVezAposta} apostar...</p>
-                            )}
-                        </>
-                    )}
-
-                    <h3>
-                        Sua mão
-                        {rodadaCega ? ' — virada (rodada cega)' : ''}
-                        {souEuNaVez ? ' — sua vez, clique numa carta' : ''}
-                    </h3>
-                    <div className="mao">
-                        {mao.map((carta, indice) => (
-                            <button
-                                key={indice}
-                                className="carta carta-clicavel"
-                                disabled={!souEuNaVez}
-                                onClick={() => jogar(indice)}
-                            >
-                                <span className="carta-face">
-                                    {rodadaCega ? '🂠' : <CartaGrande texto={carta} />}
-                                </span>
-                            </button>
-                        ))}
-                        {mao.length === 0 && <span className="vazio">(sem cartas)</span>}
-                    </div>
-
-                    {ultimoPlacar.length > 0 && (
-                        <>
-                            <h3>Placar (última rodada)</h3>
-                            <ul>
-                                {ultimoPlacar.map((jogador) => (
-                                    <li key={jogador.nome}>{jogador.nome}: hp {jogador.hp}</li>
-                                ))}
-                            </ul>
-                        </>
-                    )}
-                </section>
-            )}
-
-            {erro && <p className="erro">{erro}</p>}
-
-            <section>
-                <h3>Log de eventos (debug)</h3>
-                <pre className="log">{log.join('\n')}</pre>
-            </section>
-            </div>
-        </div>
-        {/* Scanlines: overlay de linhas escuras (multiply) fixado na
-            viewport, DEPOIS do conteúdo pra multiplicar por cima dele.
-            Fica dentro do #root (não num portal) de propósito: assim
-            curva/pixela junto quando os filtros SVG estão ligados. */}
-        {scanlines > 0 && (
-            <div
-                className="fx-scanlines"
-                style={{ '--sl-op': (scanlines / 100) * 0.5, '--sl-periodo': `${scanlinePasso}px` }}
-            />
-        )}
-        </>
+        <MesaExperimento
+            estado={{
+                salaId, meuNome, senha,
+                iniciada, jogadores, ordem, segundosParaIniciar, chatAberto, chatEmCooldown, erroChat,
+                ultimoSeq, prazoTurno, distribuicaoLiberada,
+                mao, cartasRodada, numeroRodada, maosReveladas,
+                mesa, vira, jogadorDaVez, jogadorDaVezAposta, apostas,
+                eliminados, desconectados, ultimoPlacar, vencedor,
+                vazaResultado, mensagensChat, conviteRevanche,
+            }}
+            acoes={{
+                jogar: jogarCartaClicada,
+                // Sem ack: é só um aviso de andamento da tela.
+                animacoesConcluidas: (seq) => socket.emit('animacoesConcluidas', { salaId, seq }),
+                aindaAnimando: () => socket.emit('aindaAnimando', { salaId }),
+                apostar: apostarValor,
+                forcarInicio,
+                enviarChatPronta,
+                enviarChatLivre: chatAberto ? enviarChatLivre : undefined,
+                sair,
+                aceitarConviteRevanche,
+                // Mesma regra da tela antiga (ver botão condicionado a
+                // `souDono` lá embaixo, linha ~1075): só o adm pode
+                // chamar jogarDeNovo de verdade (o servidor recusa quem
+                // não é), então só passa a ação quando é o caso — sem
+                // isso todo mundo veria o botão na tela de vitória e
+                // levaria NAO_AUTORIZADO ao clicar.
+                jogarDeNovo: souDono ? jogarDeNovo : undefined,
+            }}
+        />
     );
 }

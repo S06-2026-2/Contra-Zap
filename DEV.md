@@ -126,14 +126,6 @@ polimento.
 - Subir o servidor num ambiente de verdade, com sockets web funcionando fora
   da rede local (hoje só foi testado em `localhost`).
 - **Banco de testes em produção**
-- **fantasminhas em ordem sentido horario**
-- **timer pra aposta e tacar a carta*
-- timer para fantasminha 
-- menu de chat mais proximo da estetica 
-- carta zap raios nao mexe passivamente 
-- consertar os merge issues, 
-- deixar o botão de apostar mais bonito 
- 
 
 ### PIN — só mexer se alguém reclamar
 

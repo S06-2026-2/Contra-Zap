@@ -43,7 +43,7 @@ const OPCOES = [
         id: 'novo',
         icone: '✨',
         nome: 'NOVO',
-        desc: 'Visual em construção, com a mesa experimental nas salas solo.',
+        desc: 'Login e salas da arcade, com a mesa nova (em construção) em toda partida.',
         tags: ['EM OBRAS'],
         cor: '#f5c451',
         botao: 'az-btn-amarelo',

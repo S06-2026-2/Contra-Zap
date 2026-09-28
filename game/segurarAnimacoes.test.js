@@ -7,6 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GameController } from './GameController.js';
+import { Bot } from '../bots/Bot.js';
 import { duracaoCartaJogada, duracaoDistribuicaoEVira } from './animacoesFront.js';
 
 // Dois humanos, rodada de 1 carta, distribuição fixa curta (a espera por
@@ -64,6 +65,19 @@ test('timerTurno sai logo depois do turno de humano, com o prazo inteiro', async
     assert.equal(dados.tipo, 'aposta');
     assert.equal(dados.tempoMs, 5_000);
     assert.ok(dados.seq > turno.seq);
+});
+
+test('timerTurno também sai na vez de bot, com o atraso dele como prazo', async (t) => {
+    const c = new GameController({ numberPlayers: 2, roundStart: 1, tempoTurnoMs: 5_000, atrasoBotMs: 30, duracaoDistribuicaoMs: 0 });
+    t.after(() => c.destruir());
+    c.entrarNaSala(new Bot());
+    c.entrarNaSala(new Bot());
+    const dados = await new Promise((resolve) => {
+        c.once('timerTurno', resolve);
+        c.iniciarPartida();
+    });
+    assert.equal(dados.tipo, 'aposta');
+    assert.equal(dados.tempoMs, 30);
 });
 
 test('sem ninguém aderir, o turno sai na hora e não há distribuição fixa', async (t) => {
