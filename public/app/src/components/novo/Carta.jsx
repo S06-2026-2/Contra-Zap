@@ -1,4 +1,4 @@
-import { createContext, useContext, useId } from 'react';
+import { createContext, useContext, useEffect, useId, useRef } from 'react';
 import RaiosNaCarta from './RaiosNaCarta.jsx';
 
 // Carta de baralho pro protótipo de mesa (MesaExperimento) — componente
@@ -68,31 +68,50 @@ const PIPS = {
 //
 // A linha filtrada é um <rect> dentro do próprio SVG do filtro, não uma div
 // com `filter: url(#...)` no CSS: filtro de SVG aplicado a elemento HTML nem
-// sempre é redesenhado quando o <animate> muda o ruído (principalmente com
-// transform 3D/drop-shadow nos pais); dentro do SVG ele é. O viewBox é a caixa da borda em px (carta 110x154 + 2px de cada lado).
+// sempre é redesenhado quando o ruído muda; dentro do SVG ele é. O viewBox é
+// a caixa da borda em px (carta 110x154 + 2px de cada lado).
+//
+// O deslize do ruído é escrito por JS a cada quadro (dx/dy dos feOffset), não
+// por <animate>: o Chrome deixa de repintar filtro animado por SMIL quando os
+// pais têm transform 3D, transição ou filter animado — justamente a carta na
+// jogada do Zap —, e a borda congelava. Atributo mudado pelo DOM sempre
+// invalida o filtro.
+const BORDA_CICLO_MS = 5000;
+const BORDA_DESLIZE_Y = 220;
+const BORDA_DESLIZE_X = 160;
+
 function BordaEletrica() {
     const idFiltro = `carta-exp-zap-filtro-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+    const deslocRefs = useRef([]);
+
+    useEffect(() => {
+        let quadro;
+        function passo(agora) {
+            const f = (agora % BORDA_CICLO_MS) / BORDA_CICLO_MS;
+            const [d1, d2, d3, d4] = deslocRefs.current;
+            d1?.setAttribute('dy', (BORDA_DESLIZE_Y * (1 - f)).toFixed(2));
+            d2?.setAttribute('dy', (-BORDA_DESLIZE_Y * f).toFixed(2));
+            d3?.setAttribute('dx', (BORDA_DESLIZE_X * (1 - f)).toFixed(2));
+            d4?.setAttribute('dx', (-BORDA_DESLIZE_X * f).toFixed(2));
+            quadro = requestAnimationFrame(passo);
+        }
+        quadro = requestAnimationFrame(passo);
+        return () => cancelAnimationFrame(quadro);
+    }, []);
+
     return (
         <div className="carta-exp-zap-borda" aria-hidden="true">
             <svg className="carta-exp-zap-borda-svg" viewBox="0 0 114 158">
                 <defs>
                     <filter id={idFiltro} colorInterpolationFilters="sRGB" x="-20%" y="-20%" width="140%" height="140%">
                         <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves="6" result="ruido1" seed="1" />
-                        <feOffset in="ruido1" dx="0" dy="0" result="ruidoDesloc1">
-                            <animate attributeName="dy" values="220; 0" dur="5s" repeatCount="indefinite" calcMode="linear" />
-                        </feOffset>
+                        <feOffset ref={(el) => { deslocRefs.current[0] = el; }} in="ruido1" dx="0" dy={BORDA_DESLIZE_Y} result="ruidoDesloc1" />
                         <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves="6" result="ruido2" seed="1" />
-                        <feOffset in="ruido2" dx="0" dy="0" result="ruidoDesloc2">
-                            <animate attributeName="dy" values="0; -220" dur="5s" repeatCount="indefinite" calcMode="linear" />
-                        </feOffset>
+                        <feOffset ref={(el) => { deslocRefs.current[1] = el; }} in="ruido2" dx="0" dy="0" result="ruidoDesloc2" />
                         <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves="6" result="ruido3" seed="2" />
-                        <feOffset in="ruido3" dx="0" dy="0" result="ruidoDesloc3">
-                            <animate attributeName="dx" values="160; 0" dur="5s" repeatCount="indefinite" calcMode="linear" />
-                        </feOffset>
+                        <feOffset ref={(el) => { deslocRefs.current[2] = el; }} in="ruido3" dx={BORDA_DESLIZE_X} dy="0" result="ruidoDesloc3" />
                         <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves="6" result="ruido4" seed="2" />
-                        <feOffset in="ruido4" dx="0" dy="0" result="ruidoDesloc4">
-                            <animate attributeName="dx" values="0; -160" dur="5s" repeatCount="indefinite" calcMode="linear" />
-                        </feOffset>
+                        <feOffset ref={(el) => { deslocRefs.current[3] = el; }} in="ruido4" dx="0" dy="0" result="ruidoDesloc4" />
                         <feComposite in="ruidoDesloc1" in2="ruidoDesloc2" result="parte1" />
                         <feComposite in="ruidoDesloc3" in2="ruidoDesloc4" result="parte2" />
                         <feBlend in="parte1" in2="parte2" mode="color-dodge" result="ruidoFinal" />
