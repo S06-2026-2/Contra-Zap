@@ -51,7 +51,7 @@ export const EventosServidor = {
     TURNO_APOSTA: 'turnoAposta',                // { salaId, id, jogador } — id de quem tem que apostar agora
     APOSTA_FEITA: 'apostaFeita',                // { salaId, jogador, aposta } — só depois que a aposta foi de fato registrada (real ou timeout)
     TURNO_JOGADOR: 'turnoJogador',              // { salaId, id, jogador } — id de quem tem que jogar
-    TIMER_TURNO: 'timerTurno',                  // { salaId, id, jogador, tipo: 'aposta' | 'jogada', tempoMs } — o timer desse jogador começou a correr AGORA; tempoMs até o automático agir. Só humano (bot não tem timer)
+    TIMER_TURNO: 'timerTurno',                  // { salaId, id, jogador, tipo: 'aposta' | 'jogada', tempoMs } — o timer desse jogador começou a correr AGORA; tempoMs até o automático agir (bot: atrasoBotMs, a pausa antes de decidir)
     CARTA_JOGADA: 'cartaJogada',                // { salaId, jogador, carta, status }
     VAZA_FINALIZADA: 'vazaFinalizada',          // { salaId, vencedor, carta }
     RODADA_FINALIZADA: 'rodadaFinalizada',      // { salaId, numero, resultado }

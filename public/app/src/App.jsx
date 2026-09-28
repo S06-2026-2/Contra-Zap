@@ -2,8 +2,6 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import Login from './components/Login.jsx';
 import Lobby from './components/Lobby.jsx';
 import Partida from './components/Partida.jsx';
-import LoginNovo from './components/novo/Login.jsx';
-import LobbyNovo from './components/novo/Lobby.jsx';
 import PartidaNovo from './components/novo/Partida.jsx';
 import LoginArcade from './components/arcade/Login.jsx';
 import LobbyArcade from './components/arcade/Lobby.jsx';
@@ -16,18 +14,17 @@ import { avisarSessaoRetomada, lerSessaoSalva, limparSessaoSalva, salvarSessao }
 // Única "rota" de verdade do app (o resto — frente, login, lobby, sala —
 // é tudo estado em memória/localStorage, nunca a URL).
 
-// "novo" nasceu como clone de tela por tela do "debugging" (mesmo
-// socket.js/sessao.js dos dois — só a casca visual era duplicada) — ver
-// SeletorFrente.jsx pra como a escolha é lembrada por navegador. A Partida
-// dele já diverge um pouco: tem um botão extra (só numa sala de teste solo,
-// você + bots) que troca pro visual novo de verdade (ver `visualNovo` em
-// components/novo/Partida.jsx e components/novo/MesaExperimento.jsx).
+// "novo" usa o Login e o Lobby da arcade e a Partida própria, que é sempre
+// o front provisório (components/novo/MesaExperimento.jsx, alimentado pelo
+// socket em components/novo/Partida.jsx) — ver SeletorFrente.jsx pra como a
+// escolha de frente é lembrada por navegador.
 //
-// "arcade" é a terceira casca (ver design_handoff_frente_arcade/README.md e
-// components/arcade/) — mesmas props das outras duas, mais `conectado`: ela
-// desenha a própria faixa de conexão perdida, então o banner global some.
+// "arcade" é a casca de components/arcade/ (ver
+// design_handoff_frente_arcade/README.md) — mesmas props das outras, mais
+// `conectado`: ela desenha a própria faixa de conexão perdida, então o
+// banner global some nas telas dela.
 const FRENTES = {
-    novo: { Login: LoginNovo, Lobby: LobbyNovo, Partida: PartidaNovo },
+    novo: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaNovo },
     arcade: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaArcade },
     debugging: { Login, Lobby, Partida },
 };
@@ -187,7 +184,7 @@ export default function App() {
     }
 
     if (restaurandoSessao) {
-        if (frente === 'arcade') {
+        if (frente === 'arcade' || frente === 'novo') {
             return (
                 <Casca conectado={conectado}>
                     <div className="az-tela az-tela-login">
@@ -205,8 +202,10 @@ export default function App() {
 
     const { Login: TelaLogin, Lobby: TelaLobby, Partida: TelaPartida } = FRENTES[frente];
     const ehArcade = frente === 'arcade';
-    // Só a arcade recebe (as outras ignorariam) — ver FRENTES acima.
-    const propsConexao = ehArcade ? { conectado } : {};
+    // Tela desenhada pela casca da arcade (que tem a própria faixa de
+    // conexão perdida): tudo na arcade, e Login/Lobby no "novo".
+    const telaArcade = ehArcade || (frente === 'novo' && !sala);
+    const propsConexao = telaArcade ? { conectado } : {};
 
     let tela;
     if (!player) {
@@ -259,7 +258,7 @@ export default function App() {
                 {frente === 'novo' ? '✨ Novo' : ehArcade ? '👾 Arcade' : '🐞 Debugging'}
             </div>
             {/* Independe da tela atual — some sozinho quando 'connect' disparar de novo (ver socket.js) */}
-            {!conectado && !ehArcade && (
+            {!conectado && !telaArcade && (
                 <div className="banner-conexao">
                     🔌 Conexão perdida — tentando reconectar...
                 </div>

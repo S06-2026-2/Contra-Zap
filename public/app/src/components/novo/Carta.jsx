@@ -65,11 +65,16 @@ const PIPS = {
 // todo como se estivesse eletrificado. Por cima, duas cópias sem filtro e
 // desfocadas fazem o brilho, e um reflexo branco em overlay clareia os
 // cantos. O filtro é por carta (id próprio via useId).
+//
+// A linha filtrada é um <rect> dentro do próprio SVG do filtro, não uma div
+// com `filter: url(#...)` no CSS: filtro de SVG aplicado a elemento HTML nem
+// sempre é redesenhado quando o <animate> muda o ruído (principalmente com
+// transform 3D/drop-shadow nos pais); dentro do SVG ele é. O viewBox é a caixa da borda em px (carta 110x154 + 2px de cada lado).
 function BordaEletrica() {
     const idFiltro = `carta-exp-zap-filtro-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
     return (
         <div className="carta-exp-zap-borda" aria-hidden="true">
-            <svg className="carta-exp-zap-filtro-svg">
+            <svg className="carta-exp-zap-borda-svg" viewBox="0 0 114 158">
                 <defs>
                     <filter id={idFiltro} colorInterpolationFilters="sRGB" x="-20%" y="-20%" width="140%" height="140%">
                         <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves="6" result="ruido1" seed="1" />
@@ -94,9 +99,9 @@ function BordaEletrica() {
                         <feDisplacementMap in="SourceGraphic" in2="ruidoFinal" scale="11" xChannelSelector="R" yChannelSelector="B" />
                     </filter>
                 </defs>
+                <rect className="carta-exp-zap-borda-linha" x="1" y="1" width="112" height="156" rx="9" filter={`url(#${idFiltro})`} />
             </svg>
             <div className="carta-exp-zap-borda-externa" />
-            <div className="carta-exp-zap-borda-linha" style={{ filter: `url(#${idFiltro})` }} />
             <div className="carta-exp-zap-borda-brilho carta-exp-zap-borda-brilho-1" />
             <div className="carta-exp-zap-borda-brilho carta-exp-zap-borda-brilho-2" />
             <div className="carta-exp-zap-borda-reflexo" />
