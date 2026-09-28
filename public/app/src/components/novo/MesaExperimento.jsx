@@ -1694,6 +1694,7 @@ export default function MesaExperimento({ estado, acoes }) {
                 drenarFilaJogadasRef.current();
             }
         } else if (voo.seatIndex === 0) {
+            if (!voo.carta) return;
             setSuaMao((atual) => [...atual, { id: ++proximoIdSuaCarta.current, rank: voo.carta.rank, naipe: voo.carta.naipe }]);
         } else {
             setMaos((atual) => atual.map((qtd, i) => (i === voo.seatIndex ? qtd + 1 : qtd)));
@@ -1795,6 +1796,12 @@ export default function MesaExperimento({ estado, acoes }) {
     // "a jogada que aconteceu agora"). Array vazio = novaRodadaIniciada
     // limpou a mesa; quem cuida disso é o efeito de rodada, não este.
     const ultimaMesaRef = useRef(estado.mesa);
+    // Reconexão no meio de uma vaza: as cartas que já estavam na mesa quando
+    // esta tela montou não passam pelo efeito abaixo (não são jogada nova).
+    // A primeira iniciarRodadaNova planta elas direto na mesa — sem isso o
+    // resultado da vaza nunca acharia a carta vencedora e a revelação
+    // ficaria esperando pra sempre.
+    const mesaDaReconexaoRef = useRef({ rodada: estado.numeroRodada, mesa: estado.mesa ?? [] });
     useEffect(() => {
         if (estado.mesa === ultimaMesaRef.current) return;
         ultimaMesaRef.current = estado.mesa;
@@ -2069,7 +2076,25 @@ export default function MesaExperimento({ estado, acoes }) {
     async function iniciarRodadaNova() {
         setDistribuindo(true);
         distribuindoRef.current = true;
-        setCartasNaMesa([]);
+        const mesaDaReconexao = mesaDaReconexaoRef.current.rodada === estado.numeroRodada ? mesaDaReconexaoRef.current.mesa : [];
+        mesaDaReconexaoRef.current = { rodada: null, mesa: [] };
+        if (mesaDaReconexao.length > 0) vazaContadorRef.current += 1;
+        setCartasNaMesa(mesaDaReconexao.flatMap((jogada) => {
+            const indice = indiceDoNome(jogada.jogador);
+            const carta = lerCarta(jogada.carta);
+            if (indice === -1 || !carta || !assentos[indice]) return [];
+            const alvo = calcularAlvoJogada(assentos[indice]);
+            return [{
+                id: ++proximoIdCarta.current,
+                jogador: jogada.jogador,
+                rank: carta.rank,
+                naipe: carta.naipe,
+                x: alvo.x,
+                y: alvo.y,
+                rot: Math.random() * 360,
+                escala: ESCALA_CARTA_JOGADA_FINAL,
+            }];
+        }));
         setCartaEmHoverId(null);
         setCartaSaindoId(null);
         setVira(null);
@@ -2128,7 +2153,24 @@ export default function MesaExperimento({ estado, acoes }) {
             .filter((a) => !eliminados.has(ordemAssentos[a.indice]?.nome));
         const ordem = [...comIndice.filter((a) => !a.eVoce).reverse(), ...comIndice.filter((a) => a.eVoce)];
 
+        // Quantas cartas cada assento ainda tem. Começo de rodada é
+        // `cartasRodada` pra todo mundo; na reconexão no meio da rodada a sua
+        // mão já veio menor, e os outros têm o mesmo tanto que você tinha no
+        // começo desta vaza, menos 1 se já jogaram nela. Você nunca recebe
+        // mais voos do que cartas de verdade na mão.
+        const euEliminado = eliminados.has(estado.meuNome);
+        const euJaJogueiNaVaza = mesaDaReconexao.some((j) => j.jogador === estado.meuNome);
+        const cartasNoComecoDaVaza = euEliminado ? cartas : suasCartas.length + (euJaJogueiNaVaza ? 1 : 0);
+        function cartasDoAssento(assento) {
+            if (assento.eVoce) return suasCartas.length;
+            const nome = ordemAssentos[assento.indice]?.nome;
+            const jaJogou = mesaDaReconexao.some((j) => j.jogador === nome);
+            return Math.max(0, Math.min(cartas, cartasNoComecoDaVaza - (jaJogou ? 1 : 0)));
+        }
+
         for (const assento of ordem) {
+            const cartasDesteAssento = cartasDoAssento(assento);
+            if (cartasDesteAssento === 0) continue;
             setAlvoIndex(assento.indice);
             await esperar(DURACAO_DECK_MS + FOLGA_APOS_BARALHO_MS);
 
@@ -2137,7 +2179,7 @@ export default function MesaExperimento({ estado, acoes }) {
                 y: 50 + (assento.y - 50) * ALCANCE_BARALHO,
             };
             const anguloNestaParada = (Math.atan2(assento.y - 50, assento.x - 50) * 180) / Math.PI + 90;
-            for (let c = 0; c < cartas; c++) {
+            for (let c = 0; c < cartasDesteAssento; c++) {
                 const id = ++proximoIdCarta.current;
                 const cartaDeVerdade = assento.indice === 0 ? suasCartas[c] : undefined;
                 atualizarCartasVoando((atuais) => [
