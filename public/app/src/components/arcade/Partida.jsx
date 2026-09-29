@@ -1097,8 +1097,7 @@ export default function Partida({
         <div className="az-feltro" style={estreito ? undefined : { gridArea: 'felt' }}>
             <div className="az-feltro-borda" />
 
-            {/* No estreito o vira vai pra pílula da manilha, no cabeçalho. */}
-            {viraCarta && !estreito && (
+            {viraCarta && (
                 <div className="az-vira">
                     <FaceCarta texto={vira.carta} tamanho="vira" />
                     <div className="az-px az-vira-rotulo">VIRA</div>
@@ -1148,11 +1147,6 @@ export default function Partida({
 
     const pilulaManilha = (
         <div className="az-pilula-manilha">
-            {estreito && viraCarta && (
-                <span className="az-pilula-vira" title="Vira">
-                    <FaceCarta texto={vira.carta} tamanho="mini" />
-                </span>
-            )}
             <span className="az-px az-pilula-rotulo">MANILHA</span>
             <span className="az-px az-pilula-valor">{viraValor != null ? ORDEM_RANKS[viraValor] ?? '?' : '—'}</span>
         </div>

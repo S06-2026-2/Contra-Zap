@@ -1554,17 +1554,13 @@ body.az-body .badge-frente {
     .az-tela-mesa > * { flex: none; }
     .az-tela-mesa .az-erro-caixa { margin: 0; padding: 8px 10px; font-size: 12px; }
 
-    /* Cabeçalho numa linha: rodada · pílula (vira + manilha) · 💬 · ⋯ */
+    /* Cabeçalho numa linha: rodada · pílula da manilha · 💬 · ⋯ */
     .az-mesa-cabeca { flex-wrap: nowrap; gap: 8px; margin-bottom: 0; }
     .az-mesa-info { font-size: 10px; white-space: nowrap; }
     .az-mesa-cabeca-dir { gap: 6px; flex-wrap: nowrap; }
-    .az-pilula-manilha { gap: 6px; padding: 3px 10px 3px 4px; min-width: 0; }
-    .az-pilula-manilha:not(:has(.az-pilula-vira)) { padding-left: 10px; }
+    .az-pilula-manilha { gap: 6px; padding: 5px 10px; min-width: 0; }
     .az-pilula-rotulo { font-size: 8px; }
     .az-pilula-valor { font-size: 13px; }
-    .az-pilula-vira .az-carta-mini { width: 22px; height: 30px; transform: rotate(-6deg); }
-    .az-pilula-vira .az-carta-mini .az-carta-valor { font-size: 10px; }
-    .az-pilula-vira .az-carta-mini .az-carta-naipe { font-size: 9px; }
 
     /* Oponentes: cards compactos em grade (--colunas vem do JSX). */
     .az-oponentes {
@@ -1611,14 +1607,20 @@ body.az-body .badge-frente {
         font-size: 11px;
     }
 
-    /* Feltro: flexível, sem o vira (foi pro cabeçalho). */
+    /* Feltro: flexível, com o vira pequeno no topo, centralizado (os cantos
+       do oval cortariam a carta); o padding de cima reserva a faixa dele. */
     .az-feltro {
         flex: 1 1 auto;
         height: auto;
-        min-height: 128px;
-        padding: 10px 12px;
+        min-height: 150px;
+        padding: 64px 12px 12px;
         border-radius: 120px / 64px;
     }
+    .az-vira { top: 10px; flex-direction: row; gap: 8px; }
+    .az-carta-vira { width: 34px; height: 48px; }
+    .az-carta-vira .az-carta-valor { font-size: 14px; }
+    .az-carta-vira .az-carta-naipe { font-size: 12px; }
+    .az-vira-rotulo { font-size: 8px; }
     .az-feltro-borda { inset: 8px; border-radius: 110px / 56px; }
     .az-golpe,
     .az-vaza { border-radius: 120px / 64px; }
