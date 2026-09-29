@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useFiltros } from './filtros.js';
 import { DefsFiltro, PainelFiltro } from './PainelFiltro.jsx';
 import { alternarSom, assinarSom, instalarSomDeClique, somLigado, tocarSom } from './somArcade.js';
@@ -12,9 +12,14 @@ import './arcade.css';
 //
 // `conectado` vem do App só pra esta frente (as outras usam o banner-conexao
 // global, que o App esconde quando a frente é arcade).
-export default function Casca({ conectado = true, direita, children }) {
+//
+// `cheia`: no celular a tela ocupa exatamente a altura da janela, sem
+// rolagem de página (a mesa — ver .az-app-cheia em arcade.css).
+export default function Casca({ conectado = true, direita, cheia = false, children }) {
     const f = useFiltros();
     const ligado = useSyncExternalStore(assinarSom, somLigado);
+    const [filtroAberto, setFiltroAberto] = useState(false);
+    const alternarFiltro = () => setFiltroAberto((a) => !a);
 
     // O index.css prende o #root numa coluna de 720px com padding — a frente
     // arcade ocupa a largura toda e desenha o próprio fundo.
@@ -35,7 +40,7 @@ export default function Casca({ conectado = true, direita, children }) {
         <>
             <DefsFiltro f={f} />
             <div
-                className="az-raiz az-app"
+                className={`az-raiz az-app${cheia ? ' az-app-cheia' : ''}`}
                 style={{
                     filter: f.filtroCss || undefined,
                     transform: f.overscan !== 1 ? `scale(${f.overscan})` : undefined,
@@ -46,14 +51,27 @@ export default function Casca({ conectado = true, direita, children }) {
                         <div className="az-px az-logo">CONTRA ZAP</div>
                         <div className="az-topo-dir">
                             {direita}
+                            {/* Só no celular (ver arcade.css): lá o painel de filtro
+                                recolhido some do canto da tela, que é onde fica a mão. */}
+                            <button
+                                type="button"
+                                className={`az-b az-px az-topo-btn az-topo-filtro${filtroAberto ? ' az-ativo' : ''}`}
+                                onClick={alternarFiltro}
+                                aria-expanded={filtroAberto}
+                                aria-label="Filtro de tela"
+                                title="Filtro de tela"
+                            >
+                                FX
+                            </button>
                             <button
                                 type="button"
                                 data-som="mudo"
                                 className={`az-b az-px az-som${ligado ? ' az-ativo' : ''}`}
                                 onClick={alternarSom}
+                                title={ligado ? 'Som ligado' : 'Som desligado'}
                             >
                                 <span className="az-som-quadrado" />
-                                {ligado ? 'SOM ON' : 'SOM OFF'}
+                                <span className="az-rotulo-largo">SOM </span>{ligado ? 'ON' : 'OFF'}
                             </button>
                         </div>
                     </div>
@@ -69,7 +87,7 @@ export default function Casca({ conectado = true, direita, children }) {
                     <div className="az-scanlines" style={{ background: f.scanlineBg, opacity: f.scanlineOp }} />
                 )}
             </div>
-            <PainelFiltro f={f} />
+            <PainelFiltro f={f} aberto={filtroAberto} onAlternar={alternarFiltro} />
         </>
     );
 }

@@ -96,6 +96,9 @@ body.az-body .badge-frente {
     color: inherit;
     cursor: pointer;
     text-align: center;
+    /* Toque: sem zoom de duplo toque nem o flash azul do Android. */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .az-b:disabled {
@@ -301,6 +304,10 @@ body.az-body .badge-frente {
 .az-topo-btn:hover { border-color: #4a4f60; color: #f3ead6; }
 .az-som:hover { border-color: #f5c451; }
 .az-som.az-ativo { border-color: #3a2f16; color: #f5c451; }
+
+/* Abre o painel de filtro — só existe no celular (ver o bloco estreito). */
+.az-topo-btn.az-topo-filtro { display: none; }
+.az-topo-filtro.az-ativo { border-color: #f5c451; color: #f5c451; }
 
 .az-som-quadrado {
     width: 9px;
@@ -576,6 +583,8 @@ body.az-body .badge-frente {
 .az-chave-texto { flex: 1; }
 .az-chave-titulo { font-size: 14px; font-weight: 700; color: #f3ead6; }
 .az-chave-desc { font-size: 12px; color: #6f7488; margin-top: 2px; }
+
+.az-barra-criar { display: flex; flex-direction: column; gap: 14px; }
 
 .az-trilho {
     position: relative;
@@ -1040,9 +1049,12 @@ body.az-body .badge-frente {
     transition: transform .12s ease, box-shadow .12s ease;
 }
 .az-carta-botao:disabled { opacity: 1; cursor: default; }
-.az-carta-botao:not(:disabled):hover {
-    transform: translateY(-10px);
-    box-shadow: 0 14px 0 rgba(0, 0, 0, .45), 0 0 30px rgba(245, 196, 81, .35);
+/* Só com mouse: no toque o :hover "gruda" na carta depois do tap. */
+@media (hover: hover) {
+    .az-carta-botao:not(:disabled):hover {
+        transform: translateY(-10px);
+        box-shadow: 0 14px 0 rgba(0, 0, 0, .45), 0 0 30px rgba(245, 196, 81, .35);
+    }
 }
 .az-carta-botao:not(:disabled):active { transform: translateY(-2px); }
 .az-carta-botao:focus-visible { outline: 3px solid #f5c451; outline-offset: 3px; }
@@ -1341,6 +1353,112 @@ body.az-body .badge-frente {
 .az-filtro-reset:hover { color: #ff4b3e; border-color: #ff4b3e; }
 .az-filtro-nota { font-size: 11px; color: #4a4f60; line-height: 1.5; }
 
+/* ---------- Menu ⋯ e gaveta de chat/log (só aparecem no estreito) ---------- */
+
+.az-btn-icone {
+    position: relative;
+    width: 40px;
+    padding: 0;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.az-bolinha {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 9px;
+    border: 2px solid #0c0d11;
+    background: #ff4b3e;
+    color: #fff2ef;
+    font-size: 9px;
+    line-height: 14px;
+    text-align: center;
+}
+
+.az-menu-ancora { position: relative; }
+.az-menu-fundo { position: fixed; inset: 0; z-index: 39; }
+.az-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 210px;
+    padding: 8px;
+    border-radius: 14px;
+    border: 2px solid #2e313d;
+    background: #16171e;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .6);
+    animation: cz-rise .15s ease-out;
+}
+.az-menu-rotulo { font-size: 9px; color: #6f7488; padding: 4px 6px 2px; }
+.az-menu-item {
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 2px solid #262935;
+    background: #171922;
+    color: #cfd3de;
+    font-size: 10px;
+    text-align: left;
+}
+.az-menu-item-ligado { border-color: #ff4b3e; color: #fff2ef; }
+.az-menu-item-perigo { color: #ff8a80; }
+
+.az-gaveta-fundo {
+    position: fixed;
+    inset: 0;
+    z-index: 85;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    background: rgba(8, 9, 12, .6);
+}
+.az-gaveta {
+    display: flex;
+    flex-direction: column;
+    max-height: 72dvh;
+    border-radius: 20px 20px 0 0;
+    border: 2px solid #2e313d;
+    border-bottom: 0;
+    background: #14161d;
+    box-shadow: 0 -12px 30px rgba(0, 0, 0, .5);
+    animation: cz-rise .2s ease-out;
+}
+.az-gaveta-cabeca {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 2px solid #23252f;
+}
+.az-gaveta-abas { display: flex; gap: 6px; flex: 1; }
+.az-gaveta-aba {
+    min-height: 40px;
+    padding: 0 16px;
+    border-radius: 10px;
+    border: 2px solid #262935;
+    color: #8d93a6;
+    font-size: 10px;
+}
+.az-gaveta-aba.az-ativo { border-color: #3d9be9; color: #cfe6fb; background: #0f2233; }
+.az-gaveta-fechar { width: 40px; padding: 0; font-size: 12px; }
+.az-gaveta-corpo {
+    overflow-y: auto;
+    padding: 12px 12px calc(14px + env(safe-area-inset-bottom));
+}
+.az-gaveta .az-chat { min-width: 0; }
+.az-gaveta .az-frases { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.az-gaveta .az-frase { font-size: 12px; padding: 8px 10px; border-radius: 14px; }
+.az-gaveta .az-log { width: auto; max-height: none; border: 0; padding: 0; background: none; }
+.az-gaveta .az-log-titulo { display: none; }
+
 /* ---------- Estreito (< 640px) ---------- */
 
 /* Feltro estreito demais pra ter o vira na borda com 5-6 cartas do lado:
@@ -1351,23 +1469,234 @@ body.az-body .badge-frente {
 }
 
 @media (max-width: 639px) {
-    .az-topo { padding: 10px 16px; }
+    /* ---- Geral ---- */
+    .az-app { padding-bottom: 24px; }
+    .az-rotulo-largo { display: none; }
+    body.az-body .badge-frente { display: none; } /* o 🔄 do topo já troca de frente */
     .az-titulo { font-size: 22px; }
     .az-login-titulo { font-size: 30px; }
     .az-grade-salas { grid-template-columns: minmax(0, 1fr); }
     .az-cabeca-tela > :last-child:not(:first-child) { margin-left: 0; }
-    .az-app { padding-bottom: 96px; }
-    .az-jogada { flex-basis: 64px; }
+
+    /* ---- Topo: uma linha só ---- */
+    .az-topo { flex-wrap: nowrap; gap: 8px; padding: 6px 10px; }
+    .az-logo { font-size: 12px; white-space: nowrap; text-shadow: 1px 1px 0 #5c1712; }
+    .az-topo-dir { flex-wrap: nowrap; gap: 6px; min-width: 0; }
+    .az-topo-nome { min-width: 0; max-width: 96px; font-size: 9px; }
+    .az-app-cheia .az-topo-nome { display: none; } /* na mesa você já é o "Você" */
+    .az-topo-btn,
+    .az-som { min-height: 40px; padding: 8px 10px; gap: 6px; }
+    .az-topo-btn.az-topo-filtro { display: flex; }
+
+    /* Painel de filtro: nada fixo no canto de baixo (é onde fica a mão).
+       Abre pelo FX do topo, pendurado logo abaixo dele. */
+    .az-filtro { top: 58px; bottom: auto; right: 8px; width: min(280px, calc(100vw - 16px)); }
+    .az-filtro:not(.az-filtro-aberto) { display: none; }
+    .az-filtro-corpo { max-height: calc(100dvh - 150px); }
+
+    /* ---- Criar sala / sala de espera ---- */
+    .az-painel-criar { gap: 12px; padding: 14px; }
+    .az-barra-fixa {
+        position: sticky;
+        bottom: 0;
+        z-index: 5;
+        margin: 0 -14px;
+        padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+        background: linear-gradient(180deg, rgba(20, 22, 29, 0), #14161d 22%);
+    }
+    .az-barra-criar { gap: 8px; }
+    .az-tela-espera .az-barra-fixa {
+        margin: 0 -16px;
+        padding-left: 16px;
+        padding-right: 16px;
+        background: linear-gradient(180deg, rgba(12, 13, 17, 0), #0c0d11 22%);
+    }
+    .az-tela-espera .az-cabeca-tela { flex-wrap: nowrap; align-items: center; margin-bottom: 16px; }
+    .az-tela-espera .az-cabeca-tela > :first-child { min-width: 0; }
+    .az-contagem { padding: 8px 12px; border-radius: 12px; }
+    .az-contagem-valor { font-size: 24px; }
+    .az-grade-espera { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .az-assento { gap: 8px; padding: 8px; border-radius: 12px; }
+    .az-assento .az-avatar-g { width: 30px; height: 30px; border-radius: 8px; font-size: 12px; }
+    .az-assento-nome { font-size: 13px; }
+    .az-assento-rotulo { font-size: 8px; }
+    .az-chips { gap: 6px; margin-bottom: 8px; }
+    .az-chip { padding: 6px 10px; gap: 6px; }
+    .az-chip-k { font-size: 8px; }
+    .az-chip-v { font-size: 10px; }
+    .az-barra-fixa .az-linha-botoes { flex-wrap: nowrap; }
+    .az-barra-fixa .az-linha-botoes > .az-btn { min-width: 0; flex: 1; padding: 0 10px; font-size: 11px; }
+    .az-barra-fixa .az-nota { font-size: 11px; }
+
+    /* ---- Mesa: altura exata da tela, sem rolar a página ----
+       Cabeçalho, oponentes e sua área têm a altura do conteúdo; o feltro
+       fica com o que sobrar (e encolhe até um mínimo). */
+    .az-app-cheia {
+        height: 100vh;
+        height: 100dvh;
+        min-height: 0;
+        padding-bottom: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .az-app-cheia > .az-fixo-topo { flex: none; }
+    .az-tela-mesa {
+        flex: 1;
+        min-height: 0;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+        overflow-y: auto; /* último recurso em tela baixa demais */
+    }
+    .az-tela-mesa > * { flex: none; }
+    .az-tela-mesa .az-erro-caixa { margin: 0; padding: 8px 10px; font-size: 12px; }
+
+    /* Cabeçalho numa linha: rodada · pílula (vira + manilha) · 💬 · ⋯ */
+    .az-mesa-cabeca { flex-wrap: nowrap; gap: 8px; margin-bottom: 0; }
+    .az-mesa-info { font-size: 10px; white-space: nowrap; }
+    .az-mesa-cabeca-dir { gap: 6px; flex-wrap: nowrap; }
+    .az-pilula-manilha { gap: 6px; padding: 3px 10px 3px 4px; min-width: 0; }
+    .az-pilula-manilha:not(:has(.az-pilula-vira)) { padding-left: 10px; }
+    .az-pilula-rotulo { font-size: 8px; }
+    .az-pilula-valor { font-size: 13px; }
+    .az-pilula-vira .az-carta-mini { width: 22px; height: 30px; transform: rotate(-6deg); }
+    .az-pilula-vira .az-carta-mini .az-carta-valor { font-size: 10px; }
+    .az-pilula-vira .az-carta-mini .az-carta-naipe { font-size: 9px; }
+
+    /* Oponentes: cards compactos em grade (--colunas vem do JSX). */
+    .az-oponentes {
+        display: grid;
+        grid-template-columns: repeat(var(--colunas, 3), minmax(0, 1fr));
+        gap: 6px;
+    }
+    .az-oponentes > .az-oponente:only-child { justify-self: center; width: min(100%, 240px); }
+    .az-oponente {
+        max-width: none;
+        align-items: stretch;
+        gap: 4px;
+        padding: 5px 6px 6px;
+        border-radius: 12px;
+    }
+    .az-oponente .az-anel-vez { border-radius: 14px; }
+    .az-oponente .az-fora { border-radius: 12px; }
+    .az-oponente .az-carimbo { font-size: 10px; padding: 3px 6px; border-width: 2px; }
+    .az-oponente-id { gap: 5px; }
+    .az-avatar-p { width: 22px; height: 22px; border-radius: 6px; font-size: 10px; }
+    .az-oponente-nome { font-size: 11px; line-height: 1.2; }
+    .az-oponente-linha { display: flex; align-items: center; gap: 6px; min-width: 0; }
+    .az-oponente-linha .az-coracoes { font-size: 8px; }
+    .az-oponente-qtd { display: inline-flex; align-items: center; gap: 2px; font-size: 9px; color: #8d93a6; }
+    .az-verso-micro { width: 7px; height: 10px; border-width: 1px; border-radius: 2px; }
+    .az-oponente-revelada { flex: none; }
+    .az-oponente .az-poco { gap: 3px; padding: 2px 4px; border-radius: 7px; }
+    .az-oponente .az-poco-k { font-size: 7px; }
+    .az-oponente .az-poco-v { font-size: 10px; }
+    .az-oponente-tag {
+        position: absolute;
+        top: -6px;
+        right: 4px;
+        font-size: 6px;
+        border: 1px solid #0c0d11;
+    }
+    /* Balão abre pra baixo — pra cima sairia da tela (topo) ou ficaria
+       embaixo do cabeçalho. */
+    .az-oponentes .az-balao {
+        top: calc(100% + 4px);
+        bottom: auto;
+        max-width: 150px;
+        padding: 5px 8px;
+        font-size: 11px;
+    }
+
+    /* Feltro: flexível, sem o vira (foi pro cabeçalho). */
+    .az-feltro {
+        flex: 1 1 auto;
+        height: auto;
+        min-height: 128px;
+        padding: 10px 12px;
+        border-radius: 120px / 64px;
+    }
+    .az-feltro-borda { inset: 8px; border-radius: 110px / 56px; }
+    .az-golpe,
+    .az-vaza { border-radius: 120px / 64px; }
     .az-mesa-cartas { gap: 6px; }
-    .az-voce { flex: 1; }
-    .az-mao-bloco { min-width: 0; flex-basis: 100%; }
-    .az-carta-botao { width: 76px; height: 110px; }
-    .az-carta-mao .az-carta-valor { font-size: 36px; }
-    .az-vaza-corpo { flex-direction: column; gap: 10px; text-align: center; }
-    .az-vaza-carta .az-carta-vaza { width: 72px; height: 104px; }
-    .az-vaza-nome { font-size: 18px; }
-    .az-log { width: 100%; }
-    .az-filtro { width: 210px; }
+    .az-jogada { flex-basis: 80px; gap: 4px; }
+    .az-jogada-nome { font-size: 7px; }
+    .az-vaza { gap: 8px; padding: 10px; }
+    .az-vaza-rotulo { font-size: 9px; letter-spacing: 2px; }
+    .az-vaza-corpo { flex-direction: row; gap: 12px; text-align: left; }
+    .az-vaza-carta .az-carta-vaza { width: 50px; height: 72px; border-radius: 9px; }
+    .az-vaza-carta .az-carta-vaza .az-carta-valor { font-size: 26px; }
+    .az-vaza-nome { font-size: 16px; text-shadow: 2px 2px 0 #5a4210; }
+    .az-vaza-sub { font-size: 12px; margin-top: 4px; }
+
+    /* Sua área: palpite (quando é a sua vez de apostar) em cima, a barra
+       "Você" numa linha e a mão numa linha só, colada embaixo. */
+    .az-minha-area { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 8px; margin-top: 0; }
+    .az-palpite { order: -1; padding: 8px 10px; border-radius: 14px; }
+    .az-voce {
+        flex-direction: row;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        padding: 5px 8px;
+        border-radius: 12px;
+    }
+    /* Apostando, APOSTA/FEZ da barra ainda estão vazios — o palpite ocupa o lugar dela. */
+    .az-apostando .az-voce { display: none; }
+    .az-voce-id { gap: 8px; min-width: 0; }
+    .az-voce-id > :last-child { display: flex; align-items: center; gap: 8px; }
+    .az-avatar-m { width: 26px; height: 26px; border-radius: 7px; font-size: 11px; }
+    .az-voce-nome { font-size: 13px; }
+    .az-voce-pocos { margin-left: auto; gap: 6px; }
+    .az-poco-g { display: flex; align-items: center; gap: 6px; padding: 3px 8px; }
+    .az-poco-g .az-poco-k { font-size: 8px; }
+    .az-poco-gv { font-size: 13px; }
+    .az-anel-voce { border-radius: 14px; }
+    .az-voce .az-balao { bottom: calc(100% + 6px); max-width: 200px; }
+
+    .az-mao-bloco { min-width: 0; flex: none; }
+    .az-dica { font-size: 9px; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* Cartas dividem a largura (--cartas vem do JSX), limitadas pela altura
+       da tela; muita carta (2 jogadores, rodada alta) rola de lado. */
+    .az-mao {
+        flex-wrap: nowrap;
+        gap: 6px;
+        overflow-x: auto;
+        padding: 2px 0 8px;
+        scrollbar-width: none;
+    }
+    .az-carta-botao {
+        flex: none;
+        container-type: inline-size;
+        width: max(40px, min(92px, 11dvh, (100% - (var(--cartas) - 1) * 6px) / var(--cartas)));
+        height: auto;
+        aspect-ratio: 92 / 132;
+        border-width: 2px;
+        border-radius: 10px;
+        box-shadow: 0 5px 0 rgba(0, 0, 0, .45);
+    }
+    .az-carta-botao:not(:disabled):active { transform: translateY(-4px); }
+    .az-carta-mao { border-radius: 8px; }
+    .az-carta-mao .az-carta-valor { font-size: 47.8cqi; }
+    .az-carta-mao .az-carta-naipe { font-size: 17.4cqi; }
+    .az-carta-mao .az-carta-naipe-topo { top: 7.6cqi; left: 9.8cqi; }
+    .az-carta-mao .az-carta-naipe-baixo { bottom: 7.6cqi; right: 9.8cqi; }
+    .az-verso-mao { border-radius: 8px; }
+    .az-selo-manilha,
+    .az-selo-bot { font-size: 6px; padding: 2px 3px; border-radius: 3px; }
+    .az-selo-manilha { bottom: 4px; left: 50%; transform: translateX(-50%); }
+    .az-selo-bot { top: 4px; right: 4px; }
+    .az-sem-cartas { padding: 12px 0; }
+
+    .az-palpite-titulo { font-size: 9px; margin-bottom: 8px; }
+    .az-palpite-botoes { max-width: none; gap: 6px; }
+    .az-palpite-botao { flex: 1 1 36px; width: auto; max-width: 56px; height: 42px; font-size: 16px; }
+    .az-palpite-nota { max-width: none; margin-top: 6px; font-size: 11px; }
+
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -179,7 +179,7 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
                 onClick={onTrocarFrente}
                 title="Trocar de frente visual"
             >
-                🔄 FRONT
+                🔄<span className="az-rotulo-largo"> FRONT</span>
             </button>
         </>
     );
@@ -297,12 +297,15 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
                         </div>
                         {chave('Chat aberto', 'Além das frases prontas, libera texto livre na mesa.', chatAberto, () => setChatAberto((v) => !v))}
                         {chave('Sala privada', 'Só entra quem tiver a senha — ela aparece na sala de espera.', privada, () => setPrivada((v) => !v))}
-                        <button type="submit" className="az-b az-px az-btn az-btn-vermelho az-btn-gg" disabled={criando}>
-                            {criando ? 'ABRINDO...' : 'ABRIR MESA'}
-                        </button>
-                        <button type="button" data-som="aba" className="az-b az-btn-fantasma" onClick={() => setVista('salas')}>
-                            Voltar pras salas
-                        </button>
+                        {/* No celular gruda no rodapé (ver .az-barra-fixa). */}
+                        <div className="az-barra-fixa az-barra-criar">
+                            <button type="submit" className="az-b az-px az-btn az-btn-vermelho az-btn-gg" disabled={criando}>
+                                {criando ? 'ABRINDO...' : 'ABRIR MESA'}
+                            </button>
+                            <button type="button" data-som="aba" className="az-b az-btn-fantasma" onClick={() => setVista('salas')}>
+                                Voltar pras salas
+                            </button>
+                        </div>
                     </div>
                 </form>
             </Casca>
