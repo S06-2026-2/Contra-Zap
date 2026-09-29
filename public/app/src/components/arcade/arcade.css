@@ -1607,16 +1607,17 @@ body.az-body .badge-frente {
         font-size: 11px;
     }
 
-    /* Feltro: flexível, com o vira pequeno no topo, centralizado (os cantos
-       do oval cortariam a carta); o padding de cima reserva a faixa dele. */
+    /* Feltro: flexível, com o vira pequeno no canto de cima à esquerda —
+       afastado da borda o bastante pra curva do oval não cortar a carta; o
+       padding de cima reserva a faixa dele, então as jogadas nunca encostam. */
     .az-feltro {
         flex: 1 1 auto;
         height: auto;
         min-height: 150px;
-        padding: 64px 12px 12px;
+        padding: 70px 12px 12px;
         border-radius: 120px / 64px;
     }
-    .az-vira { top: 10px; flex-direction: row; gap: 8px; }
+    .az-vira { top: 18px; left: 40px; transform: none; flex-direction: row; gap: 8px; }
     .az-carta-vira { width: 34px; height: 48px; }
     .az-carta-vira .az-carta-valor { font-size: 14px; }
     .az-carta-vira .az-carta-naipe { font-size: 12px; }
