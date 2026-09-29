@@ -5,6 +5,7 @@ import { MENSAGENS_CHAT, CHAT_COOLDOWN_MS } from '../../../../../conexao/chat/me
 import Casca from './Casca.jsx';
 import { FaceCarta, VersoCarta } from './Carta.jsx';
 import Modal from './Modal.jsx';
+import Gaveta from './Gaveta.jsx';
 import {
     FORCA, ORDEM_RANKS, camadasDuelo, camadasGolpe, compararForca, lerCarta, saoIdenticas, somDoGolpe, temSprite,
 } from './golpes.js';
@@ -136,6 +137,12 @@ export default function Partida({
     // ({ tipo: 'aposta', valor } | { tipo: 'carta', indice, carta }), ou null.
     const [dicaBotLigada, setDicaBotLigada] = useState(lerDicaBotLigada);
     const [dicaBot, setDicaBot] = useState(null);
+    // Só no estreito (celular): chat e log vão pra uma gaveta (Gaveta.jsx)
+    // aberta pelo 💬 do cabeçalho, que conta as mensagens que chegaram com
+    // ela fechada; dica do bot e sair vão pro menu ⋯.
+    const [gavetaAberta, setGavetaAberta] = useState(false);
+    const [naoLidas, setNaoLidas] = useState(0);
+    const [menuAberto, setMenuAberto] = useState(false);
 
     // Refs: os handlers de socket (efeito com deps [salaId]) enxergam só o
     // primeiro render — o que eles precisam ler "ao vivo" mora aqui.
@@ -158,6 +165,9 @@ export default function Partida({
     const saindoRef = useRef(false);
     const dicaBotSeqRef = useRef(0);
     const logSeqRef = useRef(0);
+    // Lidos pelo handler de chatMensagem (que só enxerga o primeiro render).
+    const chatNaGavetaFechadaRef = useRef(estreito);
+    chatNaGavetaFechadaRef.current = estreito && !gavetaAberta;
 
     function definirMesa(lista) {
         mesaRef.current = lista;
@@ -503,6 +513,7 @@ export default function Partida({
                     return;
                 }
                 mostrarBalao(p.jogador, p.texto);
+                if (chatNaGavetaFechadaRef.current && p.jogador !== meuNome) setNaoLidas((n) => n + 1);
                 registrar(`${p.jogador === meuNome ? 'Você' : p.jogador}: ${p.texto}`, 'chat');
             },
             jogadorExpulsoPorInatividade(p) {
@@ -595,7 +606,16 @@ export default function Partida({
         evento.preventDefault();
         const texto = textoChat.trim();
         if (chatEmCooldown || !texto) return;
-        if (await enviarChat({ tipo: 'aberta', texto })) setTextoChat('');
+        if (await enviarChat({ tipo: 'aberta', texto })) {
+            setTextoChat('');
+            setGavetaAberta(false); // celular: volta pra mesa pra ver o balão
+        }
+    }
+
+    function abrirGaveta() {
+        setMenuAberto(false);
+        setNaoLidas(0);
+        setGavetaAberta(true);
     }
 
     async function apostar(valor) {
@@ -812,25 +832,28 @@ export default function Partida({
                         ))}
                     </div>
 
-                    <div className="az-linha-botoes">
-                        {souDono && (
-                            <button
-                                type="button"
-                                className="az-b az-px az-btn az-btn-vermelho az-btn-gg az-cresce"
-                                onClick={forcarInicio}
-                                disabled={!salaCheia}
-                            >
-                                FORÇAR INÍCIO AGORA
+                    {/* No celular gruda no rodapé (ver .az-barra-fixa). */}
+                    <div className="az-barra-fixa">
+                        <div className="az-linha-botoes">
+                            {souDono && (
+                                <button
+                                    type="button"
+                                    className="az-b az-px az-btn az-btn-vermelho az-btn-gg az-cresce"
+                                    onClick={forcarInicio}
+                                    disabled={!salaCheia}
+                                >
+                                    FORÇAR INÍCIO<span className="az-rotulo-largo"> AGORA</span>
+                                </button>
+                            )}
+                            <button type="button" className="az-b az-px az-btn az-btn-cinza az-btn-gg az-btn-sair" onClick={sair}>
+                                SAIR DA SALA
                             </button>
-                        )}
-                        <button type="button" className="az-b az-px az-btn az-btn-cinza az-btn-gg az-btn-sair" onClick={sair}>
-                            SAIR DA SALA
-                        </button>
-                    </div>
-                    <div className="az-nota az-nota-espaco">
-                        {souDono
-                            ? 'Você é o dono — dá pra forçar o início assim que a mesa encher.'
-                            : 'Só o dono da sala pode forçar o início depois que a mesa encher.'}
+                        </div>
+                        <div className="az-nota az-nota-espaco">
+                            {souDono
+                                ? 'Você é o dono — dá pra forçar o início assim que a mesa encher.'
+                                : 'Só o dono da sala pode forçar o início depois que a mesa encher.'}
+                        </div>
                     </div>
                     {erro && <div className="az-erro az-erro-caixa">{erro}</div>}
                 </div>
@@ -938,14 +961,11 @@ export default function Partida({
         : assentos.filter((nome) => nome !== meuNome)
     ).map((nome) => ({ nome }));
     const areas = AREAS[Math.min(5, oponentes.length)] ?? AREAS[5];
-    // Estreito (2 colunas, todo mundo acima do feltro): um "U" invertido —
-    // a coluna da esquerda sobe, a da direita desce — pra continuar horário.
-    const naEsquerda = Math.ceil(oponentes.length / 2);
-    const linhasEstreito = Math.max(naEsquerda, oponentes.length - naEsquerda);
-    const posicaoEstreita = (i) => (i < naEsquerda
-        ? { gridColumn: 1, gridRow: linhasEstreito - i }
-        : { gridColumn: 2, gridRow: 1 + (i - naEsquerda) });
-    const maxVersos = estreito ? 2 : 3;
+    // Estreito (celular): todo mundo numa faixa acima do feltro, na ordem da
+    // vez (esquerda -> direita, linha a linha). 4 oponentes viram 2×2 — em
+    // 4 colunas o card fica estreito demais pro nome e os corações.
+    const colunasEstreito = oponentes.length === 4 ? 2 : Math.max(1, Math.min(3, oponentes.length));
+    const maxVersos = 3;
     // Cartas na mão de cada oponente: todo mundo joga uma por vaza, então é
     // a minha mão ajustada por quem já jogou na vaza atual.
     const restanteDe = (nome) => {
@@ -963,7 +983,7 @@ export default function Partida({
     if (jogadorDaVezAposta) {
         dica = souEuNaVezDaAposta ? 'SUA MÃO — APOSTE PRIMEIRO' : `AGUARDANDO ${jogadorDaVezAposta.toUpperCase()} APOSTAR`;
     } else if (souEuNaVez) {
-        dica = 'SUA VEZ — CLIQUE NUMA CARTA';
+        dica = estreito ? 'SUA VEZ — TOQUE NUMA CARTA' : 'SUA VEZ — CLIQUE NUMA CARTA';
     } else if (jogadorDaVez) {
         dica = `AGUARDANDO ${jogadorDaVez.toUpperCase()}`;
     } else {
@@ -984,151 +1004,299 @@ export default function Partida({
     const vazaCarta = vaza?.carta ? lerCarta(vaza.carta) : null;
     const viraCarta = vira ? lerCarta(vira.carta) : null;
 
-    const gradeEstilo = estreito
-        ? { display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gridAutoRows: 'auto', gap: 8, alignItems: 'stretch' }
-        : {
-            display: 'grid',
-            gridTemplateColumns: 'repeat(5,minmax(0,1fr))',
-            gridTemplateRows: 'auto minmax(230px,auto)',
-            gridTemplateAreas: "'l tl tc tr r' 'l felt felt felt r'",
-            gap: 'clamp(4px,1vw,10px)',
-            alignItems: 'center',
-        };
+    const gradeEstilo = {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(5,minmax(0,1fr))',
+        gridTemplateRows: 'auto minmax(230px,auto)',
+        gridTemplateAreas: "'l tl tc tr r' 'l felt felt felt r'",
+        gap: 'clamp(4px,1vw,10px)',
+        alignItems: 'center',
+    };
 
-    return (
-        <Casca conectado={conectado} direita={cabecaDireita}>
-            <div className="az-tela az-tela-mesa" data-screen-label="Mesa de partida">
-                <div className="az-mesa-cabeca">
-                    <div className="az-px az-mesa-info">SALA <span className="az-claro">{salaId}</span></div>
-                    <div className="az-divisor" />
-                    <div className="az-px az-mesa-info">
-                        RODADA <span className="az-claro">{numeroRodada || '—'}</span> · <span className="az-claro">{cartasRodada}</span> CARTA{cartasRodada === 1 ? '' : 'S'}
-                    </div>
-                    <div className="az-mesa-cabeca-dir">
-                        <button
-                            type="button"
-                            className={`az-b az-px az-btn-mini${dicaBotLigada ? ' az-btn-mini-ligado' : ''}`}
-                            aria-pressed={dicaBotLigada}
-                            title="Mostra, na sua vez, o que o bot da sala apostaria ou jogaria no seu lugar"
-                            onClick={alternarDicaBot}
-                        >
-                            DICA DO BOT: {dicaBotLigada ? 'ON' : 'OFF'}
-                        </button>
-                        <button type="button" className="az-b az-px az-btn-mini" onClick={sair}>SAIR DA PARTIDA</button>
-                        <div className="az-pilula-manilha">
-                            <span className="az-px az-pilula-rotulo">MANILHA</span>
-                            <span className="az-px az-pilula-valor">{viraValor != null ? ORDEM_RANKS[viraValor] ?? '?' : '—'}</span>
-                        </div>
-                    </div>
-                </div>
+    const renderOponente = (op, i) => {
+        const nome = op.nome;
+        const morto = eliminados.includes(nome);
+        const bot = desconectados.includes(nome);
+        const daVez = !vaza && (jogadorDaVezAposta ? jogadorDaVezAposta === nome : jogadorDaVez === nome);
+        const revelada = maosReveladas[nome];
+        const restante = restanteDe(nome);
+        const nVersos = Math.min(maxVersos, restante);
+        const balao = baloes[nome];
+        const avatar = (
+            <div className="az-px az-avatar az-avatar-p" style={{ background: corDoAssento(indiceDe(nome)) }}>
+                {inicial(nome)}
+            </div>
+        );
+        const poco = (
+            <div className="az-poco">
+                <span className="az-px az-poco-k">APOSTA</span>
+                <span className="az-px az-poco-v az-amarelo">{apostas[nome] ?? '—'}</span>
+                <span className="az-px az-poco-k">FEZ</span>
+                <span className="az-px az-poco-v az-verde">{vazasFeitas[nome] ?? 0}</span>
+            </div>
+        );
+        return (
+            <div key={nome} className="az-oponente" style={estreito ? undefined : { gridArea: areas[i] }}>
+                {balao && <div key={balao.id} className="az-balao">{balao.texto}</div>}
 
-                <div style={gradeEstilo}>
-                    {oponentes.map((op, i) => {
-                        const nome = op.nome;
-                        const morto = eliminados.includes(nome);
-                        const bot = desconectados.includes(nome);
-                        const daVez = !vaza && (jogadorDaVezAposta ? jogadorDaVezAposta === nome : jogadorDaVez === nome);
-                        const revelada = maosReveladas[nome];
-                        const nVersos = Math.min(maxVersos, restanteDe(nome));
-                        const balao = baloes[nome];
-                        return (
-                            <div
-                                key={nome}
-                                className="az-oponente"
-                                style={estreito ? posicaoEstreita(i) : { gridArea: areas[i] }}
-                            >
-                                {balao && <div key={balao.id} className="az-balao">{balao.texto}</div>}
-
-                                <div className="az-oponente-mao">
-                                    {revelada && revelada.length > 0
-                                        ? revelada.slice(0, maxVersos).map((carta, k) => <FaceCarta key={k} texto={carta} tamanho="mini" />)
-                                        : Array.from({ length: nVersos }, (_, k) => <VersoCarta key={k} />)}
-                                    {!revelada && nVersos === 0 && <span className="az-oponente-sem-mao" />}
-                                </div>
-
-                                <div className="az-oponente-id">
-                                    <div className="az-px az-avatar az-avatar-p" style={{ background: corDoAssento(indiceDe(nome)) }}>
-                                        {inicial(nome)}
-                                    </div>
-                                    <div className="az-min0 az-cresce">
-                                        <div className="az-oponente-nome">{nome}</div>
-                                        <div className="az-px az-coracoes">{coracoes(hpDe(nome))}</div>
-                                    </div>
-                                </div>
-
-                                <div className="az-poco">
-                                    <span className="az-px az-poco-k">APOSTA</span>
-                                    <span className="az-px az-poco-v az-amarelo">{apostas[nome] ?? '—'}</span>
-                                    <span className="az-px az-poco-k">FEZ</span>
-                                    <span className="az-px az-poco-v az-verde">{vazasFeitas[nome] ?? 0}</span>
-                                </div>
-
-                                {bot && !morto && <div className="az-px az-oponente-tag">NO AUTOMÁTICO</div>}
-                                {daVez && !morto && <div className="az-anel-vez" />}
-                                {morto && (
-                                    <div className="az-fora">
-                                        <div className="az-px az-carimbo">FORA</div>
-                                    </div>
+                {estreito ? (
+                    // Compacto: nome e corações numa linha, quantas cartas
+                    // ainda tem na mão como número (o leque de versos não cabe).
+                    <div className="az-oponente-id">
+                        {avatar}
+                        <div className="az-min0 az-cresce">
+                            <div className="az-oponente-nome">{nome}</div>
+                            <div className="az-oponente-linha">
+                                <span className="az-px az-coracoes">{coracoes(hpDe(nome))}</span>
+                                {!revelada && restante > 0 && (
+                                    <span className="az-px az-oponente-qtd" title={`${restante} carta${restante === 1 ? '' : 's'} na mão`}>
+                                        <VersoCarta tamanho="micro" />{restante}
+                                    </span>
                                 )}
                             </div>
-                        );
-                    })}
-
-                    <div
-                        className="az-feltro"
-                        style={estreito ? { gridColumn: '1 / 3', gridRow: linhasEstreito + 1 } : { gridArea: 'felt' }}
-                    >
-                        <div className="az-feltro-borda" />
-
-                        {viraCarta && (
-                            <div className="az-vira">
-                                <FaceCarta texto={vira.carta} tamanho="vira" />
-                                <div className="az-px az-vira-rotulo">VIRA</div>
-                            </div>
-                        )}
-
-                        <div className="az-mesa-cartas" style={{ animation: tremendo ? 'cz-tremor 380ms steps(3)' : 'none' }}>
-                            {mesa.map((j, i) => (
-                                <div key={`${i}-${j.jogador}-${j.carta}`} className="az-jogada">
-                                    <FaceCarta texto={j.carta} tamanho="mesa" />
-                                    <div className="az-px az-jogada-nome">{j.jogador === meuNome ? 'VOCÊ' : j.jogador.toUpperCase()}</div>
-                                </div>
-                            ))}
-                            {mesa.length === 0 && <div className="az-px az-mesa-vazia">MESA VAZIA</div>}
                         </div>
-
-                        {golpe && !vaza && (
-                            <div className="az-golpe" key={golpe.key}>
-                                {golpe.camadas.map((camada, i) => <CamadaGolpe key={i} estilo={camada.estilo} />)}
-                            </div>
-                        )}
-
-                        {vaza && (
-                            <div className="az-vaza">
-                                <div className="az-px az-vaza-rotulo">{vaza.vencedor ? 'VAZA FECHADA' : 'VAZA MELADA'}</div>
-                                <div className="az-vaza-corpo">
-                                    {vazaCarta && vaza.vencedor && (
-                                        <div className="az-vaza-carta">
-                                            <FaceCarta texto={vaza.carta} tamanho="vaza" />
-                                        </div>
-                                    )}
-                                    <div>
-                                        <div className="az-px az-vaza-nome">
-                                            {vaza.vencedor ? (vaza.vencedor === meuNome ? 'VOCÊ' : vaza.vencedor.toUpperCase()) : 'MELOU'}
-                                        </div>
-                                        <div className="az-vaza-sub">
-                                            {vaza.vencedor
-                                                ? `levou a vaza — ${vazasFeitas[vaza.vencedor] ?? 1} no total`
-                                                : 'cartas iguais se anularam — ninguém leva'}
-                                        </div>
-                                    </div>
-                                </div>
+                        {revelada && revelada.length > 0 && (
+                            <div className="az-oponente-revelada">
+                                {revelada.slice(0, 1).map((carta, k) => <FaceCarta key={k} texto={carta} tamanho="mini" />)}
                             </div>
                         )}
                     </div>
-                </div>
+                ) : (
+                    <>
+                        <div className="az-oponente-mao">
+                            {revelada && revelada.length > 0
+                                ? revelada.slice(0, maxVersos).map((carta, k) => <FaceCarta key={k} texto={carta} tamanho="mini" />)
+                                : Array.from({ length: nVersos }, (_, k) => <VersoCarta key={k} />)}
+                            {!revelada && nVersos === 0 && <span className="az-oponente-sem-mao" />}
+                        </div>
 
-                <div className="az-minha-area">
+                        <div className="az-oponente-id">
+                            {avatar}
+                            <div className="az-min0 az-cresce">
+                                <div className="az-oponente-nome">{nome}</div>
+                                <div className="az-px az-coracoes">{coracoes(hpDe(nome))}</div>
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                {poco}
+
+                {bot && !morto && <div className="az-px az-oponente-tag">NO AUTOMÁTICO</div>}
+                {daVez && !morto && <div className="az-anel-vez" />}
+                {morto && (
+                    <div className="az-fora">
+                        <div className="az-px az-carimbo">FORA</div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const feltro = (
+        <div className="az-feltro" style={estreito ? undefined : { gridArea: 'felt' }}>
+            <div className="az-feltro-borda" />
+
+            {viraCarta && (
+                <div className="az-vira">
+                    <FaceCarta texto={vira.carta} tamanho="vira" />
+                    <div className="az-px az-vira-rotulo">VIRA</div>
+                </div>
+            )}
+
+            <div className="az-mesa-cartas" style={{ animation: tremendo ? 'cz-tremor 380ms steps(3)' : 'none' }}>
+                {mesa.map((j, i) => (
+                    <div key={`${i}-${j.jogador}-${j.carta}`} className="az-jogada">
+                        <FaceCarta texto={j.carta} tamanho="mesa" />
+                        <div className="az-px az-jogada-nome">{j.jogador === meuNome ? 'VOCÊ' : j.jogador.toUpperCase()}</div>
+                    </div>
+                ))}
+                {mesa.length === 0 && <div className="az-px az-mesa-vazia">MESA VAZIA</div>}
+            </div>
+
+            {golpe && !vaza && (
+                <div className="az-golpe" key={golpe.key}>
+                    {golpe.camadas.map((camada, i) => <CamadaGolpe key={i} estilo={camada.estilo} />)}
+                </div>
+            )}
+
+            {vaza && (
+                <div className="az-vaza">
+                    <div className="az-px az-vaza-rotulo">{vaza.vencedor ? 'VAZA FECHADA' : 'VAZA MELADA'}</div>
+                    <div className="az-vaza-corpo">
+                        {vazaCarta && vaza.vencedor && (
+                            <div className="az-vaza-carta">
+                                <FaceCarta texto={vaza.carta} tamanho="vaza" />
+                            </div>
+                        )}
+                        <div>
+                            <div className="az-px az-vaza-nome">
+                                {vaza.vencedor ? (vaza.vencedor === meuNome ? 'VOCÊ' : vaza.vencedor.toUpperCase()) : 'MELOU'}
+                            </div>
+                            <div className="az-vaza-sub">
+                                {vaza.vencedor
+                                    ? `levou a vaza — ${vazasFeitas[vaza.vencedor] ?? 1} no total`
+                                    : 'cartas iguais se anularam — ninguém leva'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+
+    const pilulaManilha = (
+        <div className="az-pilula-manilha">
+            <span className="az-px az-pilula-rotulo">MANILHA</span>
+            <span className="az-px az-pilula-valor">{viraValor != null ? ORDEM_RANKS[viraValor] ?? '?' : '—'}</span>
+        </div>
+    );
+
+    const botaoDicaBot = (classe) => (
+        <button
+            type="button"
+            className={`az-b az-px ${classe}${dicaBotLigada ? ` ${classe}-ligado` : ''}`}
+            aria-pressed={dicaBotLigada}
+            title="Mostra, na sua vez, o que o bot da sala apostaria ou jogaria no seu lugar"
+            onClick={alternarDicaBot}
+        >
+            DICA DO BOT: {dicaBotLigada ? 'ON' : 'OFF'}
+        </button>
+    );
+
+    const cabecaMesa = estreito ? (
+        <div className="az-mesa-cabeca">
+            <div className="az-px az-mesa-info">
+                R<span className="az-claro">{numeroRodada || '—'}</span> · <span className="az-claro">{cartasRodada}</span> CARTA{cartasRodada === 1 ? '' : 'S'}
+            </div>
+            {pilulaManilha}
+            <div className="az-mesa-cabeca-dir">
+                <button
+                    type="button"
+                    className="az-b az-px az-btn-mini az-btn-icone"
+                    onClick={abrirGaveta}
+                    aria-label={naoLidas > 0 ? `Chat e log (${naoLidas} nova${naoLidas === 1 ? '' : 's'})` : 'Chat e log'}
+                >
+                    💬
+                    {naoLidas > 0 && <span className="az-bolinha">{naoLidas > 9 ? '9+' : naoLidas}</span>}
+                </button>
+                <div className="az-menu-ancora">
+                    <button
+                        type="button"
+                        className={`az-b az-px az-btn-mini az-btn-icone${dicaBotLigada ? ' az-btn-mini-ligado' : ''}`}
+                        onClick={() => setMenuAberto((a) => !a)}
+                        aria-expanded={menuAberto}
+                        aria-label="Menu da partida"
+                    >
+                        ⋯
+                    </button>
+                    {menuAberto && (
+                        <>
+                            <div className="az-menu-fundo" onClick={() => setMenuAberto(false)} />
+                            <div className="az-menu" role="menu">
+                                <div className="az-px az-menu-rotulo">SALA <span className="az-claro">{salaId}</span></div>
+                                {botaoDicaBot('az-menu-item')}
+                                <button type="button" className="az-b az-px az-menu-item az-menu-item-perigo" onClick={sair}>
+                                    SAIR DA PARTIDA
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    ) : (
+        <div className="az-mesa-cabeca">
+            <div className="az-px az-mesa-info">SALA <span className="az-claro">{salaId}</span></div>
+            <div className="az-divisor" />
+            <div className="az-px az-mesa-info">
+                RODADA <span className="az-claro">{numeroRodada || '—'}</span> · <span className="az-claro">{cartasRodada}</span> CARTA{cartasRodada === 1 ? '' : 'S'}
+            </div>
+            <div className="az-mesa-cabeca-dir">
+                {botaoDicaBot('az-btn-mini')}
+                <button type="button" className="az-b az-px az-btn-mini" onClick={sair}>SAIR DA PARTIDA</button>
+                {pilulaManilha}
+            </div>
+        </div>
+    );
+
+    const blocoChat = (
+        <div className="az-chat">
+            <div className="az-frases">
+                {MENSAGENS_CHAT.map((m) => (
+                    <button
+                        key={m.id}
+                        type="button"
+                        data-som="mudo"
+                        className="az-b az-frase"
+                        disabled={chatEmCooldown}
+                        onClick={async () => {
+                            if (await enviarChat({ tipo: 'restrita', id: m.id })) setGavetaAberta(false);
+                        }}
+                    >
+                        {m.texto}
+                    </button>
+                ))}
+            </div>
+            {chatAberto && (
+                <form className="az-chat-livre" onSubmit={enviarChatLivre}>
+                    <input
+                        className="az-input az-input-chat"
+                        type="text"
+                        maxLength={200}
+                        placeholder="Mensagem..."
+                        value={textoChat}
+                        onChange={(e) => setTextoChat(e.target.value)}
+                    />
+                    <button
+                        type="submit"
+                        data-som="mudo"
+                        className="az-b az-px az-btn az-btn-azul az-btn-p"
+                        disabled={chatEmCooldown || !textoChat.trim()}
+                    >
+                        ENVIAR
+                    </button>
+                </form>
+            )}
+            {chatEmCooldown && <div className="az-nota">aguarde {segundosCooldown}s pra mandar de novo</div>}
+            {erroChat && <div className="az-erro">{erroChat}</div>}
+        </div>
+    );
+
+    const blocoLog = (
+        <div className="az-log">
+            <div className="az-px az-log-titulo">LOG DA PARTIDA</div>
+            <div className="az-log-linhas">
+                {log.length === 0 && <div className="az-log-linha" style={{ color: '#4a4f60' }}>Nada ainda.</div>}
+                {[...log].reverse().map((l) => (
+                    <div key={l.id} className="az-log-linha" style={{ color: COR_LOG[l.tipo] ?? COR_LOG.info }}>
+                        {l.txt}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+
+    return (
+        <Casca conectado={conectado} direita={cabecaDireita} cheia={estreito}>
+            <div className="az-tela az-tela-mesa" data-screen-label="Mesa de partida">
+                {cabecaMesa}
+
+                {estreito ? (
+                    <>
+                        <div className="az-oponentes" style={{ '--colunas': colunasEstreito }}>
+                            {oponentes.map(renderOponente)}
+                        </div>
+                        {feltro}
+                    </>
+                ) : (
+                    <div style={gradeEstilo}>
+                        {oponentes.map(renderOponente)}
+                        {feltro}
+                    </div>
+                )}
+
+                <div className={`az-minha-area${souEuNaVezDaAposta ? ' az-apostando' : ''}`}>
                     <div className="az-voce">
                         {baloes[meuNome] && <div key={baloes[meuNome].id} className="az-balao">{baloes[meuNome].texto}</div>}
                         <div className="az-voce-id">
@@ -1155,7 +1323,9 @@ export default function Partida({
 
                     <div className="az-mao-bloco">
                         <div className="az-px az-dica">{dica}</div>
-                        <div className="az-mao">
+                        {/* --cartas: no estreito a mão fica numa linha só e as
+                            cartas dividem a largura (ver .az-carta-botao). */}
+                        <div className="az-mao" style={{ '--cartas': Math.max(1, mao.length) }}>
                             {mao.map((carta, indice) => {
                                 const c = lerCarta(carta);
                                 const manilha = !rodadaCega && c && viraValor != null && c.valorInt === viraValor;
@@ -1204,7 +1374,7 @@ export default function Partida({
                                 {palpiteProibido != null && palpiteProibido >= 0 && palpiteProibido <= cartasRodada
                                     ? `Você é o último: ${palpiteProibido} fecharia a soma e não vale. `
                                     : ''}
-                                Errar o palpite tira coração — pra mais ou pra menos.
+                                <span className="az-rotulo-largo">Errar o palpite tira coração — pra mais ou pra menos.</span>
                             </div>
                         </div>
                     )}
@@ -1212,59 +1382,23 @@ export default function Partida({
 
                 {erro && <div className="az-erro az-erro-caixa">{erro}</div>}
 
-                <div className="az-rodape-mesa">
-                    <div className="az-chat">
-                        <div className="az-frases">
-                            {MENSAGENS_CHAT.map((m) => (
-                                <button
-                                    key={m.id}
-                                    type="button"
-                                    data-som="mudo"
-                                    className="az-b az-frase"
-                                    disabled={chatEmCooldown}
-                                    onClick={() => enviarChat({ tipo: 'restrita', id: m.id })}
-                                >
-                                    {m.texto}
-                                </button>
-                            ))}
-                        </div>
-                        {chatAberto && (
-                            <form className="az-chat-livre" onSubmit={enviarChatLivre}>
-                                <input
-                                    className="az-input az-input-chat"
-                                    type="text"
-                                    maxLength={200}
-                                    placeholder="Mensagem..."
-                                    value={textoChat}
-                                    onChange={(e) => setTextoChat(e.target.value)}
-                                />
-                                <button
-                                    type="submit"
-                                    data-som="mudo"
-                                    className="az-b az-px az-btn az-btn-azul az-btn-p"
-                                    disabled={chatEmCooldown || !textoChat.trim()}
-                                >
-                                    ENVIAR
-                                </button>
-                            </form>
-                        )}
-                        {chatEmCooldown && <div className="az-nota">aguarde {segundosCooldown}s pra mandar de novo</div>}
-                        {erroChat && <div className="az-erro">{erroChat}</div>}
+                {!estreito && (
+                    <div className="az-rodape-mesa">
+                        {blocoChat}
+                        {blocoLog}
                     </div>
-
-                    <div className="az-log">
-                        <div className="az-px az-log-titulo">LOG DA PARTIDA</div>
-                        <div className="az-log-linhas">
-                            {log.length === 0 && <div className="az-log-linha" style={{ color: '#4a4f60' }}>Nada ainda.</div>}
-                            {[...log].reverse().map((l) => (
-                                <div key={l.id} className="az-log-linha" style={{ color: COR_LOG[l.tipo] ?? COR_LOG.info }}>
-                                    {l.txt}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
+                )}
             </div>
+
+            {estreito && gavetaAberta && (
+                <Gaveta
+                    onFechar={() => setGavetaAberta(false)}
+                    abas={[
+                        { id: 'chat', rotulo: 'CHAT', conteudo: blocoChat },
+                        { id: 'log', rotulo: 'LOG', conteudo: blocoLog },
+                    ]}
+                />
+            )}
 
             {expulso && (
                 <Modal>

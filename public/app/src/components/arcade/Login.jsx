@@ -220,7 +220,7 @@ export default function Login({ onAutenticado, onTrocarFrente, conectado }) {
                     onClick={onTrocarFrente}
                     title="Trocar de frente visual"
                 >
-                    🔄 FRONT
+                    🔄<span className="az-rotulo-largo"> FRONT</span>
                 </button>
             )}
         </>

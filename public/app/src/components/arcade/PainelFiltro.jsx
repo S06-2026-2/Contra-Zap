@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 import { FILTROS, MAPA_CURV_X, MAPA_CURV_Y } from './filtros.js';
 import { assinarSom, definirVolume, volumeSom } from './somArcade.js';
 
@@ -73,9 +73,10 @@ export function DefsFiltro({ f }) {
 }
 
 // Painel fixo no canto inferior direito. Fica fora da div filtrada (ver
-// Casca.jsx), então o próprio filtro nunca pega o painel.
-export function PainelFiltro({ f }) {
-    const [aberto, setAberto] = useState(false);
+// Casca.jsx), então o próprio filtro nunca pega o painel. Aberto/fechado
+// mora na Casca: no celular o painel recolhido some e quem abre é o botão
+// da barra de cima (ver .az-topo-filtro em arcade.css).
+export function PainelFiltro({ f, aberto, onAlternar }) {
     const volume = useSyncExternalStore(assinarSom, volumeSom);
 
     const sliders = [];
@@ -99,8 +100,8 @@ export function PainelFiltro({ f }) {
         : [];
 
     return (
-        <div className="az-raiz az-filtro">
-            <button type="button" className="az-b az-filtro-cabeca" onClick={() => setAberto((a) => !a)}>
+        <div className={`az-raiz az-filtro${aberto ? ' az-filtro-aberto' : ''}`}>
+            <button type="button" className="az-b az-filtro-cabeca" onClick={onAlternar}>
                 <span className="az-px az-filtro-titulo">FILTRO DE TELA</span>
                 <span className="az-px az-filtro-resumo">{f.resumo}</span>
                 <span className="az-px az-filtro-seta">{aberto ? '▾' : '▸'}</span>
