@@ -159,6 +159,120 @@ não parece compensar o ganho agora.
 
 ---
 
+## Front provisório — o que falta na Partida
+
+Comparação da tela de partida do front **novo/provisório**
+(`components/novo/Partida.jsx` + `MesaExperimento.jsx`) com o **debugging**
+(`components/Partida.jsx`) e o **arcade** (`components/arcade/Partida.jsx`).
+Só entra aqui o que um dos dois outros mostra e o provisório não. Login e
+Lobby ficam de fora (o "novo" já usa os da arcade).
+
+Legenda: 🔴 falta e atrapalha jogar · 🟡 falta informação/feedback · 🟢 extra/polimento.
+
+---
+
+### Já coberto (não precisa mexer)
+
+Mão, mão dos outros em leque, rodada cega (sua virada + dos outros
+revelada), vira/manilha (animação + hover com os naipes), destaque de
+manilha em qualquer carta, carta mais forte/melada na mesa, revelação de
+vaza e "MELOU!", aposta com popup (e bloqueio do valor que fecha a mesa),
+fichas + vazas ganhas pousadas, vida (medalhão + corações no hover),
+dano/eliminação dos fantasminhas, timer do turno (anel + pizza no nome),
+banner de vez, indicador de bot/automático, chat (prontas, livre, balão,
+histórico), cabeçalho (sala, senha, rodada, nome, sair), tela de vitória
+com "Jogar de novo" (só adm) e convite de revanche, ressincronizar depois
+de queda de rede, banner global de conexão perdida.
+
+---
+
+### Espera (antes de iniciar)
+
+- [x] 🔴 **Contagem regressiva parada** — `segundosParaIniciar` é mostrado
+      como veio do evento e nunca desce; o arcade tem `contagem` com
+      `setTimeout` de 1s (e tique de som nos últimos 5s).
+- [x] 🔴 **"Forçar início" aparece pra todo mundo** — o servidor só aceita
+      do adm (`NAO_AUTORIZADO`) e o erro não aparece em lugar nenhum (ver
+      "Erros" abaixo). Arcade só mostra pro dono e explica o porquê na nota.
+- [x] 🟡 Vagas: "x/total" e vagas livres ("aguardando / VAGA LIVRE") — o
+      arcade usa `infoSala.numberPlayers` (`lerInfoSala` do `salasInfo.js`).
+- [x] 🟡 Quem é o dono da sala (👑/"DONO DA SALA") e quem é bot na lista —
+      `jogadores[].adm` já chega (e o `novoAdm` já atualiza), só não é
+      desenhado.
+- [x] 🟢 Chips de regra da sala: cartas na 1ª rodada, corações, chat
+      aberto/frases, nº de bots, modelo do bot (tudo do `infoSala`).
+- [x] 🟢 Estética: o cartão de espera ainda é o HTML cru do debugging —
+      passar pro visual ardósia/Silkscreen do resto.
+
+### Durante a partida
+
+- [ ] 🔴 **Erros de ação invisíveis** — `erro` do `novo/Partida.jsx`
+      (falha no `jogarCarta`, no `forcarInicio`, no `jogarDeNovo`, no
+      aceitar revanche) é preenchido mas nunca vai pro `MesaExperimento`.
+      Precisa de um aviso na tela (toast/faixa no estilo arcade).
+- [ ] 🔴 **Partida abortada** (`partidaAbortada`) — hoje só vira `erro`,
+      que não aparece: a mesa trava sem explicação. Arcade tem tela
+      "PARTIDA INTERROMPIDA" com o motivo + "Voltar às salas".
+- [ ] 🟡 **Você eliminado / assistindo** — não há nenhum sinal de que você
+      está fora (arcade troca a dica por "VOCÊ ESTÁ FORA — ASSISTINDO").
+      Seu lado da mesa (medalhão, barra de fichas, mão vazia) continua
+      igual a quem ainda está vivo.
+- [ ] 🟡 **Vazas feitas x aposta legível de relance** — as cartas pousadas
+      em cima das fichas mostram isso, mas não tem número. Arcade mostra
+      "APOSTA n · FEZ n" por jogador; no provisório a aposta dos outros só
+      aparece no hover do assento. Pensar num contador discreto (ex.:
+      "2/3" no hover ou sempre visível).
+- [ ] 🟡 **Manilha fixa no cabeçalho** — arcade tem a pílula "MANILHA [rank]"
+      sempre visível; aqui só no hover da vira.
+- [ ] 🟡 **Cooldown do chat** — os botões ficam travados sem dizer por
+      quanto tempo ("aguarde Ns pra mandar de novo" nos outros dois). As
+      mensagens prontas nem aparecem desabilitadas no cooldown — o clique só
+      é ignorado em silêncio (só o campo livre usa `chatEmCooldown`).
+- [ ] 🟡 **Expulso por inatividade** — hoje manda direto pra Lobby
+      (`onSairDaPartida`). Arcade abre modal "VOCÊ SAIU DA MESA" com
+      RECONECTAR ali mesmo (sem passar pela lista de salas).
+- [ ] 🟡 **Log da partida** — o histórico do chat só tem mensagens e
+      entrar/sair. Os outros dois têm log de eventos (apostou X, jogou Y,
+      vaza de Z, jogada automática por timeout, reconectou, desistiu,
+      virou adm). O `log` já é montado no `novo/Partida.jsx` e não é
+      passado — dá pra jogar no mesmo histórico com cor de sistema.
+- [ ] 🟡 **Jogada automática por timeout** (`jogadaAutomatica`) — nenhum
+      aviso visual de que a carta/aposta foi feita pelo servidor.
+- [ ] 🟢 **Dica do bot** (arcade: botão "DICA DO BOT: ON/OFF", contorno
+      vermelho na carta ou no número que o bot escolheria, via
+      `sugestaoBot` + `dicaBot.js`). No provisório entraria como contorno
+      na carta da mão e destaque no número do popup de aposta.
+- [ ] 🟢 **Sons** — arcade toca `somArcade.js` em carta, sua vez, aposta,
+      vaza, eliminado, vitória, erro, chat e tique da contagem. Provisório
+      é mudo.
+- [ ] 🟢 Layout estreito/celular — arcade tem modo `ESTREITO_PX` (640px);
+      a mesa do provisório não foi pensada pra tela pequena.
+
+### Fim de partida
+
+- [ ] 🔴 **Sem "Voltar às salas" na tela de vitória** — só existe "Jogar de
+      novo" (adm) e "Não" do convite; quem não é adm e não recebeu convite
+      só sai pelo "Sair da partida" do cabeçalho (que ainda diz "partida").
+- [ ] 🟡 **Pódio** — arcade mostra a ordem de eliminação (2º, 3º... "eliminado
+      na rodada N"). Precisa guardar `ordemEliminacao` a partir de
+      `jogadoresEliminados` (com o `numeroRodada` da hora).
+- [ ] 🟡 "Jogar de novo" sem estado de carregando (`criandoRevanche` existe
+      no `novo/Partida.jsx` mas não é passado) — dá pra clicar duas vezes.
+- [ ] 🟢 "Agora não" no convite: arcade só fecha o convite e continua na
+      tela; aqui "Não" já sai da sala.
+
+---
+
+### Onde mexer
+
+Quase tudo é só **passar pro `estado`/`acoes`** coisas que o
+`novo/Partida.jsx` já calcula (`erro`, `log`, `criandoRevanche`, adm) ou
+copiar a lógica pronta do arcade (`contagem`, `ordemEliminacao`,
+`vazasFeitas`, `dicaBot`, `infoSala`, `tocarSom`). Nenhum item pede
+evento novo no protocolo.
+
+---
+
 ## Backlog técnico — auditoria de backend
 
 Legenda: 🔴 bug/segurança · 🟡 robustez/produção · 🟢 limpeza/doc.

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { socket, chamar } from '../../socket.js';
 import { assinarSessaoRetomada } from '../../sessao.js';
 import MesaExperimento from './MesaExperimento.jsx';
+import { guardarInfoSala, lerInfoSala } from '../arcade/salasInfo.js';
+import { tocarSom } from '../arcade/somArcade.js';
 // Catálogo e cooldown vêm direto da fonte única do back — não há mais espelho
 // no front (ver server.fs.allow em vite.config.js).
 import { CHAT_COOLDOWN_MS } from '../../../../../conexao/chat/mensagensChat.js';
@@ -399,6 +401,19 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
         return assinarSessaoRetomada(ressincronizar);
     }, [iniciada, salaId]);
 
+    // Contagem regressiva da sala de espera: o servidor só manda o número
+    // de segundos uma vez (partidaIniciandoEm), a descida é daqui. Mesmo
+    // tique de som da arcade nos últimos segundos.
+    useEffect(() => {
+        if (iniciada || segundosParaIniciar == null || segundosParaIniciar <= 0) return;
+        const id = setTimeout(() => {
+            const proxima = segundosParaIniciar - 1;
+            if (proxima > 0) tocarSom(proxima <= 5 ? 'tiqueFinal' : 'tique');
+            setSegundosParaIniciar(proxima);
+        }, 1000);
+        return () => clearTimeout(id);
+    }, [segundosParaIniciar, iniciada]);
+
     // Enquanto o cooldown está de pé, um tiquetaque só pra atualizar o
     // contador na tela; para sozinho quando zera.
     useEffect(() => {
@@ -501,6 +516,7 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
         setCriandoRevanche(true);
         try {
             const resposta = await chamar('jogarDeNovo', { salaId });
+            guardarInfoSala(resposta.salaId, { ...lerInfoSala(salaId), numberPlayers: resposta.numberPlayers, modeloBot: resposta.modeloBot });
             onEntrouNaSala(resposta.salaId, resposta.jogadores, resposta.segundosParaIniciar, resposta.chatAberto);
         } catch (erroDaChamada) {
             setErro(erroDaChamada.message);
@@ -526,6 +542,7 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
                 // melhor esforço — a sala antiga já terminou, o assento não importa mais
             }
             const resposta = await chamar('entrarSala', { salaId: conviteRevanche.novaSalaId });
+            guardarInfoSala(conviteRevanche.novaSalaId, { ...lerInfoSala(salaId), numberPlayers: resposta.numberPlayers, modeloBot: resposta.modeloBot });
             onEntrouNaSala(conviteRevanche.novaSalaId, resposta.jogadores, resposta.segundosParaIniciar, resposta.chatAberto);
         } catch (erroDaChamada) {
             setErro(erroDaChamada.message);
@@ -575,7 +592,10 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
     return (
         <MesaExperimento
             estado={{
-                salaId, meuNome, senha,
+                salaId, meuNome, senha, souDono, erro,
+                // Vagas e regras da sala pra tela de espera (ver salasInfo.js
+                // — a Lobby arcade anota antes de entrar).
+                infoSala: lerInfoSala(salaId),
                 iniciada, jogadores, ordem, segundosParaIniciar, chatAberto, chatEmCooldown, erroChat,
                 ultimoSeq, prazoTurno, distribuicaoLiberada,
                 mao, cartasRodada, numeroRodada, maosReveladas,
@@ -589,7 +609,9 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
                 animacoesConcluidas: (seq) => socket.emit('animacoesConcluidas', { salaId, seq }),
                 aindaAnimando: () => socket.emit('aindaAnimando', { salaId }),
                 apostar: apostarValor,
-                forcarInicio,
+                // Só o adm pode forçar (o servidor recusa os outros com
+                // NAO_AUTORIZADO) — pros outros o botão nem aparece.
+                forcarInicio: souDono ? forcarInicio : undefined,
                 enviarChatPronta,
                 enviarChatLivre: chatAberto ? enviarChatLivre : undefined,
                 sair,
