@@ -589,41 +589,23 @@ button.secundario {
     box-shadow: 0 4px 12px rgba(0, 0, 0, .5);
 }
 
-/* Sala de espera (ver !estado.iniciada em MesaExperimento.jsx) — mesmo
-   fundo escuro da mesa, só um cartão simples centralizado (a coreografia
-   da mesa oval não existe ainda nessa fase, igual a Partida.jsx de
-   verdade). */
+/* Sala de espera (ver TelaEspera em MesaExperimento.jsx) — o corpo é o da
+   espera da arcade (classes az-*); aqui só o encaixe na tela fixa da mesa:
+   rola se não couber, começa abaixo do cabeçalho e centraliza na vertical
+   quando sobra espaço (margin auto em vez de align-items, que cortaria o
+   topo ao transbordar). */
 .mesa-exp-tela-espera {
     flex-direction: column;
-    gap: 16px;
+    align-items: stretch;
+    justify-content: flex-start;
+    overflow-y: auto;
+    padding: 72px 16px 32px;
 }
 
-.mesa-exp-espera-cartao {
-    background: #1f2028;
-    border: 1px solid var(--borda);
-    border-radius: 10px;
-    padding: 24px 28px;
-    min-width: 260px;
-    text-align: center;
-    color: var(--texto);
-    font-family: Silkscreen, monospace;
-    font-weight: 400;
-}
-
-.mesa-exp-espera-cartao h2,
-.mesa-exp-espera-cartao strong,
-.mesa-exp-espera-cartao button {
-    font-family: inherit;
-    font-weight: 400;
-}
-
-.mesa-exp-espera-cartao ul {
-    list-style: none;
-    margin: 0 0 12px;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+.mesa-exp-espera {
+    width: 100%;
+    max-width: 760px;
+    margin: auto;
 }
 
 .mesa-exp-fantasma-taca {

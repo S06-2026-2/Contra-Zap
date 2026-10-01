@@ -6,6 +6,8 @@ import Ficha from './Ficha.jsx';
 import { sortearChapeu } from '../../chapeus.js';
 import { MENSAGENS_CHAT } from '../../../../../conexao/chat/mensagensChat.js';
 import { LIMITE_TEXTO_ABERTO } from '../../../../../conexao/chat/chat.js';
+import { modeloBotPorId } from '../../../../../bots/modelosBot.js';
+import { HP_INICIAL, corDoAssento, ehBot, inicial } from '../arcade/tema.js';
 
 // Mesa de Partida "de verdade" — era um sandbox 100% desligado do socket
 // (botões de debug simulando cada evento), virou um componente de
@@ -1286,6 +1288,112 @@ function LequeManilha({ rank }) {
 // sala privada) e contador de rodada (só com a partida andando, `rodada`
 // > 0) soltos no canto de cima à esquerda; seu nome e o que vier em
 // `children` (o botão de sair) no da direita.
+// Sala de espera: corpo da espera da arcade (classes az-* de arcade.css,
+// dentro de um .az-raiz pra herdar fonte/box-sizing de lá), embaixo do
+// CabecalhoMesa de sempre — o título "SALA N" da arcade fica de fora
+// porque o cabeçalho já mostra.
+function TelaEspera({ estado, acoes }) {
+    const jogadores = estado.jogadores ?? [];
+    const infoSala = estado.infoSala ?? {};
+    const total = Math.max(infoSala.numberPlayers ?? jogadores.length, jogadores.length);
+    const bots = jogadores.filter((j) => ehBot(j.nome)).length;
+    const salaCheia = estado.segundosParaIniciar != null;
+    const modeloBot = modeloBotPorId(infoSala.modeloBot);
+    const regras = [
+        infoSala.roundStart != null ? { k: 'CARTAS NA 1ª RODADA', v: String(infoSala.roundStart) } : null,
+        { k: 'CORAÇÕES', v: '♥'.repeat(HP_INICIAL) },
+        { k: 'CHAT', v: estado.chatAberto ? 'ABERTO' : 'FRASES' },
+        { k: 'BOTS', v: String(bots) },
+        modeloBot ? { k: 'BOT', v: modeloBot.nome.toUpperCase() } : null,
+    ].filter(Boolean);
+
+    return (
+        <div className="az-raiz mesa-exp-espera">
+            <div className="az-cabeca-tela">
+                <div className="az-sub">
+                    {salaCheia
+                        ? `Mesa cheia — ${jogadores.length}/${total} jogadores.`
+                        : `Esperando a mesa encher — ${jogadores.length}/${total} jogadores.`}
+                </div>
+                <div className="az-contagem">
+                    <span className="az-px az-contagem-rotulo">COMEÇA EM</span>
+                    <span className="az-px az-contagem-valor">{salaCheia ? estado.segundosParaIniciar : '--'}</span>
+                </div>
+            </div>
+
+            {estado.senha && (
+                <div className="az-senha">
+                    <span className="az-px az-senha-rotulo">🔒 SENHA DA SALA</span>
+                    <span className="az-px az-senha-valor">{estado.senha}</span>
+                    <span className="az-senha-nota">Repasse pra quem você for chamar — ela não aparece de novo.</span>
+                </div>
+            )}
+
+            <div className="az-grade-espera">
+                {Array.from({ length: total }, (_, i) => {
+                    const j = jogadores[i];
+                    if (!j) {
+                        return (
+                            <div key={`vaga-${i}`} className="az-assento az-assento-vago">
+                                <div className="az-px az-avatar az-avatar-g" style={{ background: '#22252f' }}>?</div>
+                                <div className="az-min0">
+                                    <div className="az-assento-nome az-apagado">aguardando</div>
+                                    <div className="az-px az-assento-rotulo" style={{ color: '#4a4f60' }}>VAGA LIVRE</div>
+                                </div>
+                            </div>
+                        );
+                    }
+                    const bot = ehBot(j.nome);
+                    const rotulo = j.adm ? 'DONO DA SALA' : bot ? 'BOT' : 'PRONTO';
+                    const corRotulo = j.adm ? '#f5c451' : bot ? '#8d93a6' : '#7fd6a5';
+                    return (
+                        <div key={j.nome} className="az-assento">
+                            <div className="az-px az-avatar az-avatar-g" style={{ background: bot ? '#4a4f60' : corDoAssento(i) }}>
+                                {inicial(j.nome)}
+                            </div>
+                            <div className="az-min0">
+                                <div className="az-assento-nome">
+                                    {j.nome}{j.nome === estado.meuNome ? ' (você)' : ''}
+                                </div>
+                                <div className="az-px az-assento-rotulo" style={{ color: corRotulo }}>{rotulo}</div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            <div className="az-chips">
+                {regras.map((r) => (
+                    <div key={r.k} className="az-chip">
+                        <span className="az-px az-chip-k">{r.k}</span>
+                        <span className="az-px az-chip-v">{r.v}</span>
+                    </div>
+                ))}
+            </div>
+
+            {/* acoes.forcarInicio só vem pro adm (ver novo/Partida.jsx). */}
+            {acoes?.forcarInicio && (
+                <div className="az-linha-botoes">
+                    <button
+                        type="button"
+                        className="az-b az-px az-btn az-btn-vermelho az-btn-gg az-cresce"
+                        onClick={acoes.forcarInicio}
+                        disabled={!salaCheia}
+                    >
+                        FORÇAR INÍCIO AGORA
+                    </button>
+                </div>
+            )}
+            <div className="az-nota az-nota-espaco">
+                {estado.souDono
+                    ? 'Você é o dono — dá pra forçar o início assim que a mesa encher.'
+                    : 'Só o dono da sala pode forçar o início depois que a mesa encher.'}
+            </div>
+            {estado.erro && <div className="az-erro az-erro-caixa">{estado.erro}</div>}
+        </div>
+    );
+}
+
 function CabecalhoMesa({ salaId, senha, rodada, meuNome, children }) {
     return (
         <>
@@ -2974,25 +3082,7 @@ export default function MesaExperimento({ estado, acoes }) {
                         Sair da fila
                     </button>
                 </CabecalhoMesa>
-                <div className="mesa-exp-espera-cartao">
-                    {estado.senha && <p>🔒 Senha: <strong>{estado.senha}</strong></p>}
-                    <h2>Aguardando ({(estado.jogadores ?? []).length})</h2>
-                    <ul>
-                        {(estado.jogadores ?? []).map((j) => (
-                            <li key={j.nome}>{j.nome}{j.nome === estado.meuNome ? ' (você)' : ''}</li>
-                        ))}
-                    </ul>
-                    {estado.segundosParaIniciar != null && (
-                        <>
-                            <p>Sala cheia — começa sozinha em {estado.segundosParaIniciar}s.</p>
-                            {/* Mesmo evento forcarInicio de sempre (ver botão
-                                equivalente em novo/Partida.jsx, e forcarInicio
-                                em `acoes` lá) — só essa tela (front
-                                provisório) ainda não tinha o botão. */}
-                            <button type="button" onClick={acoes.forcarInicio}>Forçar início agora</button>
-                        </>
-                    )}
-                </div>
+                <TelaEspera estado={estado} acoes={acoes} />
             </div>
         );
     }
