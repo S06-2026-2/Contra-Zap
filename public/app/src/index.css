@@ -579,6 +579,10 @@ button.secundario {
     left: 20px;
     z-index: 41;
     max-width: calc(100vw - 40px);
+    /* Fica na tela a partida toda, mesmo sem texto (antes da primeira vez
+       ou entre uma vez e outra): a largura mínima evita um quadradinho. */
+    min-width: 220px;
+    box-sizing: border-box;
     padding: 10px 16px;
     font: 400 20px/1.2 Silkscreen, monospace;
     color: #7dd3fc;
@@ -798,20 +802,26 @@ button.secundario {
     z-index: 40;
 }
 
-/* Chat (item do checklist) — bola no canto inferior esquerdo, grande e
-   cortada pelas bordas de baixo e da esquerda da tela (o container começa
-   24px fora do quadro), com a barra das fichas saindo de trás dela (ver
-   BarraFichas). z-index acima da barra (38). */
+/* Chat — bola colada embaixo do banner de vez (.mesa-exp-turno-banner, que
+   termina perto de 98px), com uns 30% dela (32px) pra fora da borda esquerda.
+   Posição fixa mesmo sem o banner na tela, pra bola não pular. O conteúdo aberto desce em coluna
+   embaixo dela: histórico, frases prontas, campo livre. z-index acima da
+   barra das fichas (38) e do banner (41). */
 .mesa-exp-chat {
     position: fixed;
-    bottom: -24px;
-    left: -24px;
+    top: 108px;
+    left: -32px;
     z-index: 42;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
 }
 
 /* Madeira com aro de ouro (degradê no border-box). Ícone no centro do
    círculo inteiro — o centro fica dentro da parte visível da bola. */
 .mesa-exp-chat-botao {
+    position: relative;
+    z-index: 1;
     box-sizing: border-box;
     width: 104px;
     height: 104px;
@@ -853,31 +863,27 @@ button.secundario {
     fill: #1a1009;
 }
 
-/* Painel + histórico lado a lado — só existem no DOM enquanto `chatClicado`
-   (ver JSX). Histórico é o módulo À DIREITA do painel, não embaixo. Fixo
-   no pé da tela e ABAIXO da barra das fichas (38): o painel fica acima da
-   bola (margin-bottom = 80px visíveis da bola + 10 de folga) e o histórico
-   estica do topo do painel até o chão, passando por trás da barra. */
+/* Histórico + painel em coluna — só existem no DOM enquanto `chatClicado`
+   (ver JSX). Sobe por trás da bola até o primeiro quarto dela (margin
+   negativa = 3/4 dos 104px, bola com z-index acima), então o histórico
+   parece sair de dentro dela. margin-left põe a coluna de volta na margem
+   do banner (20px da borda), já que o container começa 32px fora da tela. */
 .mesa-exp-chat-linha {
-    position: fixed;
-    left: 16px;
-    bottom: 0;
-    z-index: 37;
+    margin-top: -78px;
+    margin-left: 52px;
     display: flex;
-    align-items: stretch;
+    flex-direction: column;
     gap: 10px;
+    width: 264px;
 }
 
 /* Painel: hover NÃO abre/fecha, só o clique, de propósito (senão fechava
    sozinho ao mover o mouse pra digitar no campo livre). Dimensões 1.1x
    maiores que o primeiro rascunho (era 240px/12px/10px/13px). */
 .mesa-exp-chat-painel {
-    align-self: flex-end;
-    margin-bottom: 90px;
     display: flex;
     flex-direction: column;
     gap: 11px;
-    width: 264px;
     background: rgba(0, 0, 0, .55);
     border: 1px solid var(--borda);
     border-radius: 10px;
@@ -937,7 +943,7 @@ button.secundario {
     color: var(--texto-fraco);
 }
 
-/* Histórico: mesmo tipo de superfície do painel ao lado, com o feed rolável
+/* Histórico: mesmo tipo de superfície do painel embaixo, com o feed rolável
    (mesma ideia de .chat-feed no Partida.jsx antigo) — mensagem de sistema
    (entrar/sair, ver aumentarJogadores/diminuirJogadores) em itálico e mais
    apagada, igual ao .chat-msg-sistema de lá. */
@@ -945,14 +951,12 @@ button.secundario {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    width: 220px;
     background: rgba(0, 0, 0, .55);
     border: 1px solid var(--borda);
-    border-radius: 10px 10px 0 0;
-    border-bottom: none;
-    /* Embaixo, a altura da barra das fichas (BARRA_ALTURA_PX = 76) + 13: o
-       fim do feed termina acima dela, não escondido atrás. */
-    padding: 13px 13px 89px;
+    border-radius: 10px;
+    /* Os 78px de cima ficam por trás da bola: o título vai à direita dela
+       nessa faixa (margens no h3) e o feed começa logo abaixo da bola. */
+    padding: 13px;
     backdrop-filter: blur(2px);
     color: #f1e6d2;
     font-family: Archivo, system-ui, sans-serif;
@@ -965,7 +969,7 @@ button.secundario {
 }
 
 .mesa-exp-chat-historico h3 {
-    margin: 0;
+    margin: 12px 0 30px 60px;
     font-family: Silkscreen, monospace;
     font-weight: 400;
     font-size: 12px;
@@ -978,7 +982,9 @@ button.secundario {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    height: 200px;
+    /* Encolhe em tela baixa pra coluna inteira caber abaixo da bola. */
+    height: min(200px, calc(100vh - 560px));
+    min-height: 80px;
     overflow-y: auto;
     font-size: 13px;
 }
@@ -999,10 +1005,9 @@ button.secundario {
 }
 
 /* Aposta (ver botão "Apostar"/popup/fichas em MesaExperimento.jsx). O
-   botão é uma placa de ouro deitada no meio do sulco (ainda vazio) da
-   barra das fichas, bem onde as fichas vão pousar: madeira com aro e
-   letras de ouro, como o resto do canto, com um brilho lento em volta
-   (é a sua vez e a partida está esperando). */
+   botão é uma placa vermelha de aro vivo com um brilho lento em volta (é a
+   sua vez e a partida está esperando); onde ela fica vem do modificador
+   (ver .mesa-exp-aposta-botao-mao). */
 .mesa-exp-aposta-botao {
     box-sizing: border-box;
     position: absolute;
@@ -1032,6 +1037,22 @@ button.secundario {
     background:
         linear-gradient(180deg, #ffb09a 0%, #e8402f 45%, #a81e1a 100%) padding-box,
         linear-gradient(90deg, #a81e1a, #e8402f 55%, #ff9d80) border-box;
+}
+/* Na sua mão (ver SuaMaoEmLeque): no meio do leque, por cima das cartas
+   (z-index acima do da mão, 20). Com o mouse parado em cima por 1.5s fica
+   translúcida pra dar pra ver a carta de baixo; ao sair volta na hora. */
+.mesa-exp-aposta-botao-mao {
+    padding: 14px 40px;
+    font-size: 24px;
+    left: 50%;
+    bottom: 110px;
+    z-index: 21;
+    transform: translate(-50%, 50%);
+    transition: color .15s ease, background .15s ease, text-shadow .15s ease, opacity .2s ease;
+}
+.mesa-exp-aposta-botao-mao:hover {
+    opacity: .25;
+    transition: color .15s ease, background .15s ease, text-shadow .15s ease, opacity .3s ease 1.5s;
 }
 @keyframes mesa-exp-aposta-botao-entrar {
     from { opacity: 0; scale: .85; }
@@ -2623,9 +2644,9 @@ button.secundario {
     filter: drop-shadow(0 0 3px rgba(255, 215, 94, .8)) drop-shadow(0 0 8px rgba(255, 170, 40, .45));
 }
 
-/* As SUAS fichas — barra de madeira rente à borda de baixo, saindo de trás
-   da bola do chat (ver BarraFichas; largura/altura inline). Aro dourado em
-   cima e na ponta direita (degradê no border-box, como a bola do chat).
+/* As SUAS fichas — barra de madeira rente à borda de baixo, saindo da borda
+   esquerda (ver BarraFichas; largura/altura inline). Aro dourado em cima e
+   na ponta direita (degradê no border-box, como a bola do chat).
    z-index ABAIXO das fichas pousadas (40) e das cartas de vaza ganha (39),
    que moram nas vagas do sulco. */
 .mesa-exp-fichas-barra {
@@ -4349,7 +4370,26 @@ button.secundario {
    ágil que isso. animationDelay inline escalona uma depois da outra,
    mesma lógica de sempre. */
 .mesa-exp-sua-mao-carta-entrada {
+    position: relative;
+    display: flex;
     animation: mesa-exp-sua-carta-subir .22s ease both;
+}
+
+/* Véu vermelho da sua vez de apostar (ver `apostando` em SuaMaoEmLeque):
+   um por carta, com o mesmo raio da .carta, então só as cartas ficam
+   vermelhas — a mesa em volta não. Não pega clique nem hover. */
+.mesa-exp-sua-mao-carta-entrada::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 6px;
+    background: rgba(220, 40, 30, .32);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .3s ease;
+}
+.mesa-exp-sua-mao-apostando .mesa-exp-sua-mao-carta-entrada::after {
+    opacity: 1;
 }
 
 @keyframes mesa-exp-sua-carta-subir {

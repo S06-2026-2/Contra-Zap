@@ -874,8 +874,8 @@ function MedalhaoVida({ caixaRef, prazo, destaque, ...propsCoracoes }) {
 }
 
 // As SUAS fichas, no canto inferior esquerdo: uma barra de madeira com aro
-// dourado (mesmo idioma dos medalhões) saindo de trás da bola do chat (ver
-// .mesa-exp-chat-botao) e correndo rente à borda de baixo da tela. Dentro,
+// dourado (mesmo idioma dos medalhões) saindo da borda esquerda e correndo
+// rente à borda de baixo da tela. Dentro,
 // um sulco onde as fichas da aposta pousam em linha, uma por vaga, e as
 // cartas de vaza ganha pousam debaixo da ficha de mesmo número (ver
 // calcularPosicaoCartaVazaGanha) — a barra é alta o bastante pra carta
@@ -883,14 +883,16 @@ function MedalhaoVida({ caixaRef, prazo, destaque, ...propsCoracoes }) {
 // sempre no mesmo x), então nada escorrega quando a barra muda de tamanho
 // entre rodadas; a largura tem sempre pelo menos BARRA_VAGAS_MIN vagas e
 // cresce se a rodada tiver mais cartas (`cartasRodada` = o máximo de fichas
-// + vazas da rodada). A placa "Apostar" aparece deitada no sulco ainda
-// vazio na sua vez. "Aposta: N" só aparece
+// + vazas da rodada). Na sua vez de apostar a barra acende (a placa
+// "Apostar" fica na sua mão, ver SuaMaoEmLeque). "Aposta: N" só aparece
 // com o mouse em cima da barra (fichas e cartas pousadas deixam o hover
 // passar, ver pointer-events no CSS).
 const BARRA_ALTURA_PX = 76;
-const BARRA_INICIO_VAGAS_PX = 98;
+const BARRA_INICIO_VAGAS_PX = 24;
 const BARRA_VAGA_ESPACO_PX = 52;
-const BARRA_FIM_PX = 26;
+// Fim bem mais comprido que o começo: o sulco segue vazio além da última
+// vaga, deixando a barra comprida mesmo com poucas cartas na rodada.
+const BARRA_FIM_PX = 100;
 const BARRA_VAGAS_MIN = 6;
 
 // Centro da vaga `indice`, em px relativos ao canto superior esquerdo da
@@ -903,7 +905,7 @@ function somarPonto(a, b) {
     return { x: a.x + b.x, y: a.y + b.y };
 }
 
-function BarraFichas({ caixaRef, vagas, podeApostar, onApostar, aposta }) {
+function BarraFichas({ caixaRef, vagas, podeApostar, aposta }) {
     const largura = BARRA_INICIO_VAGAS_PX + Math.max(BARRA_VAGAS_MIN, vagas) * BARRA_VAGA_ESPACO_PX + BARRA_FIM_PX;
     return (
         <div
@@ -916,16 +918,6 @@ function BarraFichas({ caixaRef, vagas, podeApostar, onApostar, aposta }) {
                 <div className="mesa-exp-fichas-legenda" style={{ left: BARRA_INICIO_VAGAS_PX }}>
                     Aposta: <span>{aposta}</span>
                 </div>
-            )}
-            {podeApostar && (
-                <button
-                    type="button"
-                    className="mesa-exp-aposta-botao"
-                    style={{ left: (BARRA_INICIO_VAGAS_PX - 8 + largura - BARRA_FIM_PX + 8) / 2, top: BARRA_ALTURA_PX / 2 }}
-                    onClick={onApostar}
-                >
-                    Apostar
-                </button>
             )}
         </div>
     );
@@ -1221,12 +1213,19 @@ export function MaoEmLeque({ quantidade, cartas }) {
 // quebrar nada enquanto isso, o clique simplesmente não faz nada ainda.
 // `naVez`: sua vez de JOGAR carta — a mão inteira avança um pouco pra
 // frente (ver .mesa-exp-sua-mao-vez) e recua quando a vez passa.
-function SuaMaoEmLeque({ cartas, idSaindo, onJogar, escondida, naVez }) {
+// `apostando`: sua vez de APOSTAR — um véu vermelho cobre só as cartas (um
+// por carta, no formato dela, ver .mesa-exp-sua-mao-carta-entrada::after)
+// sem tirar o clique/hover delas. `onApostar` (só com o popup fechado)
+// mostra a placa "Apostar" no meio da mão, FORA do container da mão: assim
+// o hover nela não conta como hover da mão (que encolheria as cartas) e,
+// por estar por cima, a carta de trás não pega hover.
+function SuaMaoEmLeque({ cartas, idSaindo, onJogar, escondida, naVez, apostando, onApostar }) {
     if (cartas.length === 0) return null;
     const meio = (cartas.length - 1) / 2;
 
     return (
-        <div className={`mesa-exp-sua-mao${naVez ? ' mesa-exp-sua-mao-vez' : ''}`}>
+        <>
+        <div className={`mesa-exp-sua-mao${naVez ? ' mesa-exp-sua-mao-vez' : ''}${apostando ? ' mesa-exp-sua-mao-apostando' : ''}`}>
             {cartas.map((carta, i) => {
                 const offset = i - meio;
                 const saindo = carta.id === idSaindo;
@@ -1250,6 +1249,12 @@ function SuaMaoEmLeque({ cartas, idSaindo, onJogar, escondida, naVez }) {
                 );
             })}
         </div>
+        {apostando && onApostar && (
+            <button type="button" className="mesa-exp-aposta-botao mesa-exp-aposta-botao-mao" onClick={onApostar}>
+                Apostar
+            </button>
+        )}
+        </>
     );
 }
 
@@ -3107,8 +3112,8 @@ export default function MesaExperimento({ estado, acoes }) {
                 a SUA vez, o seu assento não tem fantasminha nenhum pra ganhar
                 o contorno azul de sempre, então esse banner cobre os dois
                 casos — sua vez OU vez de alguém — logo abaixo do CONTRA ZAP. */}
-            {textoBannerVez && !estado.vencedor && (
-                <div className="mesa-exp-turno-banner">{textoBannerVez}</div>
+            {!estado.vencedor && (
+                <div className="mesa-exp-turno-banner">{textoBannerVez ?? ' '}</div>
             )}
 
             {/* Só chama de verdade na SUA vez — o servidor recusaria fora
@@ -3132,13 +3137,14 @@ export default function MesaExperimento({ estado, acoes }) {
                 onJogar={(carta) => estado.jogadorDaVez === estado.meuNome && acoes?.jogar?.(carta)}
                 escondida={rodadaCegaAtiva}
                 naVez={estado.jogadorDaVez === estado.meuNome && !estado.jogadorDaVezAposta && !estado.vencedor}
+                apostando={estado.jogadorDaVezAposta === estado.meuNome && !!acoes?.apostar}
+                onApostar={apostaPopupAberto ? undefined : abrirPopupAposta}
             />
 
             <BarraFichas
                 caixaRef={cantoFichasRef}
                 vagas={estado.cartasRodada ?? 0}
                 podeApostar={estado.jogadorDaVezAposta === estado.meuNome && !!acoes?.apostar && !apostaPopupAberto}
-                onApostar={abrirPopupAposta}
                 aposta={estado.apostas?.[estado.meuNome] ?? null}
             />
 
@@ -3217,74 +3223,70 @@ export default function MesaExperimento({ estado, acoes }) {
                         <circle cx="22" cy="11.5" r="1.8" />
                     </svg>
                 </button>
-            </div>
-            {/* Fora do .mesa-exp-chat (que fica acima da barra das fichas)
-                de propósito: o histórico desce até o pé da tela POR TRÁS da
-                barra, e só dá pra ficar atrás dela num z-index próprio. */}
-            {chatClicado && (
-                <div className="mesa-exp-chat-linha" ref={chatLinhaRef}>
-                    <div className="mesa-exp-chat-painel">
-                        <div className="mesa-exp-chat-prontas">
-                            {MENSAGENS_CHAT.map((mensagem) => (
-                                <button
-                                    key={mensagem.id}
-                                    type="button"
-                                    className="secundario"
-                                    disabled={!acoes?.enviarChatPronta}
-                                    onClick={() => acoes?.enviarChatPronta?.(mensagem.id)}
+                {chatClicado && (
+                    <div className="mesa-exp-chat-linha" ref={chatLinhaRef}>
+                        <div className="mesa-exp-chat-historico">
+                            <h3>Histórico</h3>
+                            <div className="mesa-exp-chat-historico-feed" ref={chatHistoricoRef}>
+                                {feedHistorico.length === 0
+                                    ? <span className="mesa-exp-chat-vazio">(sem mensagens)</span>
+                                    : feedHistorico.map((item) => {
+                                        const hora = item.hora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                                        const mensagem = item.mensagem;
+                                        return mensagem.tipo === 'sistema'
+                                            ? (
+                                                <div key={item.id} className="mesa-exp-chat-msg mesa-exp-chat-msg-sistema">
+                                                    <span className="mesa-exp-chat-hora">{hora}</span> <em>{mensagem.jogador} {mensagem.texto}</em>
+                                                </div>
+                                            )
+                                            : (
+                                                <div key={item.id} className="mesa-exp-chat-msg">
+                                                    <span className="mesa-exp-chat-hora">{hora}</span> <strong>{mensagem.jogador === estado.meuNome ? 'Você' : mensagem.jogador}:</strong> {mensagem.texto}
+                                                </div>
+                                            );
+                                    })}
+                            </div>
+                        </div>
+                        <div className="mesa-exp-chat-painel">
+                            <div className="mesa-exp-chat-prontas">
+                                {MENSAGENS_CHAT.map((mensagem) => (
+                                    <button
+                                        key={mensagem.id}
+                                        type="button"
+                                        className="secundario"
+                                        disabled={!acoes?.enviarChatPronta}
+                                        onClick={() => acoes?.enviarChatPronta?.(mensagem.id)}
+                                    >
+                                        {mensagem.texto}
+                                    </button>
+                                ))}
+                            </div>
+                            {acoes?.enviarChatLivre && (
+                                <form
+                                    className="mesa-exp-chat-form"
+                                    onSubmit={async (e) => {
+                                        e.preventDefault();
+                                        if (await acoes.enviarChatLivre(textoChatLivre)) setTextoChatLivre('');
+                                    }}
                                 >
-                                    {mensagem.texto}
-                                </button>
-                            ))}
-                        </div>
-                        {acoes?.enviarChatLivre && (
-                            <form
-                                className="mesa-exp-chat-form"
-                                onSubmit={async (e) => {
-                                    e.preventDefault();
-                                    if (await acoes.enviarChatLivre(textoChatLivre)) setTextoChatLivre('');
-                                }}
-                            >
-                                <input
-                                    type="text"
-                                    value={textoChatLivre}
-                                    onChange={(e) => setTextoChatLivre(e.target.value)}
-                                    maxLength={LIMITE_TEXTO_ABERTO}
-                                    placeholder="Mensagem..."
-                                    aria-label="Mensagem livre"
-                                />
-                                <button type="submit" disabled={estado.chatEmCooldown || !textoChatLivre.trim()}>
-                                    Enviar
-                                </button>
-                            </form>
-                        )}
-                        {estado.erroChat && <span className="mesa-exp-chat-erro">{estado.erroChat}</span>}
-                    </div>
-
-                    <div className="mesa-exp-chat-historico">
-                        <h3>Histórico</h3>
-                        <div className="mesa-exp-chat-historico-feed" ref={chatHistoricoRef}>
-                            {feedHistorico.length === 0
-                                ? <span className="mesa-exp-chat-vazio">(sem mensagens)</span>
-                                : feedHistorico.map((item) => {
-                                    const hora = item.hora.toLocaleTimeString('pt-BR', { hour12: false }) + `.${Math.floor(item.hora.getMilliseconds() / 100)}`;
-                                    const mensagem = item.mensagem;
-                                    return mensagem.tipo === 'sistema'
-                                        ? (
-                                            <div key={item.id} className="mesa-exp-chat-msg mesa-exp-chat-msg-sistema">
-                                                <span className="mesa-exp-chat-hora">{hora}</span> <em>{mensagem.jogador} {mensagem.texto}</em>
-                                            </div>
-                                        )
-                                        : (
-                                            <div key={item.id} className="mesa-exp-chat-msg">
-                                                <span className="mesa-exp-chat-hora">{hora}</span> <strong>{mensagem.jogador === estado.meuNome ? 'Você' : mensagem.jogador}:</strong> {mensagem.texto}
-                                            </div>
-                                        );
-                                })}
+                                    <input
+                                        type="text"
+                                        value={textoChatLivre}
+                                        onChange={(e) => setTextoChatLivre(e.target.value)}
+                                        maxLength={LIMITE_TEXTO_ABERTO}
+                                        placeholder="Mensagem..."
+                                        aria-label="Mensagem livre"
+                                    />
+                                    <button type="submit" disabled={estado.chatEmCooldown || !textoChatLivre.trim()}>
+                                        Enviar
+                                    </button>
+                                </form>
+                            )}
+                            {estado.erroChat && <span className="mesa-exp-chat-erro">{estado.erroChat}</span>}
                         </div>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
 
             <MedalhaoVida
                 caixaRef={caixaCoracoesRef}
