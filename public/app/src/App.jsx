@@ -6,6 +6,7 @@ import PartidaNovo from './components/novo/Partida.jsx';
 import LoginArcade from './components/arcade/Login.jsx';
 import LobbyArcade from './components/arcade/Lobby.jsx';
 import PartidaArcade from './components/arcade/Partida.jsx';
+import PartidaMescla from './components/mescla/Partida.jsx';
 import Casca from './components/arcade/Casca.jsx';
 import SeletorFrente, { lerFrenteSalva } from './components/SeletorFrente.jsx';
 import { assinarConexao, chamar, obterConexao, socket } from './socket.js';
@@ -23,9 +24,13 @@ import { avisarSessaoRetomada, lerSessaoSalva, limparSessaoSalva, salvarSessao }
 // design_handoff_frente_arcade/README.md) — mesmas props das outras, mais
 // `conectado`: ela desenha a própria faixa de conexão perdida, então o
 // banner global some nas telas dela.
+//
+// "mescla" é a arcade inteira com a mesa trocada por components/mescla/ —
+// o oval e os fantasminhas do "novo" com a interface da arcade.
 const FRENTES = {
     novo: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaNovo },
     arcade: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaArcade },
+    mescla: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaMescla },
     debugging: { Login, Lobby, Partida },
 };
 
@@ -184,7 +189,7 @@ export default function App() {
     }
 
     if (restaurandoSessao) {
-        if (frente === 'arcade' || frente === 'novo') {
+        if (frente !== 'debugging') {
             return (
                 <Casca conectado={conectado}>
                     <div className="az-tela az-tela-login">
@@ -203,8 +208,8 @@ export default function App() {
     const { Login: TelaLogin, Lobby: TelaLobby, Partida: TelaPartida } = FRENTES[frente];
     const ehArcade = frente === 'arcade';
     // Tela desenhada pela casca da arcade (que tem a própria faixa de
-    // conexão perdida): tudo na arcade, e Login/Lobby no "novo".
-    const telaArcade = ehArcade || (frente === 'novo' && !sala);
+    // conexão perdida): tudo na arcade e na mescla, e Login/Lobby no "novo".
+    const telaArcade = ehArcade || frente === 'mescla' || (frente === 'novo' && !sala);
     const propsConexao = telaArcade ? { conectado } : {};
 
     let tela;
@@ -255,7 +260,7 @@ export default function App() {
     return (
         <>
             <div className="badge-frente">
-                {frente === 'novo' ? '✨ Novo' : ehArcade ? '👾 Arcade' : '🐞 Debugging'}
+                {frente === 'novo' ? '✨ Novo' : ehArcade ? '👾 Arcade' : frente === 'mescla' ? '🃏 Mescla' : '🐞 Debugging'}
             </div>
             {/* Independe da tela atual — some sozinho quando 'connect' disparar de novo (ver socket.js) */}
             {!conectado && !telaArcade && (

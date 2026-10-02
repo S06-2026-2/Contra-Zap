@@ -5,8 +5,9 @@ const CHAVE_FRENTE = 'contrazap-frente';
 // Escolha fica no localStorage (por navegador/aba, não pelo servidor) —
 // cada pessoa escolhe o front que quiser sem afetar quem mais está
 // conectado: as três frentes falam com o mesmo socket.js/sessao.js, então
-// alguém no "novo", no "arcade" e no "debugging" jogam na mesma sala normalmente.
-const FRENTES_VALIDAS = ['novo', 'arcade', 'debugging'];
+// alguém no "novo", no "arcade", no "mescla" e no "debugging" jogam na mesma
+// sala normalmente.
+const FRENTES_VALIDAS = ['novo', 'arcade', 'mescla', 'debugging'];
 
 // Sem escolha salva (primeira visita, aba privada) abre direto na arcade —
 // o seletor só aparece quando alguém pede pelo botão 🔄 FRONT.
@@ -38,6 +39,15 @@ const OPCOES = [
         tags: ['PIXEL', 'SOM', 'FILTRO CRT'],
         cor: '#ff4b3e',
         botao: 'az-btn-vermelho',
+    },
+    {
+        id: 'mescla',
+        icone: '🃏',
+        nome: 'MESCLA',
+        desc: 'A arcade com a mesa oval e os fantasminhas do novo — feita pra celular e desktop.',
+        tags: ['PIXEL', 'FANTASMINHAS', 'CELULAR'],
+        cor: '#7fd6a5',
+        botao: 'az-btn-verde',
     },
     {
         id: 'novo',

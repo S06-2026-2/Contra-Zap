@@ -1,0 +1,580 @@
+/* Mesa da frente "mescla" (ver Mesa.jsx). Classes `mz-`; reaproveita as
+   `az-` da arcade (botões, pílula, palpite, balão, carimbo, chat, log) e as
+   do front novo que já vivem no index.css (.carta-exp, .fantasminha-*,
+   .mesa-exp-mao-*). Tudo que é posição de assento/carta vem inline do JS. */
+
+/* ---------- Página: a mesa ocupa a janela inteira, sem rolar ---------- */
+
+.az-app-cheia:has(.mz-tela) {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    padding-bottom: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.az-app-cheia:has(.mz-tela) > .az-fixo-topo { flex: none; }
+
+/* Nada fixo nos cantos de baixo (é onde ficam você e a mão): o selo da
+   frente some e o filtro de tela abre pelo FX do topo, em qualquer largura. */
+body.az-body:has(.mz-tela) .badge-frente { display: none; }
+.az-raiz:has(.mz-tela) .az-topo-btn.az-topo-filtro { display: flex; }
+body:has(.mz-tela) .az-filtro { top: 70px; bottom: auto; }
+body:has(.mz-tela) .az-filtro:not(.az-filtro-aberto) { display: none; }
+
+.mz-tela {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    max-width: 1640px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'hud' 'palco' 'doca';
+    gap: 8px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+}
+.mz-tela.mz-com-lateral {
+    grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-areas:
+        'hud hud'
+        'palco lateral'
+        'doca lateral';
+    column-gap: 18px;
+}
+
+.mz-so-compacto { display: none; }
+
+/* ---------- HUD ---------- */
+
+.mz-hud {
+    grid-area: hud;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    min-width: 0;
+}
+.mz-hud-info { flex: none; font-size: 11px; color: #6f7488; white-space: nowrap; }
+.mz-hud-info b { font-weight: 400; color: #f3ead6; }
+.mz-sep {
+    display: inline-block;
+    width: 2px;
+    height: 14px;
+    margin: 0 10px;
+    vertical-align: -2px;
+    background: #2e313d;
+}
+.mz-vez {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 14px;
+    border-radius: 999px;
+    border: 2px solid transparent;
+    font-size: 11px;
+    color: #8d93a6;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mz-vez:empty { visibility: hidden; }
+.mz-vez-minha {
+    color: #2b1d02;
+    background: #f5c451;
+    border-color: #0c0d11;
+    box-shadow: 0 4px 0 #8a6410;
+    animation: cz-rise .2s ease-out;
+}
+.mz-hud-dir { flex: none; display: flex; align-items: center; gap: 8px; }
+
+/* ---------- Palco: oval, monte, jogadas ---------- */
+
+.mz-palco {
+    grid-area: palco;
+    position: relative;
+    min-height: 0;
+    min-width: 0;
+}
+
+/* Mesa "estádio" do front novo (raio = metade do lado menor, ver Mesa.jsx):
+   trilho de madeira com contorno preto de pixel da arcade, feltro verde da
+   arcade e a linha tracejada por dentro. */
+.mz-oval {
+    position: absolute;
+    border-radius: 9999px;
+    background: linear-gradient(180deg, #7a4d2c, #5a3820);
+    box-shadow:
+        0 0 0 3px #0a0b0e,
+        0 6px 0 3px #0a0b0e,
+        0 26px 50px rgba(0, 0, 0, .55);
+}
+.mz-feltro {
+    position: absolute;
+    inset: clamp(9px, 1.3vw, 16px);
+    border-radius: inherit;
+    background: radial-gradient(70% 90% at 50% 40%, #2a6a55 0%, #1a4739 60%, #123328 100%);
+    box-shadow: inset 0 0 0 3px #0a0b0e, inset 0 10px 40px rgba(0, 0, 0, .35);
+}
+.mz-feltro::after {
+    content: '';
+    position: absolute;
+    inset: clamp(8px, 1.4vw, 18px);
+    border-radius: inherit;
+    border: 2px dashed rgba(243, 234, 214, .12);
+}
+.mz-golpe {
+    position: absolute;
+    inset: clamp(9px, 1.3vw, 16px);
+    border-radius: inherit;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 6;
+    image-rendering: pixelated;
+}
+
+.mz-carta { position: relative; flex: none; }
+.mz-carta-escala {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform-origin: 0 0;
+}
+
+.mz-monte {
+    position: absolute;
+    z-index: 2;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
+}
+.mz-monte-pilha { position: relative; display: grid; }
+.mz-monte-pilha > * { grid-area: 1 / 1; }
+.mz-monte-verso { opacity: .9; }
+.mz-vira {
+    transform: translate(10px, -6px) rotate(9deg);
+    animation: mz-vira-entra .45s cubic-bezier(.2, 1.3, .4, 1) both;
+}
+@keyframes mz-vira-entra {
+    from { transform: translate(0, 0) rotate(0) rotateY(90deg); }
+    to { transform: translate(10px, -6px) rotate(9deg) rotateY(0); }
+}
+.mz-monte-rotulo {
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 2px solid #3a2f16;
+    background: #1e1a10;
+    color: #f5c451;
+    font-size: 9px;
+    white-space: nowrap;
+}
+.mz-monte-rotulo b { font-weight: 400; color: #f3ead6; margin-left: 4px; }
+
+.mz-jogadas { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.mz-jogada { position: absolute; transform: translate(-50%, -50%); }
+.mz-jogada-voo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    transform: rotate(var(--rot));
+    animation: mz-jogada-pousa .38s cubic-bezier(.2, .9, .3, 1.15) both;
+}
+@keyframes mz-jogada-pousa {
+    from { transform: translate(var(--dx), var(--dy)) rotate(0) scale(.55); opacity: 0; }
+    35% { opacity: 1; }
+    to { transform: translate(0, 0) rotate(var(--rot)) scale(1); opacity: 1; }
+}
+.mz-jogada-nome {
+    padding: 3px 6px;
+    border-radius: 6px;
+    background: rgba(10, 11, 14, .78);
+    color: #cfd3de;
+    font-size: 8px;
+    white-space: nowrap;
+}
+.mz-jogada-venceu { z-index: 2; }
+.mz-jogada-venceu .mz-jogada-voo {
+    animation: mz-jogada-vence .45s cubic-bezier(.2, 1.4, .4, 1) both;
+}
+.mz-jogada-venceu .carta-exp {
+    box-shadow: 0 0 0 3px #f5c451, 0 0 0 6px #0a0b0e, 0 0 34px rgba(245, 196, 81, .7);
+}
+.mz-jogada-venceu .mz-jogada-nome { background: #f5c451; color: #2b1d02; }
+.mz-jogada-perdeu { opacity: .45; filter: saturate(.4); }
+@keyframes mz-jogada-vence {
+    from { transform: rotate(var(--rot)) scale(1); }
+    60% { transform: rotate(0) scale(1.22); }
+    to { transform: rotate(0) scale(1.12); }
+}
+
+/* Abaixo das jogadas (z 4): a carta que levou continua por cima da faixa. */
+.mz-faixa-vaza {
+    position: absolute;
+    left: 50%;
+    z-index: 3;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 22px;
+    border-radius: 14px;
+    border: 3px solid #0a0b0e;
+    background: rgba(12, 13, 17, .92);
+    box-shadow: 0 6px 0 #0a0b0e;
+    pointer-events: none;
+    animation: mz-faixa .4s cubic-bezier(.2, 1.4, .4, 1) both;
+}
+.mz-faixa-vaza-rotulo { font-size: 9px; letter-spacing: 3px; color: #7fd6a5; }
+.mz-faixa-vaza-nome { font-size: 18px; color: #f5c451; text-shadow: 2px 2px 0 #5c4310; white-space: nowrap; }
+@keyframes mz-faixa {
+    from { transform: translate(-50%, -50%) scale(.4); opacity: 0; }
+    to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+/* ---------- Assentos (oponentes) ---------- */
+
+.mz-assento {
+    position: absolute;
+    z-index: 5;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.mz-fantasma { position: relative; flex: none; margin-bottom: -10%; z-index: 1; }
+.mz-fantasma-escala {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform-origin: 0 0;
+}
+.mz-placa {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 7px 9px;
+    border-radius: 12px;
+    border: 2px solid #2e313d;
+    border-top: 4px solid hsl(var(--hue) 70% 72%);
+    background: linear-gradient(180deg, #1a1c25, #14161d);
+    box-shadow: 0 4px 0 #0a0b0e;
+    transition: border-color .2s;
+}
+.mz-placa-nome {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mz-placa-linha { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.mz-placa-tag {
+    align-self: flex-start;
+    font-size: 7px;
+    color: #8d93a6;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: #22252f;
+}
+.mz-fez {
+    flex: none;
+    padding: 3px 6px;
+    border-radius: 6px;
+    background: #0f1016;
+    border: 1px solid #262935;
+    font-size: 9px;
+    color: #8d93a6;
+    white-space: nowrap;
+}
+.mz-fez-ok { color: #7fd6a5; border-color: #245c42; }
+.mz-fez-falta { color: #f5c451; border-color: #3a2f16; }
+.mz-fez-estourou { color: #ff4b3e; border-color: #7d1f18; }
+
+.mz-assento-vez .mz-placa {
+    border-color: #f5c451;
+    border-top-color: #f5c451;
+    animation: mz-vez-pulso 1.4s ease-in-out infinite;
+}
+@keyframes mz-vez-pulso {
+    0%, 100% { box-shadow: 0 4px 0 #0a0b0e, 0 0 0 0 rgba(245, 196, 81, .55); }
+    50% { box-shadow: 0 4px 0 #0a0b0e, 0 0 0 8px rgba(245, 196, 81, 0); }
+}
+.mz-assento-fora .mz-placa { opacity: .75; filter: grayscale(.7); }
+.mz-carimbo {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin: -14px 0 0 -26px;
+    font-size: 11px;
+    padding: 4px 7px;
+    background: rgba(12, 13, 17, .85);
+}
+
+.mz-balao { z-index: 8; max-width: 180px; }
+.mz-balao-baixo { bottom: auto; top: calc(100% + 6px); }
+
+/* ---------- Palpite e erro (por cima do pé da mesa) ---------- */
+
+/* Centrado por margin, não por transform: o cz-rise da .az-palpite anima o
+   transform e jogaria o painel pro lado enquanto sobe. */
+.mz-palpite {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 6px;
+    z-index: 9;
+    margin: 0 auto;
+    width: max-content;
+    max-width: calc(100% - 12px);
+    box-shadow: 0 6px 0 #0a0b0e, 0 18px 40px rgba(0, 0, 0, .55);
+    text-align: center;
+}
+.mz-palpite-cabeca {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px 14px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+.mz-palpite-cabeca .az-palpite-titulo { margin-bottom: 0; }
+.mz-palpite-vira { display: flex; align-items: center; gap: 7px; font-size: 9px; color: #f5c451; }
+.mz-palpite-vira b { font-weight: 400; color: #f3ead6; }
+.mz-palpite .az-palpite-botoes { justify-content: center; max-width: 420px; margin: 0 auto; }
+.mz-palpite .az-palpite-nota { max-width: none; }
+.mz-erro {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 8px;
+    z-index: 10;
+    width: max-content;
+    margin: 0 auto;
+    max-width: calc(100% - 16px);
+}
+
+/* ---------- Doca: você + mão ---------- */
+
+.mz-doca {
+    grid-area: doca;
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr) 200px;
+    align-items: end;
+    gap: 14px;
+    min-width: 0;
+}
+.mz-voce {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 16px;
+    border: 2px solid #262935;
+    background: linear-gradient(180deg, #1a1c25, #14161d);
+}
+.mz-voce-fora { opacity: .6; }
+.mz-voce-nome { font-size: 12px; color: #f3ead6; }
+.mz-voce-coracoes { font-size: 14px; letter-spacing: 2px; margin-top: 4px; }
+.mz-dano { animation: mz-dano .5s steps(4); }
+@keyframes mz-dano {
+    0%, 100% { transform: translate(0, 0); }
+    25% { transform: translate(-4px, 2px); color: #fff; }
+    50% { transform: translate(4px, -2px); }
+    75% { transform: translate(-2px, 0); color: #fff; }
+}
+.mz-voce-pocos { display: flex; gap: 8px; }
+.mz-poco {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 7px 4px;
+    border-radius: 10px;
+    border: 1px solid #262935;
+    background: #0f1016;
+}
+.mz-poco-k { font-size: 8px; color: #6f7488; }
+.mz-poco-v { font-size: 18px; }
+.mz-poco-estourou .mz-poco-v { color: #ff4b3e; }
+.mz-voce .az-anel-vez { border-radius: 18px; }
+
+.mz-mao { position: relative; min-width: 0; }
+.mz-carta-mao {
+    position: absolute;
+    bottom: 14px;
+    padding: 0;
+    border: 0;
+    background: none;
+    border-radius: 10px;
+    transform-origin: 50% 120%;
+    transform: translateY(var(--arco)) rotate(var(--rot));
+    transition: transform .14s ease-out, filter .14s;
+    animation: mz-mao-entra .35s cubic-bezier(.2, 1.2, .4, 1) both;
+}
+@keyframes mz-mao-entra {
+    from { transform: translateY(60px) rotate(var(--rot)); opacity: 0; }
+    to { transform: translateY(var(--arco)) rotate(var(--rot)); opacity: 1; }
+}
+.mz-carta-mao:disabled { cursor: default; }
+.mz-carta-mao.mz-jogavel { cursor: pointer; }
+.mz-carta-mao.mz-jogavel .carta-exp {
+    box-shadow: 0 0 0 3px #f5c451, 0 0 0 5px #0a0b0e, 0 10px 20px rgba(0, 0, 0, .45);
+}
+.mz-carta-mao.mz-jogavel:hover,
+.mz-carta-mao.mz-jogavel:focus-visible {
+    z-index: 5;
+    transform: translateY(calc(var(--arco) - 22px)) rotate(0deg) scale(1.04);
+}
+.mz-carta-mao.mz-carta-dica .carta-exp {
+    box-shadow: 0 0 0 3px #ff4b3e, 0 0 0 5px #0a0b0e, 0 0 22px rgba(255, 75, 62, .55);
+}
+.mz-carta-mao .az-selo-bot { z-index: 3; }
+.mz-sem-cartas {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: #4a4f60;
+}
+
+/* ---------- Lateral (≥ 1100px): chat + log ---------- */
+
+.mz-lateral {
+    grid-area: lateral;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.mz-lateral .az-chat { flex: none; min-width: 0; }
+.mz-lateral .az-frases { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.mz-lateral .az-frase { min-height: 38px; padding: 7px 10px; border-radius: 12px; font-size: 12px; }
+.mz-lateral .az-log { flex: 1; width: auto; min-height: 120px; max-height: none; }
+
+/* ---------- Tablet / desktop baixo ---------- */
+
+@media (max-width: 959px) {
+    .mz-hud { flex-wrap: wrap; row-gap: 6px; }
+    .mz-hud-dir { margin-left: auto; }
+    .mz-vez { order: 3; flex-basis: 100%; padding: 6px 12px; }
+    .mz-vez:empty { display: none; }
+    .mz-doca { grid-template-columns: 170px minmax(0, 1fr); }
+}
+
+@media (max-height: 720px) {
+    .mz-voce { gap: 6px; padding: 9px; }
+    .mz-poco { padding: 4px; }
+    .mz-poco-v { font-size: 15px; }
+}
+
+/* ---------- Celular (< 640px) ---------- */
+
+@media (max-width: 639px) {
+    .mz-so-largo { display: none; }
+    .mz-so-compacto { display: block; }
+
+    .mz-tela { gap: 6px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); }
+
+    .mz-hud { flex-wrap: wrap; gap: 6px 8px; min-height: 0; }
+    .mz-hud-info { font-size: 10px; }
+    .mz-hud-dir { margin-left: auto; gap: 6px; }
+    .mz-vez { order: 3; flex-basis: 100%; padding: 6px 10px; font-size: 9px; }
+    .mz-vez:empty { display: none; }
+
+    /* Você numa faixa fina acima da mão. */
+    .mz-doca { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+    .mz-voce {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 5px 10px;
+        border-radius: 12px;
+    }
+    .mz-voce-id { display: flex; align-items: center; gap: 10px; }
+    .mz-voce-nome { font-size: 10px; }
+    .mz-voce-coracoes { font-size: 11px; margin-top: 0; }
+    .mz-voce-pocos { gap: 6px; }
+    .mz-poco { flex-direction: row; gap: 6px; padding: 3px 8px; border-radius: 8px; }
+    .mz-poco-v { font-size: 12px; }
+    .mz-voce .az-anel-vez { border-radius: 14px; }
+    .mz-voce .az-balao { bottom: calc(100% + 4px); }
+
+    .mz-carta-mao.mz-jogavel:hover { transform: translateY(calc(var(--arco) - 12px)) rotate(0deg); }
+
+    .mz-palpite { padding: 8px 10px; bottom: 4px; }
+    .mz-palpite .az-palpite-titulo { font-size: 9px; }
+    .mz-palpite-cabeca { margin-bottom: 8px; }
+    .mz-palpite .az-palpite-botoes { gap: 6px; }
+    .mz-palpite .az-palpite-botao { width: 42px; height: 42px; font-size: 16px; }
+    .mz-palpite .az-palpite-nota { font-size: 11px; margin-top: 6px; }
+
+    .mz-faixa-vaza { padding: 8px 14px; }
+    .mz-faixa-vaza-nome { font-size: 13px; }
+}
+
+/* Assentos menores sempre que o palco fica estreito (decidido no JS). */
+.mz-palco-compacto .mz-placa { gap: 2px; padding: 4px 6px; border-radius: 10px; border-top-width: 3px; }
+.mz-palco-compacto .mz-placa-nome { font-size: 11px; }
+.mz-palco-compacto .mz-coracoes { font-size: 7px; letter-spacing: 0; }
+.mz-palco-compacto .mz-fez { padding: 2px 4px; font-size: 8px; }
+.mz-palco-compacto .mz-so-largo { display: none; }
+.mz-palco-compacto .mz-placa-tag { font-size: 6px; }
+.mz-palco-compacto .mz-balao { max-width: 140px; padding: 5px 8px; font-size: 11px; }
+.mz-palco-compacto .mz-jogada-nome { font-size: 7px; padding: 2px 4px; }
+.mz-palco-compacto .mz-monte { gap: 5px; }
+.mz-palco-compacto .mz-monte-rotulo { font-size: 8px; padding: 3px 7px; }
+
+/* Celular deitado (ou janela baixa): não sobra altura pra mesa E a mão
+   empilhadas — você e a mão viram uma coluna à direita da mesa, e a barra
+   de cima afina. */
+@media (max-height: 520px) and (min-width: 560px) {
+    .az-raiz:has(.mz-tela) .az-topo { padding-top: 4px; padding-bottom: 4px; }
+    .az-raiz:has(.mz-tela) .az-topo-btn,
+    .az-raiz:has(.mz-tela) .az-som { min-height: 32px; padding-top: 4px; padding-bottom: 4px; }
+    body:has(.mz-tela) .az-filtro { top: 44px; }
+
+    .mz-tela,
+    .mz-tela.mz-com-lateral {
+        grid-template-rows: auto minmax(0, 1fr);
+        gap: 4px 12px;
+        padding-top: 4px;
+        padding-bottom: calc(4px + env(safe-area-inset-bottom));
+    }
+    .mz-tela { grid-template-columns: minmax(0, 1fr) 260px; grid-template-areas: 'hud hud' 'palco doca'; }
+    .mz-tela.mz-com-lateral {
+        grid-template-columns: minmax(0, 1fr) 260px 260px;
+        grid-template-areas: 'hud hud hud' 'palco doca lateral';
+    }
+    .mz-hud { min-height: 0; }
+    .mz-hud .az-btn-mini { min-height: 32px; }
+    .mz-vez { padding: 4px 10px; }
+    .mz-doca { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); align-items: end; gap: 6px; }
+    .mz-voce { gap: 6px; padding: 6px 8px; }
+    .mz-voce-nome { font-size: 10px; }
+    .mz-poco { padding: 3px; }
+    .mz-poco-v { font-size: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mz-jogada-voo,
+    .mz-carta-mao,
+    .mz-vira,
+    .mz-faixa-vaza,
+    .mz-assento-vez .mz-placa { animation: none; }
+}

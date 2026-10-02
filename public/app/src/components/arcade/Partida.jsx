@@ -20,6 +20,12 @@ import { HP_INICIAL, coracoes, corDoAssento, ehBot, inicial } from './tema.js';
 // é a MESMA do components/novo/Partida.jsx — só o render é arcade, mais os
 // golpes/duelos de manilha (ver golpes.js), que só DECORAM: o estado da
 // mesa continua vindo do servidor.
+//
+// `Mesa` (opcional): troca SÓ o render da mesa por outro componente — é
+// assim que a frente "mescla" (components/mescla/) reaproveita esta máquina
+// de estados inteira (espera e fim de partida inclusive) e desenha a mesa do
+// jeito dela. Recebe `mesa` (o estado já derivado daqui) e `acoes`.
+// `estreitoPx`: abaixo desta largura o chat e o log vão pra gaveta (💬).
 
 // Quanto tempo a vaza encerrada fica congelada na mesa — pareado com
 // `pausaVazaMs` do GameController (ver novo/Partida.jsx).
@@ -70,7 +76,7 @@ function reinanteDaMesa(mesa, viraValor) {
 // que golpes.js monta tudo — custom properties, animation com delay etc.),
 // aplicada uma vez só, antes da pintura. `key` do overlay troca a cada
 // disparo, então camada nova = div nova = animação reiniciada.
-function CamadaGolpe({ estilo }) {
+export function CamadaGolpe({ estilo }) {
     const ref = useRef(null);
     useLayoutEffect(() => {
         if (ref.current) ref.current.style.cssText = estilo;
@@ -81,6 +87,7 @@ function CamadaGolpe({ estilo }) {
 export default function Partida({
     salaId, jogadoresIniciais, segundosIniciais, reconexao, chatAberto, senha, meuNome,
     onSairDaSala, onSairDaPartida, onEntrouNaSala, conectado,
+    Mesa, estreitoPx = ESTREITO_PX,
 }) {
     const infoSala = lerInfoSala(salaId);
 
@@ -129,7 +136,7 @@ export default function Partida({
     // ---- Estado só da frente arcade ----
     const [golpe, setGolpe] = useState(null); // { key, camadas }
     const [tremendo, setTremendo] = useState(false);
-    const [estreito, setEstreito] = useState(() => window.innerWidth < ESTREITO_PX);
+    const [estreito, setEstreito] = useState(() => window.innerWidth < estreitoPx);
     const [baloes, setBaloes] = useState({}); // nome -> { id, texto }
     const [expulso, setExpulso] = useState(false);
     const [reconectandoExpulso, setReconectandoExpulso] = useState(false);
@@ -569,10 +576,10 @@ export default function Partida({
     }, [contagem, iniciada]);
 
     useEffect(() => {
-        const medir = () => setEstreito(window.innerWidth < ESTREITO_PX);
+        const medir = () => setEstreito(window.innerWidth < estreitoPx);
         window.addEventListener('resize', medir);
         return () => window.removeEventListener('resize', medir);
-    }, []);
+    }, [estreitoPx]);
 
     useEffect(() => {
         if (cooldownAte <= Date.now()) return;
@@ -1277,8 +1284,25 @@ export default function Partida({
         </div>
     );
 
+    const conteudoMesa = Mesa ? (
+        <Mesa
+            mesa={{
+                salaId, meuNome, jogadores, oponentes: oponentes.map((o) => o.nome),
+                mao, jogadas: mesa, vira, viraValor, rodadaCega, numeroRodada, cartasRodada,
+                apostas, vazasFeitas, eliminados, desconectados, maosReveladas, placar,
+                jogadorDaVez, jogadorDaVezAposta, souEuNaVez, souEuNaVezDaAposta, souEliminado,
+                vaza, golpe, tremendo, baloes, palpiteProibido,
+                indiceDicaCarta, valorDicaAposta, nomeDoBot, dicaBotLigada,
+                erro, estreito, naoLidas, blocoChat, blocoLog,
+                hpDe, restanteDe,
+            }}
+            acoes={{ jogar, apostar, sair, alternarDicaBot, abrirGaveta }}
+        />
+    ) : null;
+
     return (
-        <Casca conectado={conectado} direita={cabecaDireita} cheia={estreito}>
+        <Casca conectado={conectado} direita={cabecaDireita} cheia={estreito || !!Mesa}>
+            {conteudoMesa ?? (
             <div className="az-tela az-tela-mesa" data-screen-label="Mesa de partida">
                 {cabecaMesa}
 
@@ -1389,6 +1413,7 @@ export default function Partida({
                     </div>
                 )}
             </div>
+            )}
 
             {estreito && gavetaAberta && (
                 <Gaveta
