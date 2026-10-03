@@ -47,6 +47,12 @@ export default function App() {
     // trocarFrente) — `frente` continua valendo pra marcar a atual e pra
     // voltar sem escolher nada.
     const [escolhendoFrente, setEscolhendoFrente] = useState(false);
+    // Marca o body na frente meetfront1: o CSS dela esconde o painel de
+    // filtro de tela também no Login/Lobby, que são as telas da arcade
+    // (ver .mf1-frente em meetfront1/meetfront1.css).
+    useEffect(() => {
+        document.body.classList.toggle('mf1-frente', frente === 'meetfront1');
+    }, [frente]);
     const [player, setPlayer] = useState(null); // { nome, token }
     const [sala, setSala] = useState(null); // { salaId, jogadoresIniciais } ou { salaId, reconexao }
     // salaId de uma partida em andamento em que ainda temos assento mas cujo

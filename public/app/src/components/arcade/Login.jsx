@@ -4,15 +4,11 @@ import { NOME_MIN, NOME_MAX, SENHA_MIN, SENHA_MAX } from '../../../../../conexao
 import Casca from './Casca.jsx';
 import { tocarSom } from './somArcade.js';
 import VitrineFantasminha from '../novo/VitrineFantasminha.jsx';
-import LabMao from '../meetfront1/LabMao.jsx';
 
 // Botão "👻 FANTASMINHA" no topo, que abre a vitrine de estudo do
 // fantasminha (novo/VitrineFantasminha.jsx). Escondido por padrão; true
 // mostra de novo.
 const MOSTRAR_VITRINE_FANTASMINHA = false;
-// Botão "🃏 MÃO" no topo, que abre o laboratório da mão reativa do
-// meetfront1 (meetfront1/LabMao.jsx). false esconde.
-const MOSTRAR_LAB_MAO = true;
 
 const ETAPA = {
     NOME: 'nome',
@@ -33,7 +29,6 @@ export default function Login({ onAutenticado, onTrocarFrente, conectado }) {
     // Vitrine de estudo do fantasminha (ver novo/VitrineFantasminha.jsx) —
     // tela à parte, fora do fluxo de login.
     const [vitrineFantasminha, setVitrineFantasminha] = useState(false);
-    const [labMao, setLabMao] = useState(false);
 
     function irPara(proxima) {
         setEtapa(proxima);
@@ -201,9 +196,6 @@ export default function Login({ onAutenticado, onTrocarFrente, conectado }) {
     if (vitrineFantasminha) {
         return <VitrineFantasminha onVoltar={() => setVitrineFantasminha(false)} />;
     }
-    if (labMao) {
-        return <LabMao onVoltar={() => setLabMao(false)} />;
-    }
 
     // Mesmo botão da Lobby — como a arcade é a frente padrão, é por aqui que
     // dá pra trocar de front antes mesmo de entrar.
@@ -218,17 +210,6 @@ export default function Login({ onAutenticado, onTrocarFrente, conectado }) {
                     title="Estudar o design do fantasminha"
                 >
                     👻 FANTASMINHA
-                </button>
-            )}
-            {MOSTRAR_LAB_MAO && (
-                <button
-                    type="button"
-                    data-som="aba"
-                    className="az-b az-px az-topo-btn"
-                    onClick={() => setLabMao(true)}
-                    title="Ajustar a mão reativa do meetfront1"
-                >
-                    🃏 MÃO
                 </button>
             )}
             {onTrocarFrente && (

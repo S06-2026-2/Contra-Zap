@@ -109,6 +109,8 @@ const VIDA_TEMPORARIA_MS = 1500;
 // aposta e quando uma vaza pousa na pilha dele (ver mostrarInfoTemporaria).
 // Bate com a duração da animação mf1-info-temporaria em meetfront1.css.
 const INFO_TEMPORARIA_MS = 2200;
+// Ver lancarDoSeuFantasma.
+const LANCADA_ESQUECER_MS = 4000;
 const RODADA_FIM_REVELACAO_MS = 2800;
 
 const MORTE_IMPACTO_MS = 1500;
@@ -755,10 +757,11 @@ function Coracoes({ vida, assentoIndice, registrarRef, coracaoImpactado, arco })
 }
 
 // Medalhão da SUA vida, no canto inferior direito: um quarto de elipse
-// achatada (mais largo que alto) com o centro exatamente no canto da tela,
+// bem achatada (quase 4x mais largo que alto, pra sobrar espaço pro seu
+// fantasminha em cima, ver SeuFantasminha) com o centro exatamente no canto da tela,
 // madeira torneada (anéis de veio) com aro dourado e um sulco curvo onde os
 // corações ficam cravados. `trilhoRx/trilhoRy`: raios do sulco.
-const MEDALHAO_VIDA = { rx: 200, ry: 132, trilhoRx: 160, trilhoRy: 96 };
+const MEDALHAO_VIDA = { rx: 240, ry: 66, trilhoRx: 198, trilhoRy: 40 };
 
 // Percorre o sulco de um medalhão pelo COMPRIMENTO de arco (não por ângulo
 // — na elipse achatada, ângulos iguais amontoam as peças perto da ponta
@@ -838,7 +841,7 @@ function FundoMedalhao({ m, children }) {
 // ficam espaçados por igual ao longo do sulco, em leque como a mão de
 // cartas, perdidos do topo pra baixo — o mesmo sentido em que o pavio
 // queima.
-const MEDALHAO_CORACAO_PX = 42;
+const MEDALHAO_CORACAO_PX = 36;
 const MEDALHAO_FRACOES = [0.17, 0.5, 0.83];
 const MEDALHAO_ARCO = { posicoes: posicoesDosCoracoes() };
 
@@ -855,7 +858,7 @@ function posicoesDosCoracoes() {
     }));
 }
 
-export function MedalhaoVida({ caixaRef, prazo, destaque, ...propsCoracoes }) {
+function MedalhaoVida({ caixaRef, prazo, destaque, ...propsCoracoes }) {
     const { rx, ry } = MEDALHAO_VIDA;
     return (
         <div
@@ -866,14 +869,56 @@ export function MedalhaoVida({ caixaRef, prazo, destaque, ...propsCoracoes }) {
             <FundoMedalhao m={MEDALHAO_VIDA}>
                 {(idOuro) => (
                     <>
-                        <ellipse className="mesa-exp-medalhao-cubo" cx={rx} cy={ry} rx="40" ry="28" stroke={`url(#${idOuro})`} />
-                        <ellipse className="mesa-exp-medalhao-cubo-miolo" cx={rx} cy={ry} rx="29" ry="19" />
+                        <ellipse className="mesa-exp-medalhao-cubo" cx={rx} cy={ry} rx="44" ry="18" stroke={`url(#${idOuro})`} />
+                        <ellipse className="mesa-exp-medalhao-cubo-miolo" cx={rx} cy={ry} rx="33" ry="12" />
                     </>
                 )}
             </FundoMedalhao>
             <AnelTimer caixaRef={caixaRef} prazo={prazo} />
             <Coracoes {...propsCoracoes} arco={MEDALHAO_ARCO} />
         </div>
+    );
+}
+
+// O SEU fantasminha, em cima do medalhão da vida (canto inferior direito).
+// Segura, virada, a mesma quantidade de cartas da sua mão (`quantidade`).
+// Diferente dos outros: a carta que ele joga NÃO vai pra mesa (quem vai é
+// a da sua mão) — cai reta pra baixo, passa por trás do medalhão e some.
+// `lancamento` é um contador: cada valor novo dispara um arremesso (ver
+// lancarDoSeuFantasma). Pensa assim que o SEU timer começa (`pensando` =
+// prazo correndo), sem a espera de PENSAMENTO_APOS_MS dos outros — pra
+// você ver ele pensando logo. Leva dano junto com você (`danoVersao`);
+// eliminado, some. "Você" fica à direita, em cima do arco do timer, no
+// mesmo estilo do nome dos outros.
+function SeuFantasminha({ hue, chapeu, danoVersao, estadoMorte, pensando, quantidade = 0, lancamento = 0 }) {
+    if (estadoMorte === 'morto') return null;
+    return (
+        <>
+        <div className="mf1-seu-fantasminha">
+            <Fantasminha
+                monitor
+                hue={hue}
+                chapeu={chapeu.src}
+                ajusteChapeuPct={chapeu.ajuste}
+                danoVersao={danoVersao}
+                estadoMorte={estadoMorte}
+                naVez={pensando}
+                pensamentoAposMs={0}
+            >
+                <MaoEmLeque quantidade={quantidade} />
+                {lancamento > 0 && (
+                    <div key={lancamento} className="mesa-exp-mao-leque">
+                        <div className="mesa-exp-mao-carta" style={{ '--rotacao-carta': '0deg', '--deslocamento-carta': '0px' }}>
+                            <div className="mf1-carta-lancada">
+                                <Carta virada />
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </Fantasminha>
+        </div>
+        <span className="mf1-seu-fantasminha-nome">Você</span>
+        </>
     );
 }
 
@@ -891,26 +936,25 @@ export function MedalhaoVida({ caixaRef, prazo, destaque, ...propsCoracoes }) {
 // "Apostar" fica na sua mão, ver SuaMaoEmLeque). "Aposta: N" só aparece
 // com o mouse em cima da barra (fichas e cartas pousadas deixam o hover
 // passar, ver pointer-events no CSS).
-export const BARRA_ALTURA_PX = 76;
+const BARRA_ALTURA_PX = 76;
 const BARRA_INICIO_VAGAS_PX = 24;
 // Espaço depois da última vaga quando elas se apertam: o sulco termina 16px
 // antes da borda direita, mais um respiro.
 const BARRA_FOLGA_FIM_PX = 24;
-// Ajustados no laboratório da mão (LabMao.jsx).
-export const BARRA_FICHAS_PADRAO = {
+const BARRA_FICHAS = {
     largura: 436,    // px, fixa
     espacoVaga: 52,  // px entre o centro de uma vaga e o da próxima
 };
 
-export function espacoVagaFicha(vagas, ajustes = BARRA_FICHAS_PADRAO) {
-    const util = ajustes.largura - BARRA_INICIO_VAGAS_PX - BARRA_FOLGA_FIM_PX;
-    return Math.min(ajustes.espacoVaga, util / Math.max(1, vagas));
+function espacoVagaFicha(vagas) {
+    const util = BARRA_FICHAS.largura - BARRA_INICIO_VAGAS_PX - BARRA_FOLGA_FIM_PX;
+    return Math.min(BARRA_FICHAS.espacoVaga, util / Math.max(1, vagas));
 }
 
 // Centro da vaga `indice` (de `vagas` na rodada), em px relativos ao canto
 // superior esquerdo da barra.
-export function posicaoVagaFicha(indice, vagas, ajustes = BARRA_FICHAS_PADRAO) {
-    return { x: BARRA_INICIO_VAGAS_PX + espacoVagaFicha(vagas, ajustes) * (indice + 0.5), y: BARRA_ALTURA_PX / 2 };
+function posicaoVagaFicha(indice, vagas) {
+    return { x: BARRA_INICIO_VAGAS_PX + espacoVagaFicha(vagas) * (indice + 0.5), y: BARRA_ALTURA_PX / 2 };
 }
 
 function somarPonto(a, b) {
@@ -934,8 +978,8 @@ function TextoAposta({ aposta, feitas, mostrarFeitas }) {
 // mostrarInfoTemporaria) — mostra a legenda sem hover; o id como key
 // reinicia a animação se outro chegar antes deste sumir. Popup de aposta
 // nunca mostra "Fez" (ver TextoAposta).
-export function BarraFichas({ caixaRef, podeApostar, aposta, feitas = 0, mostrarFeitas = true, infoTemporaria = null, ajustes = BARRA_FICHAS_PADRAO }) {
-    const largura = ajustes.largura;
+function BarraFichas({ caixaRef, podeApostar, aposta, feitas = 0, mostrarFeitas = true, infoTemporaria = null }) {
+    const largura = BARRA_FICHAS.largura;
     return (
         <div
             ref={caixaRef}
@@ -1188,11 +1232,11 @@ function ArcoTimer({ prazo, tamanho }) {
                     <circle
                         key={i}
                         className="mesa-exp-anel-faisca"
-                        r="1.4"
+                        r="1.9"
                         style={{ '--dx': `${f.dx}px`, '--dy': `${f.dy}px`, animationDelay: `${f.atraso}s` }}
                     />
                 ))}
-                <circle className="mesa-exp-anel-brasa" r="4.5" />
+                <circle className="mesa-exp-anel-brasa" r="6.5" />
             </g>
             <g className="mesa-exp-anel-ficha" transform={`translate(${inicioArco.x} ${inicioArco.y - ANEL_FICHA_RECUO_PX})`}>
                 <circle className="mesa-exp-anel-ficha-borda" r="16" />
@@ -1251,10 +1295,9 @@ export function MaoEmLeque({ quantidade, cartas }) {
 // Tamanho e abertura do leque vêm de calcularLayoutMao (maoReativa.js): fora
 // da vez (nem jogando nem apostando) a mão inteira fica em
 // `escalaForaDaVez` e cresce quando a vez chega; com muitas cartas ela
-// encolhe e fecha o leque pra caber na largura do container onde a mão
-// está ancorada (medido de verdade, a tela na mesa ou o palco no
-// laboratório). `ajustes` só muda no laboratório (LabMao.jsx).
-export function SuaMaoEmLeque({ cartas, idSaindo, onJogar, escondida, naVez, apostando, onApostar, ajustes = MAO_REATIVA_PADRAO }) {
+// encolhe e fecha o leque pra caber na largura da tela onde a mão está
+// ancorada (medida de verdade, acompanha o redimensionar da janela).
+function SuaMaoEmLeque({ cartas, idSaindo, onJogar, escondida, naVez, apostando, onApostar }) {
     const maoRef = useRef(null);
     const [larguraDisponivel, setLarguraDisponivel] = useState(0);
     const temCartas = cartas.length > 0;
@@ -1270,8 +1313,8 @@ export function SuaMaoEmLeque({ cartas, idSaindo, onJogar, escondida, naVez, apo
 
     if (!temCartas) return null;
     const meio = (cartas.length - 1) / 2;
-    const { escala, angulo, deslocamento } = calcularLayoutMao(cartas.length, larguraDisponivel, ajustes);
-    const escalaVez = naVez || apostando ? 1 : ajustes.escalaForaDaVez;
+    const { escala, angulo, deslocamento } = calcularLayoutMao(cartas.length, larguraDisponivel);
+    const escalaVez = naVez || apostando ? 1 : MAO_REATIVA_PADRAO.escalaForaDaVez;
 
     return (
         <>
@@ -1658,6 +1701,14 @@ export default function MesaExperimento({ estado, acoes }) {
     // assentoIndice -> { id, tipo: 'aposta' | 'vaza' } do popup em curso
     // (ver mostrarInfoTemporaria).
     const [infoTemporariaPorAssento, setInfoTemporariaPorAssento] = useState({});
+    // Arremesso do SEU fantasminha (ver SeuFantasminha/lancarDoSeuFantasma):
+    // contador que dispara a animação e ids das cartas da sua mão que ele já
+    // jogou antes delas saírem de verdade de `suaMao` — some da mão dele na
+    // hora do clique.
+    const [lancamentoSeuFantasma, setLancamentoSeuFantasma] = useState(0);
+    const [lancadasSeuFantasma, setLancadasSeuFantasma] = useState([]);
+    const lancadasSeuFantasmaRef = useRef([]);
+    lancadasSeuFantasmaRef.current = lancadasSeuFantasma;
     const proximoIdInfoRef = useRef(0);
     const [suaVidaEmDestaque, setSuaVidaEmDestaque] = useState(false);
 
@@ -2016,6 +2067,11 @@ export default function MesaExperimento({ estado, acoes }) {
 
         if (indice === 0) {
             if (suaCartaJogada) setCartaSaindoId(suaCartaJogada.id);
+            // Jogada que não veio de clique (automática por tempo): o
+            // fantasminha joga agora.
+            if (suaCartaJogada && !lancadasSeuFantasmaRef.current.includes(suaCartaJogada.id)) {
+                lancarDoSeuFantasma(suaCartaJogada.id);
+            }
         } else {
             setMaos((atual) => atual.map((qtd, i) => (i === indice ? Math.max(0, qtd - 1) : qtd)));
         }
@@ -3049,6 +3105,30 @@ export default function MesaExperimento({ estado, acoes }) {
         setApostaPopupAberto(false);
     }
 
+    // O seu fantasminha joga a carta `cartaId` (da sua mão): dispara o
+    // arremesso e tira ela da mão dele já. Ela sai de `suaMao` de verdade
+    // pouco depois (ver `disparar` em animarJogada) e aí deixa de contar de
+    // qualquer jeito; o id só é esquecido depois de LANCADA_ESQUECER_MS,
+    // que também devolve a carta pra mão dele se o servidor recusou a
+    // jogada (ela continua na sua mão).
+    function lancarDoSeuFantasma(cartaId) {
+        setLancamentoSeuFantasma((v) => v + 1);
+        setLancadasSeuFantasma((atual) => [...atual, cartaId]);
+        setTimeout(() => {
+            setLancadasSeuFantasma((atual) => atual.filter((id) => id !== cartaId));
+        }, LANCADA_ESQUECER_MS);
+    }
+
+    // Clique numa carta da sua mão: o fantasminha joga no mesmo instante,
+    // sem esperar o servidor (só um arremesso por vez enquanto a carta
+    // anterior ainda não saiu da mão).
+    function jogarDaSuaMao(carta) {
+        if (estado.jogadorDaVez !== estado.meuNome || !acoes?.jogar) return;
+        const pendente = lancadasSeuFantasma.some((id) => suaMao.some((c) => c.id === id));
+        if (!pendente) lancarDoSeuFantasma(carta.id);
+        acoes.jogar(carta);
+    }
+
     // Mostra o popup "Aposta: N · Fez: M" do assento por INFO_TEMPORARIA_MS.
     // `tipo` é o que disparou: 'aposta' (só "Aposta: N", mesmo que a fase
     // de apostas feche no meio do popup) ou 'vaza'. Se outro chegar antes
@@ -3357,7 +3437,7 @@ export default function MesaExperimento({ estado, acoes }) {
             <SuaMaoEmLeque
                 cartas={suaMao}
                 idSaindo={cartaSaindoId}
-                onJogar={(carta) => estado.jogadorDaVez === estado.meuNome && acoes?.jogar?.(carta)}
+                onJogar={jogarDaSuaMao}
                 escondida={rodadaCegaAtiva}
                 naVez={estado.jogadorDaVez === estado.meuNome && !estado.jogadorDaVezAposta && !estado.vencedor}
                 apostando={estado.jogadorDaVezAposta === estado.meuNome && !!acoes?.apostar}
@@ -3500,6 +3580,16 @@ export default function MesaExperimento({ estado, acoes }) {
                     </div>
                 </div>
             )}
+
+            <SeuFantasminha
+                hue={huesPorAssento[0]}
+                chapeu={chapeusPorAssento[0]}
+                danoVersao={danoPorAssento[0] ?? 0}
+                estadoMorte={estadoMortePorAssento[0] ?? null}
+                pensando={!!seuPrazo && !estado.vencedor}
+                quantidade={suaMao.filter((c) => !lancadasSeuFantasma.includes(c.id)).length}
+                lancamento={lancamentoSeuFantasma}
+            />
 
             <MedalhaoVida
                 caixaRef={caixaCoracoesRef}

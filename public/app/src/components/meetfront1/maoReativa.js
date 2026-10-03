@@ -1,9 +1,7 @@
 // Layout reativo da SUA mão (ver SuaMaoEmLeque em MesaExperimento.jsx):
 // com poucas cartas o leque é sempre o mesmo; passando do `limiar`, cada
 // carta a mais encolhe a mão um pouco e o leque se fecha pra caber na tela
-// sem tampar a mesa. Os números são ajustados no laboratório da mão (botão
-// "🃏 MÃO" no login, ver LabMao.jsx), que mostra os valores prontos pra
-// colar aqui.
+// sem tampar a mesa.
 
 export const ANGULO_BASE = 10;        // graus entre uma carta e a próxima
 export const DESLOCAMENTO_BASE = 70;  // px entre uma carta e a próxima
@@ -26,7 +24,8 @@ export const MAO_REATIVA_PADRAO = {
 // `angulo`/`deslocamento` são por carta. O teto de largura vale sempre — numa
 // tela estreita até poucas cartas podem precisar apertar —, mas com a largura
 // normal de desktop ele só entra bem depois do limiar.
-export function calcularLayoutMao(quantidade, larguraDisponivel, ajustes = MAO_REATIVA_PADRAO) {
+export function calcularLayoutMao(quantidade, larguraDisponivel) {
+    const ajustes = MAO_REATIVA_PADRAO;
     const excesso = Math.max(0, quantidade - ajustes.limiar);
     const escala = Math.max(ajustes.escalaMinima, 1 - excesso * ajustes.encolhimentoPorCarta);
     if (quantidade <= 1) return { escala, angulo: 0, deslocamento: 0 };

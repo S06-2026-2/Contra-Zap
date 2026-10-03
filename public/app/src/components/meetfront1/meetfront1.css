@@ -206,48 +206,6 @@
     transform: translateX(-50%) translateX(var(--deslocamento-carta)) rotate(var(--rotacao-carta)) scale(calc(1.4 * var(--escala-mao, 1)));
 }
 
-/* Laboratório da mão (LabMao.jsx): a tela da mesa em tamanho real, com o
-   painel de ajustes flutuando por cima, à esquerda (mesmo visual da
-   vitrine do fantasminha), acima da mão e da barra. */
-.mf1 .mf1-lab-painel {
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    z-index: 60;
-    color: #f3ead6;
-    font-family: Silkscreen, monospace;
-    background: linear-gradient(180deg, rgba(26, 28, 37, .94), rgba(20, 22, 29, .94));
-}
-.mf1 .mf1-lab-abrir {
-    position: fixed;
-    top: 12px;
-    left: 12px;
-    z-index: 60;
-    width: auto;
-}
-.mf1 .mf1-lab-vazio {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #8fb4cc;
-    font: 14px Silkscreen, monospace;
-}
-.mf1-lab-codigo {
-    margin: 0;
-    padding: 8px;
-    font: 11px/1.4 ui-monospace, Consolas, monospace;
-    color: #c4e6fb;
-    background: #0c0d11;
-    border: 1px solid #262935;
-    border-radius: 6px;
-    white-space: pre;
-    overflow-x: auto;
-    user-select: text;
-}
-
 /* Na vez de apostar a mão avança o mesmo tanto da vez de jogar
    (.mesa-exp-sua-mao-vez). */
 .mf1 .mesa-exp-sua-mao-apostando {
@@ -354,4 +312,81 @@
     font: 400 10px Silkscreen, monospace;
     text-transform: uppercase;
     color: #6b7f8e;
+}
+
+/* O seu fantasminha (ver SeuFantasminha em MesaExperimento.jsx), em cima
+   do medalhão achatado da vida, no canto inferior direito. Um pouco
+   menor que os da mesa e sem pegar o mouse (é só pra ver). */
+.mf1 .mf1-seu-fantasminha {
+    position: fixed;
+    right: 24px;
+    bottom: 78px;
+    z-index: 42;
+    scale: .85;
+    transform-origin: 50% 100%;
+    pointer-events: none;
+}
+
+/* "Você" à direita, logo acima do arco do timer (que nessa ponta está
+   a ~100px da base), por cima do fantasminha. Mesmo estilo do nome dos
+   outros (.mesa-exp-assento/.mesa-exp-assento-legenda). */
+.mf1 .mf1-seu-fantasminha-nome {
+    position: fixed;
+    right: 16px;
+    bottom: 112px;
+    z-index: 43;
+    font: 600 15px system-ui, sans-serif;
+    color: #f1e6d2;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .8);
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+/* Carta que o seu fantasminha joga (ver SeuFantasminha): sai do meio da
+   mãozinha dele no mesmo tamanho das cartas dela e cai reta pra baixo,
+   girando um pouco, por trás do medalhão (z-index menor que o dele), e
+   some no fim. O translateY vem antes do scale pra andar em px de tela
+   do fantasminha, não em px da carta reduzida. */
+.mf1 .mf1-carta-lancada {
+    transform-origin: center bottom;
+    animation: mf1-carta-lancada .6s cubic-bezier(.45, 0, .8, .6) both;
+}
+@keyframes mf1-carta-lancada {
+    0%   { opacity: 1; transform: translateY(0) rotate(0deg) perspective(420px) rotateX(-16deg) scale(.36); }
+    75%  { opacity: 1; }
+    100% { opacity: 0; transform: translateY(320px) rotate(18deg) perspective(420px) rotateX(-16deg) scale(.36); }
+}
+
+/* Filtro de tela do meetfront1 (ver FiltroTela.jsx). A camada filtrada
+   cobre a janela inteira (os position:fixed de dentro passam a se
+   posicionar nela). O painel sobe pro canto de cima à direita, abaixo do
+   cabeçalho — embaixo à direita é o canto do seu fantasminha. */
+.mf1-filtro-tela {
+    position: fixed;
+    inset: 0;
+}
+.mf1-filtro .az-filtro {
+    top: 64px;
+    bottom: auto;
+}
+/* Aberto de cima pra baixo: o corpo rola se não couber na janela. No
+   celular o arcade esconde o painel recolhido (lá quem abre é o botão FX
+   da barra dele, que o meetfront1 não tem) — aqui ele continua visível. */
+.mf1-filtro .az-filtro-corpo {
+    max-height: calc(100vh - 140px);
+    overflow-y: auto;
+}
+@media (max-width: 639px) {
+    .mf1-filtro .az-filtro:not(.az-filtro-aberto) {
+        display: block;
+    }
+}
+
+/* Frente meetfront1 (classe no body, ver App.jsx): sem a aba de filtro de
+   tela em nenhuma tela — nem no Login/Lobby da arcade, nem o botão FX que
+   abre ela no celular. O código do painel continua lá; na mesa ele já
+   nem é montado (MOSTRAR_PAINEL_FILTRO em FiltroTela.jsx). */
+.mf1-frente .az-filtro,
+.mf1-frente .az-topo-filtro {
+    display: none !important;
 }

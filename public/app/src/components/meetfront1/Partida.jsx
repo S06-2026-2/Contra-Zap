@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { socket, chamar } from '../../socket.js';
 import { assinarSessaoRetomada } from '../../sessao.js';
 import MesaExperimento from './MesaExperimento.jsx';
+import FiltroTela from './FiltroTela.jsx';
 import { guardarInfoSala, lerInfoSala } from '../arcade/salasInfo.js';
 import { tocarSom } from '../arcade/somArcade.js';
 // Catálogo e cooldown vêm direto da fonte única do back — não há mais espelho
@@ -597,6 +598,7 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
     // não tem form de texto livre, só as mensagens prontas via
     // acoes.enviarChatPronta).
     return (
+        <FiltroTela>
         <MesaExperimento
             estado={{
                 salaId, meuNome, senha, souDono, erro,
@@ -632,5 +634,6 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
                 jogarDeNovo: souDono ? jogarDeNovo : undefined,
             }}
         />
+        </FiltroTela>
     );
 }

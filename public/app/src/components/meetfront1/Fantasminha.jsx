@@ -422,7 +422,10 @@ function useRostoVivo(rostoRef, ativo) {
 // — cada chapéu tem o seu próprio nudge calibrado à mão (ver `ajuste` em
 // chapeus.js/assets/chapeus/calibracao-chapeus.csv), já que a maioria não
 // nasceu desenhada pro mesmo lugar em cima do fantasminha.
-export default function Fantasminha({ children, destacado, danoVersao, bot, monitor = true, hue, naVez, chapeu, estadoMorte, ajusteChapeuPct = 0, contornoPixelado = false, pensamentoForcado = null }) {
+// `pensamentoAposMs`: quanto tempo na vez até o sinal de pensamento
+// aparecer (o seu fantasminha, ver SeuFantasminha em MesaExperimento.jsx,
+// usa 0 — pensa assim que o seu timer começa).
+export default function Fantasminha({ children, destacado, danoVersao, bot, monitor = true, hue, naVez, chapeu, estadoMorte, ajusteChapeuPct = 0, contornoPixelado = false, pensamentoForcado = null, pensamentoAposMs = PENSAMENTO_APOS_MS }) {
     const idGradiente = useId();
     const corpoRef = useRef(null);
     const pixelsRef = useRef(null);
@@ -521,7 +524,7 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
     useRostoVivo(rostoRef, !morrendo);
 
     // Pensando = na vez dele (aposta ou jogada), menos morrendo. Passados
-    // PENSAMENTO_APOS_MS seguidos, sorteia qual sinal mostrar; sai da vez,
+    // `pensamentoAposMs` seguidos, sorteia qual sinal mostrar; sai da vez,
     // some. `pensamentoForcado` (vitrine) mostra um tipo direto.
     const pensando = naVez && !morrendo;
     const [pensamento, setPensamento] = useState(null);
@@ -532,9 +535,9 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
         }
         const id = setTimeout(() => {
             setPensamento(TIPOS_PENSAMENTO[Math.floor(Math.random() * TIPOS_PENSAMENTO.length)]);
-        }, PENSAMENTO_APOS_MS);
+        }, pensamentoAposMs);
         return () => clearTimeout(id);
-    }, [pensando]);
+    }, [pensando, pensamentoAposMs]);
     const pensamentoVisivel = morrendo ? null : pensamentoForcado ?? pensamento;
 
     return (
