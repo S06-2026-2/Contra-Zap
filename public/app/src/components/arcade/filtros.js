@@ -33,14 +33,14 @@ export const FILTRO_PADRAO = {
 
 const CHAVE_FILTRO = 'contrazap-arcade-filtro';
 
-function lerFiltroSalvo() {
+function lerFiltroSalvo(chave, padrao) {
     try {
-        const bruto = JSON.parse(localStorage.getItem(CHAVE_FILTRO) ?? 'null');
-        if (!bruto || typeof bruto !== 'object') return FILTRO_PADRAO;
-        const junto = { ...FILTRO_PADRAO, ...bruto };
+        const bruto = JSON.parse(localStorage.getItem(chave) ?? 'null');
+        if (!bruto || typeof bruto !== 'object') return padrao;
+        const junto = { ...padrao, ...bruto };
         return FILTROS[junto.efeito] === undefined ? { ...junto, efeito: 'nenhum' } : junto;
     } catch {
-        return FILTRO_PADRAO;
+        return padrao;
     }
 }
 
@@ -60,17 +60,19 @@ function mapaCurvatura(eixo) {
 export const MAPA_CURV_X = mapaCurvatura('x');
 export const MAPA_CURV_Y = mapaCurvatura('y');
 
-export function useFiltros() {
-    const [estado, setEstado] = useState(lerFiltroSalvo);
+// `chave`/`padrao`: outra frente pode ter o próprio filtro, lembrado à
+// parte e com outro ponto de partida (ver meetfront1/FiltroTela.jsx).
+export function useFiltros(chave = CHAVE_FILTRO, padrao = FILTRO_PADRAO) {
+    const [estado, setEstado] = useState(() => lerFiltroSalvo(chave, padrao));
     const [graoSeed, setGraoSeed] = useState(1);
 
     useEffect(() => {
         try {
-            localStorage.setItem(CHAVE_FILTRO, JSON.stringify(estado));
+            localStorage.setItem(chave, JSON.stringify(estado));
         } catch {
             // sem localStorage: o filtro só não sobrevive à troca de tela
         }
-    }, [estado]);
+    }, [chave, estado]);
 
     const { efeito, pixel, grao, graoColorido, graoAnimado, curvatura, scanlines, scanlinePasso, aberracao } = estado;
 
@@ -124,6 +126,6 @@ export function useFiltros() {
         scanlineBg: `repeating-linear-gradient(180deg,rgba(0,0,0,.85) 0px,rgba(0,0,0,.85) 1px,transparent 1px,transparent ${scanlinePasso}px)`,
         graoColorido,
         definir: (chave, valor) => setEstado((atual) => ({ ...atual, [chave]: valor })),
-        resetar: () => setEstado(FILTRO_PADRAO),
+        resetar: () => setEstado(padrao),
     };
 }
