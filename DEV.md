@@ -127,7 +127,7 @@ polimento.
   da rede local (hoje só foi testado em `localhost`).
 - **Banco de testes em produção**
 - animações contra manilha
-
+partidaas longas a destruição buga
 ### PIN — só mexer se alguém reclamar
 
 Fica pra depois de propósito: pro escopo e tipo de sistema, o custo de fazer
@@ -168,6 +168,9 @@ Só entra aqui o que um dos dois outros mostra e o provisório não. Login e
 Lobby ficam de fora (o "novo" já usa os da arcade).
 
 Legenda: 🔴 falta e atrapalha jogar · 🟡 falta informação/feedback · 🟢 extra/polimento.
+
+
+
 
 ---
 

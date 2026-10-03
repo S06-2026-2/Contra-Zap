@@ -1,0 +1,357 @@
+/* Meetfront1 — as mudanças pedidas no encontro com o grupo, num ambiente
+   separado do front provisório (components/novo/). A base visual é a mesma:
+   os componentes daqui usam as classes mesa-exp-* / carta-exp-* / etc. do
+   index.css. O que for só deste front entra AQUI, sempre debaixo de .mf1
+   (classe na raiz da mesa, ver MesaExperimento.jsx), pra nunca vazar pro
+   front provisório. */
+
+/* Canto de cima à esquerda. Primeira linha (.mf1-topo): banner de vez,
+   o balão do chat (mesma altura do banner, centros alinhados) e o título (CONTRA ZAP + sala/senha). */
+.mf1 .mf1-topo {
+    position: fixed;
+    top: 12px;
+    left: 20px;
+    z-index: 42;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.mf1 .mf1-topo .mesa-exp-turno-banner,
+.mf1 .mf1-topo .mesa-exp-chat,
+.mf1 .mf1-topo .mesa-exp-cabecalho-titulo {
+    position: static;
+}
+/* Largura fixa (o dobro da mínima do front provisório) que o texto nunca
+   empurra: sem quebra de linha, e a fonte encolhe até caber (ver BannerVez
+   em MesaExperimento.jsx). line-height em px segura a altura. */
+.mf1 .mesa-exp-turno-banner {
+    width: 440px;
+    min-width: 0;
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    line-height: 24px;
+}
+/* Botão do chat = só o balão de texto, sem bola em volta: o próprio
+   desenho é o botão, com a mesma superfície do banner ao lado (miolo quase
+   preto) e contorno azul clarinho. Ocupa a área que era da bola (48px).
+   No hover o contorno clareia; aberto, fica no azul do banner com um
+   brilho leve e o miolo levemente azulado. */
+.mf1 .mesa-exp-chat-botao {
+    width: 48px;
+    height: 48px;
+    border: none;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    filter: none;
+}
+.mf1 .mesa-exp-chat-icone {
+    width: 48px;
+    height: 42px;
+    fill: rgba(8, 9, 12, .88);
+    stroke: #8fb4cc;
+    stroke-width: 1.3;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, .5));
+    transition: transform .2s ease, stroke .2s ease, fill .2s ease, filter .2s ease;
+}
+.mf1 .mesa-exp-chat-icone circle {
+    fill: #8fb4cc;
+    stroke: none;
+    transition: fill .2s ease;
+}
+.mf1 .mesa-exp-chat-botao:hover .mesa-exp-chat-icone {
+    transform: scale(1.06);
+    stroke: #c4e6fb;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, .5));
+}
+.mf1 .mesa-exp-chat-botao:hover .mesa-exp-chat-icone circle {
+    fill: #c4e6fb;
+}
+.mf1 .mesa-exp-chat-botao[aria-expanded="true"] {
+    filter: none;
+}
+.mf1 .mesa-exp-chat-botao[aria-expanded="true"] .mesa-exp-chat-icone {
+    fill: rgba(20, 40, 56, .92);
+    stroke: #7dd3fc;
+    filter: drop-shadow(0 0 6px rgba(125, 211, 252, .4));
+}
+.mf1 .mesa-exp-chat-botao[aria-expanded="true"] .mesa-exp-chat-icone circle {
+    fill: #7dd3fc;
+}
+/* Chat aberto: a coluna de sempre (histórico, frases, campo), presa à
+   esquerda logo abaixo da primeira linha, por cima do título. */
+.mf1 .mf1-chat-aberto {
+    position: fixed;
+    top: 80px;
+    left: 20px;
+    z-index: 42;
+}
+/* 1.3x mais larga que a do front provisório (264px), crescendo pra
+   direita — a borda esquerda continua alinhada com o banner. */
+.mf1 .mf1-chat-aberto .mesa-exp-chat-linha {
+    margin: 0;
+    width: 343px;
+}
+.mf1 .mf1-chat-aberto .mesa-exp-chat-historico h3 {
+    margin: 0;
+}
+
+/* Rodada no canto de cima à direita, à esquerda do "Sair da partida", com
+   letra maior que o resto do cabeçalho. */
+.mf1 .mf1-rodada {
+    font-family: Silkscreen, monospace;
+    font-weight: 400;
+    font-size: 22px;
+}
+
+/* Campo livre do chat no idioma da primeira linha: botão "Enviar" na
+   superfície escura do banner com contorno azul clarinho (o mesmo do balão
+   do chat), que no hover se enche do azul do banner; foco do campo num
+   azul acinzentado mais calmo. Desabilitado (vazio ou em cooldown) é o
+   mesmo botão num azul mais fechado — ainda legível, só sem destaque. */
+.mf1 .mesa-exp-chat-form input:focus {
+    border-color: #4f6f85;
+}
+.mf1 .mesa-exp-chat-form button {
+    padding: 0 14px;
+    font: 400 12px Silkscreen, monospace;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: #8fb4cc;
+    background: rgba(8, 9, 12, .88);
+    border: 2px solid #8fb4cc;
+    border-radius: 8px;
+    transition: color .15s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.mf1 .mesa-exp-chat-form button:not(:disabled):hover {
+    color: #0a0b0f;
+    background: #7dd3fc;
+    border-color: #7dd3fc;
+    box-shadow: 0 0 10px rgba(125, 211, 252, .4);
+}
+.mf1 .mesa-exp-chat-form button:disabled {
+    color: #5c7b90;
+    border-color: #3d5566;
+    opacity: 1;
+}
+
+/* Frases prontas: hover leve no mesmo azul clarinho do balão do chat —
+   borda e texto clareiam, fundo ganha um véu azulado e a frase desliza um
+   tiquinho pra direita. */
+.mf1 .mesa-exp-chat-prontas button {
+    transition: color .15s ease, background .15s ease, border-color .15s ease, translate .15s ease;
+}
+.mf1 .mesa-exp-chat-prontas button:not(:disabled):hover {
+    color: #c4e6fb;
+    background: rgba(125, 211, 252, .08);
+    border-color: #4f6f85;
+    translate: 3px 0;
+}
+
+/* Sua vez de apostar não pinta as cartas: o véu vermelho por carta do
+   front provisório (.mesa-exp-sua-mao-carta-entrada::after) fica sempre
+   apagado aqui. */
+.mf1 .mesa-exp-sua-mao-apostando .mesa-exp-sua-mao-carta-entrada::after {
+    opacity: 0;
+}
+
+/* A placa "Apostar" entra parada e só começa a pulsar se ficar 4s sem
+   clique: um respiro (cresce um tiquinho e acende o brilho quente em
+   volta) a cada 1.8s. O crescimento vai dentro do próprio `transform`,
+   depois do translate que centraliza a placa — assim ela cresce em volta
+   do próprio centro (a propriedade `scale` solta seria aplicada antes do
+   translate e cresceria a partir de um canto). */
+.mf1 .mesa-exp-aposta-botao-mao {
+    animation:
+        mf1-aposta-botao-entrar .3s ease-out,
+        mf1-aposta-botao-pulsar 1.8s ease-in-out 4s infinite;
+}
+@keyframes mf1-aposta-botao-entrar {
+    from { opacity: 0; transform: translate(-50%, 50%) scale(.85); }
+    to   { opacity: 1; transform: translate(-50%, 50%) scale(1); }
+}
+@keyframes mf1-aposta-botao-pulsar {
+    0%, 100% {
+        transform: translate(-50%, 50%) scale(1);
+        box-shadow: inset 0 0 0 3px rgba(0, 0, 0, .35), 0 4px 10px rgba(0, 0, 0, .55), 0 0 0 rgba(232, 64, 47, 0);
+    }
+    50% {
+        transform: translate(-50%, 50%) scale(1.06);
+        box-shadow: inset 0 0 0 3px rgba(0, 0, 0, .35), 0 4px 10px rgba(0, 0, 0, .55), 0 0 18px rgba(232, 64, 47, .65);
+    }
+}
+
+/* Assentos sem contorno: o retângulo continua lá (mesmo tamanho, mesmo
+   hover/posicionamento), só a borda fica invisível. */
+.mf1 .mesa-exp-assento {
+    border-color: transparent;
+}
+
+/* Mão reativa (ver SuaMaoEmLeque/maoReativa.js). --escala-mao = escala
+   da vez (escalaForaDaVez fora da vez, 1 na vez) x encolhimento por
+   muitas cartas, multiplicando o 1.5 base. Hover devolve a carta ao
+   tamanho cheio da vez (--escala-vez, sem o encolhimento): com a mão
+   apertada, passar o mouse é como se lê a carta que está por baixo. A
+   transição um pouco mais longa que o hover do front provisório é a que
+   faz a mão "crescer" quando a vez chega. */
+.mf1 .mesa-exp-sua-mao-carta {
+    transform: translateX(-50%) translateX(var(--deslocamento-carta)) rotate(var(--rotacao-carta)) scale(calc(1.5 * var(--escala-mao, 1)));
+    transition: transform .25s ease;
+}
+.mf1 .mesa-exp-sua-mao-carta:hover {
+    transform: translateX(-50%) translateX(var(--deslocamento-carta)) translateY(-30px) rotate(var(--rotacao-carta)) scale(calc(1.7 * var(--escala-vez, 1)));
+}
+.mf1 .mesa-exp-sua-mao:hover .mesa-exp-sua-mao-carta:not(:hover) {
+    transform: translateX(-50%) translateX(var(--deslocamento-carta)) rotate(var(--rotacao-carta)) scale(calc(1.4 * var(--escala-mao, 1)));
+}
+
+/* Laboratório da mão (LabMao.jsx): a tela da mesa em tamanho real, com o
+   painel de ajustes flutuando por cima, à esquerda (mesmo visual da
+   vitrine do fantasminha), acima da mão e da barra. */
+.mf1 .mf1-lab-painel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 60;
+    color: #f3ead6;
+    font-family: Silkscreen, monospace;
+    background: linear-gradient(180deg, rgba(26, 28, 37, .94), rgba(20, 22, 29, .94));
+}
+.mf1 .mf1-lab-abrir {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 60;
+    width: auto;
+}
+.mf1 .mf1-lab-vazio {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #8fb4cc;
+    font: 14px Silkscreen, monospace;
+}
+.mf1-lab-codigo {
+    margin: 0;
+    padding: 8px;
+    font: 11px/1.4 ui-monospace, Consolas, monospace;
+    color: #c4e6fb;
+    background: #0c0d11;
+    border: 1px solid #262935;
+    border-radius: 6px;
+    white-space: pre;
+    overflow-x: auto;
+    user-select: text;
+}
+
+/* Na vez de apostar a mão avança o mesmo tanto da vez de jogar
+   (.mesa-exp-sua-mao-vez). */
+.mf1 .mesa-exp-sua-mao-apostando {
+    translate: 0 -36px;
+}
+
+/* Popup temporário "Aposta: N · Fez: M" (ver mostrarInfoTemporaria em
+   MesaExperimento.jsx): surge com um pulinho, fica parado e some
+   devagar. 2.2s = INFO_TEMPORARIA_MS. No fantasminha anima a própria
+   legenda do hover; na sua barra, a legenda dela aparece sem hover. */
+.mf1 .mf1-info-temporaria {
+    animation: mf1-info-temporaria 2.2s ease both;
+}
+.mf1 .mf1-fichas-barra-info .mesa-exp-fichas-legenda {
+    animation: mf1-info-temporaria-barra 2.2s ease both;
+}
+/* O crescimento vai dentro do transform, depois do translate que já
+   centraliza a legenda (o `scale` solto cresceria fora do centro). */
+@keyframes mf1-info-temporaria {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(.85); }
+    10%  { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+    18%  { transform: translate(-50%, -50%) scale(1); }
+    80%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes mf1-info-temporaria-barra {
+    0%   { opacity: 0; translate: 0 6px; }
+    10%  { opacity: 1; translate: 0 0; }
+    80%  { opacity: 1; }
+    100% { opacity: 0; }
+}
+/* Hover por cima do popup da barra: fica visível, sem sumir no fim. */
+.mf1 .mf1-fichas-barra-info:hover .mesa-exp-fichas-legenda {
+    animation: none;
+}
+
+/* Legenda da sua barra de fichas centralizada sobre a barra (hover e
+   popup temporário). */
+.mf1 .mesa-exp-fichas-legenda {
+    left: 50%;
+    transform: translateX(-50%);
+}
+/* "· Fez: N" inteiro em azul claro (ver TextoAposta). */
+.mf1 .mf1-fez {
+    color: #7dd3fc;
+}
+
+/* Popup da vira centralizado em cima do baralho/vira (o hover vale pros
+   dois, ver entrarHoverVira). */
+.mf1 .mesa-exp-vira-legenda {
+    transform: translate(-50%, -50%);
+}
+.mf1 .mf1-vira-legenda-manilha {
+    font: 400 14px Silkscreen, monospace;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: #ffcc00;
+}
+
+/* Ordem de força no topo do popup da vira (ver OrdemForca em
+   MesaExperimento.jsx): as cartas de verdade, reduzidas (110x154 x .36 ≈
+   40x55), num leque leve. A posição/giro vem em transform inline e a
+   transition é o deslize. A manilha saindo da fila fica por cima das
+   outras com um brilho azul claro do meetfront1. */
+.mf1 .mf1-ordem-forca {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+.mf1 .mf1-ordem-forca-titulo {
+    font: 400 12px Silkscreen, monospace;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: #8fb4cc;
+}
+.mf1 .mf1-ordem-forca-trilho {
+    position: relative;
+    height: 70px;
+    margin-top: 28px;
+}
+.mf1 .mf1-ordem-forca-carta {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 40px;
+    height: 55px;
+    transform-origin: center bottom;
+    transition: transform .4s cubic-bezier(.34, 1.2, .64, 1), filter .3s ease;
+}
+.mf1 .mf1-ordem-forca-carta-escala {
+    transform: scale(.36);
+    transform-origin: top left;
+}
+.mf1 .mf1-ordem-forca-saindo {
+    z-index: 1;
+    filter: drop-shadow(0 0 6px rgba(125, 211, 252, .9));
+}
+.mf1 .mf1-ordem-forca-pontas {
+    display: flex;
+    justify-content: space-between;
+    align-self: stretch;
+    font: 400 10px Silkscreen, monospace;
+    text-transform: uppercase;
+    color: #6b7f8e;
+}

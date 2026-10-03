@@ -8,6 +8,8 @@ import { MENSAGENS_CHAT } from '../../../../../conexao/chat/mensagensChat.js';
 import { LIMITE_TEXTO_ABERTO } from '../../../../../conexao/chat/chat.js';
 import { modeloBotPorId } from '../../../../../bots/modelosBot.js';
 import { HP_INICIAL, corDoAssento, ehBot, inicial } from '../arcade/tema.js';
+import { MAO_REATIVA_PADRAO, calcularLayoutMao } from './maoReativa.js';
+import './meetfront1.css';
 
 // Mesa de Partida "de verdade" — era um sandbox 100% desligado do socket
 // (botões de debug simulando cada evento), virou um componente de
@@ -103,6 +105,10 @@ function esperar(ms) {
 // Mesmo valor de `this.hp = 3` em game/PlayerGame.js.
 const VIDA_MAXIMA = 3;
 const VIDA_TEMPORARIA_MS = 1500;
+// Popup "Aposta: N · Fez: M" que aparece sozinho perto do jogador quando ele
+// aposta e quando uma vaza pousa na pilha dele (ver mostrarInfoTemporaria).
+// Bate com a duração da animação mf1-info-temporaria em meetfront1.css.
+const INFO_TEMPORARIA_MS = 2200;
 const RODADA_FIM_REVELACAO_MS = 2800;
 
 const MORTE_IMPACTO_MS = 1500;
@@ -237,8 +243,6 @@ function easeInCubic(t) { return t * t * t; }
 const ANGULO_ENTRE_CARTAS = 8;
 const DESLOCAMENTO_ENTRE_CARTAS = 22;
 const ATRASO_ENTRADA_CARTA_MS = 90;
-const ANGULO_ENTRE_CARTAS_VOCE = 10;
-const DESLOCAMENTO_ENTRE_CARTAS_VOCE = 70;
 
 const DURACAO_BOLHA_MS = 3200;
 
@@ -297,6 +301,7 @@ function calcularEstadoVira(fase) {
 }
 
 const VIRA_LEGENDA_ANGULO_ENTRE_CARTAS = 12;
+const VIRA_HOVER_FOLGA_MS = 80;
 const VIRA_LEGENDA_DESLOCAMENTO_ENTRE_CARTAS = 20;
 
 // "Você" sempre no ângulo de baixo — ver ordemAssentos mais abaixo pra como
@@ -850,7 +855,7 @@ function posicoesDosCoracoes() {
     }));
 }
 
-function MedalhaoVida({ caixaRef, prazo, destaque, ...propsCoracoes }) {
+export function MedalhaoVida({ caixaRef, prazo, destaque, ...propsCoracoes }) {
     const { rx, ry } = MEDALHAO_VIDA;
     return (
         <div
@@ -863,7 +868,6 @@ function MedalhaoVida({ caixaRef, prazo, destaque, ...propsCoracoes }) {
                     <>
                         <ellipse className="mesa-exp-medalhao-cubo" cx={rx} cy={ry} rx="40" ry="28" stroke={`url(#${idOuro})`} />
                         <ellipse className="mesa-exp-medalhao-cubo-miolo" cx={rx} cy={ry} rx="29" ry="19" />
-                        <text className="mesa-exp-medalhao-naipe" x={rx - 15} y={ry - 7} textAnchor="middle">♥</text>
                     </>
                 )}
             </FundoMedalhao>
@@ -879,44 +883,69 @@ function MedalhaoVida({ caixaRef, prazo, destaque, ...propsCoracoes }) {
 // um sulco onde as fichas da aposta pousam em linha, uma por vaga, e as
 // cartas de vaza ganha pousam debaixo da ficha de mesmo número (ver
 // calcularPosicaoCartaVazaGanha) — a barra é alta o bastante pra carta
-// inteira caber no sulco. As vagas não dependem da largura (vaga i fica
-// sempre no mesmo x), então nada escorrega quando a barra muda de tamanho
-// entre rodadas; a largura tem sempre pelo menos BARRA_VAGAS_MIN vagas e
-// cresce se a rodada tiver mais cartas (`cartasRodada` = o máximo de fichas
-// + vazas da rodada). Na sua vez de apostar a barra acende (a placa
+// inteira caber no sulco. A barra tem largura FIXA (não cresce com a
+// rodada, pra nunca invadir a área da mão): as vagas (`cartasRodada` = o
+// máximo de fichas + vazas da rodada) ficam a `espacoVaga` px uma da
+// outra e, se não couberem, se apertam por igual até caber no sulco (ver
+// espacoVagaFicha). Na sua vez de apostar a barra acende (a placa
 // "Apostar" fica na sua mão, ver SuaMaoEmLeque). "Aposta: N" só aparece
 // com o mouse em cima da barra (fichas e cartas pousadas deixam o hover
 // passar, ver pointer-events no CSS).
-const BARRA_ALTURA_PX = 76;
+export const BARRA_ALTURA_PX = 76;
 const BARRA_INICIO_VAGAS_PX = 24;
-const BARRA_VAGA_ESPACO_PX = 52;
-// Fim bem mais comprido que o começo: o sulco segue vazio além da última
-// vaga, deixando a barra comprida mesmo com poucas cartas na rodada.
-const BARRA_FIM_PX = 100;
-const BARRA_VAGAS_MIN = 6;
+// Espaço depois da última vaga quando elas se apertam: o sulco termina 16px
+// antes da borda direita, mais um respiro.
+const BARRA_FOLGA_FIM_PX = 24;
+// Ajustados no laboratório da mão (LabMao.jsx).
+export const BARRA_FICHAS_PADRAO = {
+    largura: 436,    // px, fixa
+    espacoVaga: 52,  // px entre o centro de uma vaga e o da próxima
+};
 
-// Centro da vaga `indice`, em px relativos ao canto superior esquerdo da
-// barra.
-function posicaoVagaFicha(indice) {
-    return { x: BARRA_INICIO_VAGAS_PX + BARRA_VAGA_ESPACO_PX * (indice + 0.5), y: BARRA_ALTURA_PX / 2 };
+export function espacoVagaFicha(vagas, ajustes = BARRA_FICHAS_PADRAO) {
+    const util = ajustes.largura - BARRA_INICIO_VAGAS_PX - BARRA_FOLGA_FIM_PX;
+    return Math.min(ajustes.espacoVaga, util / Math.max(1, vagas));
+}
+
+// Centro da vaga `indice` (de `vagas` na rodada), em px relativos ao canto
+// superior esquerdo da barra.
+export function posicaoVagaFicha(indice, vagas, ajustes = BARRA_FICHAS_PADRAO) {
+    return { x: BARRA_INICIO_VAGAS_PX + espacoVagaFicha(vagas, ajustes) * (indice + 0.5), y: BARRA_ALTURA_PX / 2 };
 }
 
 function somarPonto(a, b) {
     return { x: a.x + b.x, y: a.y + b.y };
 }
 
-function BarraFichas({ caixaRef, vagas, podeApostar, aposta }) {
-    const largura = BARRA_INICIO_VAGAS_PX + Math.max(BARRA_VAGAS_MIN, vagas) * BARRA_VAGA_ESPACO_PX + BARRA_FIM_PX;
+// Texto da legenda de aposta (barra de fichas e fantasminhas). "Fez" só
+// entra depois que as apostas da rodada fecharam (`mostrarFeitas`) — antes
+// disso ninguém fez vaza nenhuma ainda. O trecho "· Fez: N" sai inteiro
+// em azul claro (.mf1-fez), separado do amarelo/dourado da aposta.
+function TextoAposta({ aposta, feitas, mostrarFeitas }) {
+    return (
+        <>
+            Aposta: <span>{aposta}</span>
+            {mostrarFeitas && <span className="mf1-fez"> · Fez: {feitas}</span>}
+        </>
+    );
+}
+
+// `infoTemporaria`: popup temporário em curso, { id, tipo } (ver
+// mostrarInfoTemporaria) — mostra a legenda sem hover; o id como key
+// reinicia a animação se outro chegar antes deste sumir. Popup de aposta
+// nunca mostra "Fez" (ver TextoAposta).
+export function BarraFichas({ caixaRef, podeApostar, aposta, feitas = 0, mostrarFeitas = true, infoTemporaria = null, ajustes = BARRA_FICHAS_PADRAO }) {
+    const largura = ajustes.largura;
     return (
         <div
             ref={caixaRef}
-            className={`mesa-exp-fichas-barra${podeApostar ? ' mesa-exp-fichas-barra-vez' : ''}`}
+            className={`mesa-exp-fichas-barra${podeApostar ? ' mesa-exp-fichas-barra-vez' : ''}${infoTemporaria ? ' mf1-fichas-barra-info' : ''}`}
             style={{ width: largura, height: BARRA_ALTURA_PX }}
         >
             <div className="mesa-exp-fichas-sulco" style={{ left: BARRA_INICIO_VAGAS_PX - 8 }} />
             {aposta != null && (
-                <div className="mesa-exp-fichas-legenda" style={{ left: BARRA_INICIO_VAGAS_PX }}>
-                    Aposta: <span>{aposta}</span>
+                <div key={infoTemporaria?.id ?? 'hover'} className="mesa-exp-fichas-legenda">
+                    <TextoAposta aposta={aposta} feitas={feitas} mostrarFeitas={mostrarFeitas && infoTemporaria?.tipo !== 'aposta'} />
                 </div>
             )}
         </div>
@@ -1213,19 +1242,44 @@ export function MaoEmLeque({ quantidade, cartas }) {
 // quebrar nada enquanto isso, o clique simplesmente não faz nada ainda.
 // `naVez`: sua vez de JOGAR carta — a mão inteira avança um pouco pra
 // frente (ver .mesa-exp-sua-mao-vez) e recua quando a vez passa.
-// `apostando`: sua vez de APOSTAR — um véu vermelho cobre só as cartas (um
-// por carta, no formato dela, ver .mesa-exp-sua-mao-carta-entrada::after)
-// sem tirar o clique/hover delas. `onApostar` (só com o popup fechado)
+// `apostando`: sua vez de APOSTAR — no meetfront1 as cartas não mudam de
+// cor (o véu vermelho do front provisório fica apagado, ver
+// meetfront1.css); quem chama atenção é a placa. `onApostar` (só com o popup fechado)
 // mostra a placa "Apostar" no meio da mão, FORA do container da mão: assim
 // o hover nela não conta como hover da mão (que encolheria as cartas) e,
 // por estar por cima, a carta de trás não pega hover.
-function SuaMaoEmLeque({ cartas, idSaindo, onJogar, escondida, naVez, apostando, onApostar }) {
-    if (cartas.length === 0) return null;
+// Tamanho e abertura do leque vêm de calcularLayoutMao (maoReativa.js): fora
+// da vez (nem jogando nem apostando) a mão inteira fica em
+// `escalaForaDaVez` e cresce quando a vez chega; com muitas cartas ela
+// encolhe e fecha o leque pra caber na largura do container onde a mão
+// está ancorada (medido de verdade, a tela na mesa ou o palco no
+// laboratório). `ajustes` só muda no laboratório (LabMao.jsx).
+export function SuaMaoEmLeque({ cartas, idSaindo, onJogar, escondida, naVez, apostando, onApostar, ajustes = MAO_REATIVA_PADRAO }) {
+    const maoRef = useRef(null);
+    const [larguraDisponivel, setLarguraDisponivel] = useState(0);
+    const temCartas = cartas.length > 0;
+
+    useLayoutEffect(() => {
+        const ancora = maoRef.current?.offsetParent;
+        if (!ancora) return undefined;
+        setLarguraDisponivel(ancora.clientWidth);
+        const observador = new ResizeObserver(() => setLarguraDisponivel(ancora.clientWidth));
+        observador.observe(ancora);
+        return () => observador.disconnect();
+    }, [temCartas]);
+
+    if (!temCartas) return null;
     const meio = (cartas.length - 1) / 2;
+    const { escala, angulo, deslocamento } = calcularLayoutMao(cartas.length, larguraDisponivel, ajustes);
+    const escalaVez = naVez || apostando ? 1 : ajustes.escalaForaDaVez;
 
     return (
         <>
-        <div className={`mesa-exp-sua-mao${naVez ? ' mesa-exp-sua-mao-vez' : ''}${apostando ? ' mesa-exp-sua-mao-apostando' : ''}`}>
+        <div
+            ref={maoRef}
+            className={`mesa-exp-sua-mao${naVez ? ' mesa-exp-sua-mao-vez' : ''}${apostando ? ' mesa-exp-sua-mao-apostando' : ''}`}
+            style={{ '--escala-mao': escala * escalaVez, '--escala-vez': escalaVez }}
+        >
             {cartas.map((carta, i) => {
                 const offset = i - meio;
                 const saindo = carta.id === idSaindo;
@@ -1234,8 +1288,8 @@ function SuaMaoEmLeque({ cartas, idSaindo, onJogar, escondida, naVez, apostando,
                         key={carta.id}
                         className="mesa-exp-sua-mao-carta"
                         style={{
-                            '--rotacao-carta': `${offset * ANGULO_ENTRE_CARTAS_VOCE}deg`,
-                            '--deslocamento-carta': `${offset * DESLOCAMENTO_ENTRE_CARTAS_VOCE}px`,
+                            '--rotacao-carta': `${offset * angulo}deg`,
+                            '--deslocamento-carta': `${offset * deslocamento}px`,
                         }}
                         onClick={() => onJogar?.(carta)}
                     >
@@ -1255,6 +1309,68 @@ function SuaMaoEmLeque({ cartas, idSaindo, onJogar, escondida, naVez, apostando,
             </button>
         )}
         </>
+    );
+}
+
+// Ordem de força dos ranks no topo do popup da vira: as nossas cartas
+// (todas de Copas, o naipe aqui não importa) num leque leve, da mais fraca
+// (esquerda) pra mais forte (direita). Com `animar` (primeiro hover da
+// rodada, ver entrarHoverVira) começa na ordem normal do baralho, sem
+// nenhuma carta com cara de manilha, e a manilha sai da fila: sobe,
+// desliza por cima das outras até a ponta mais forte e pousa já como
+// manilha, enquanto as outras fecham o buraco. Sem `animar` já nasce na
+// ordem final.
+const ORDEM_FORCA_ESPACO_PX = 30;
+const ORDEM_FORCA_ERGUIDA_PX = 26;
+const ORDEM_FORCA_ANGULO = 2.5;     // graus por posição a partir do meio
+const ORDEM_FORCA_CURVA_PX = 0.6;   // queda nas pontas: (distância do meio)² x isto
+const ORDEM_FORCA_FASES_MS = [550, 950, 1550]; // erguer, deslizar, pousar
+
+function OrdemForca({ manilhaRank, animar }) {
+    const [fase, setFase] = useState(animar ? 0 : 3);
+
+    useEffect(() => {
+        if (!animar) return undefined;
+        const timers = ORDEM_FORCA_FASES_MS.map((ms, i) => setTimeout(() => setFase(i + 1), ms));
+        return () => timers.forEach(clearTimeout);
+    }, [animar]);
+
+    const semManilha = ORDEM_RANKS.filter((rank) => rank !== manilhaRank);
+    const meio = (ORDEM_RANKS.length - 1) / 2;
+    return (
+        <div className="mf1-ordem-forca">
+            <span className="mf1-ordem-forca-titulo">Ordem de força</span>
+            {/* Contexto zerado: só a manilha que já pousou (fase 3) tem cara
+                de manilha, via efeitoManilha — senão a da mesa marcaria a
+                carta desde a ordem normal. */}
+            <ManilhaContext.Provider value={null}>
+                <div className="mf1-ordem-forca-trilho" style={{ width: (ORDEM_RANKS.length - 1) * ORDEM_FORCA_ESPACO_PX + 40 }}>
+                    {ORDEM_RANKS.map((rank, i) => {
+                        const eManilha = rank === manilhaRank;
+                        const indiceFinal = eManilha ? ORDEM_RANKS.length - 1 : semManilha.indexOf(rank);
+                        const indice = fase >= 2 ? indiceFinal : i;
+                        const offset = indice - meio;
+                        const erguida = eManilha && (fase === 1 || fase === 2);
+                        const y = offset * offset * ORDEM_FORCA_CURVA_PX - (erguida ? ORDEM_FORCA_ERGUIDA_PX : 0);
+                        return (
+                            <div
+                                key={rank}
+                                className={`mf1-ordem-forca-carta${eManilha && fase >= 1 ? ' mf1-ordem-forca-saindo' : ''}`}
+                                style={{ transform: `translate(${indice * ORDEM_FORCA_ESPACO_PX}px, ${y}px) rotate(${offset * ORDEM_FORCA_ANGULO}deg)` }}
+                            >
+                                <div className="mf1-ordem-forca-carta-escala">
+                                    <Carta rank={rank} naipe="Copas" efeitoManilha={eManilha && fase === 3} />
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </ManilhaContext.Provider>
+            <div className="mf1-ordem-forca-pontas">
+                <span>fraca</span>
+                <span>forte</span>
+            </div>
+        </div>
     );
 }
 
@@ -1399,25 +1515,66 @@ function TelaEspera({ estado, acoes }) {
     );
 }
 
-function CabecalhoMesa({ salaId, senha, rodada, meuNome, children }) {
+// Escrito "CONTRA ZAP" do título — desligado por enquanto (fica só
+// sala/senha); true traz de volta.
+const MOSTRAR_LOGO_TITULO = false;
+
+function TituloMesa({ salaId, senha }) {
+    return (
+        <div className="mesa-exp-cabecalho-titulo">
+            {MOSTRAR_LOGO_TITULO && <span className="mesa-exp-logo">CONTRA ZAP</span>}
+            <span className="mesa-exp-cabecalho-sala">SALA <span>{salaId}</span></span>
+            {senha && <span className="mesa-exp-cabecalho-sala">SENHA <span>{senha}</span></span>}
+        </div>
+    );
+}
+
+// `comTitulo` false: o título vai na primeira linha da mesa, à direita da
+// bola do chat (ver .mf1-topo), e não no canto fixo de sempre.
+function CabecalhoMesa({ salaId, senha, rodada, comTitulo = true, children }) {
     return (
         <>
-            <div className="mesa-exp-cabecalho-titulo">
-                <span className="mesa-exp-logo">CONTRA ZAP</span>
-                <span className="mesa-exp-cabecalho-sala">SALA <span>{salaId}</span></span>
-                {senha && <span className="mesa-exp-cabecalho-sala">SENHA <span>{senha}</span></span>}
+            {comTitulo && <TituloMesa salaId={salaId} senha={senha} />}
+            <div className="mesa-exp-cabecalho-direita">
                 {rodada > 0 && (
-                    <span className="mesa-exp-cabecalho-sala">
+                    <span className="mesa-exp-cabecalho-sala mf1-rodada">
                         RODADA <span className="mesa-exp-cabecalho-rodada">{rodada}</span>
                     </span>
                 )}
-            </div>
-            <div className="mesa-exp-cabecalho-direita">
-                {meuNome && <span className="mesa-exp-cabecalho-nome" title="Você">{meuNome}</span>}
                 {children}
             </div>
         </>
     );
+}
+
+// Banner de vez com largura fixa (ver .mf1 .mesa-exp-turno-banner): o texto
+// nunca quebra linha nem estica a barra — se não couber, a fonte desce de
+// 1 em 1px (até BANNER_FONTE_MIN_PX) até caber. A altura não muda junto
+// porque o line-height é fixo em px. Remede quando a fonte do arcade
+// termina de carregar, já que a medida antes disso é da fonte reserva.
+const BANNER_FONTE_MAX_PX = 20;
+const BANNER_FONTE_MIN_PX = 9;
+
+function BannerVez({ texto }) {
+    const ref = useRef(null);
+    useLayoutEffect(() => {
+        const el = ref.current;
+        if (!el) return undefined;
+        let cancelado = false;
+        function ajustar() {
+            if (cancelado) return;
+            let tamanho = BANNER_FONTE_MAX_PX;
+            el.style.fontSize = `${tamanho}px`;
+            while (el.scrollWidth > el.clientWidth && tamanho > BANNER_FONTE_MIN_PX) {
+                tamanho -= 1;
+                el.style.fontSize = `${tamanho}px`;
+            }
+        }
+        ajustar();
+        document.fonts?.ready.then(ajustar);
+        return () => { cancelado = true; };
+    }, [texto]);
+    return <div ref={ref} className="mesa-exp-turno-banner">{texto ?? ' '}</div>;
 }
 
 export default function MesaExperimento({ estado, acoes }) {
@@ -1498,6 +1655,10 @@ export default function MesaExperimento({ estado, acoes }) {
 
     const [vidaPorAssento, setVidaPorAssento] = useState(() => Array(ordemAssentos.length).fill(VIDA_MAXIMA));
     const [assentosVidaTemporaria, setAssentosVidaTemporaria] = useState([]);
+    // assentoIndice -> { id, tipo: 'aposta' | 'vaza' } do popup em curso
+    // (ver mostrarInfoTemporaria).
+    const [infoTemporariaPorAssento, setInfoTemporariaPorAssento] = useState({});
+    const proximoIdInfoRef = useRef(0);
     const [suaVidaEmDestaque, setSuaVidaEmDestaque] = useState(false);
 
     const [jogoVencedorIndice, setJogoVencedorIndice] = useState(null);
@@ -1591,6 +1752,13 @@ export default function MesaExperimento({ estado, acoes }) {
     const [faseVira, setFaseVira] = useState(null);
     const [baralhoEmVira, setBaralhoEmVira] = useState(false);
     const [viraEmHover, setViraEmHover] = useState(false);
+    // Baralho e vira abrem o mesmo popup; a saída espera um tiquinho
+    // (VIRA_HOVER_FOLGA_MS) pra passar de um pro outro sem piscar.
+    // `ordemForcaVistaRef` guarda o id da vira (um por rodada) cuja ordem de
+    // força já foi animada — só o primeiro hover da rodada anima.
+    const sairHoverViraTimerRef = useRef(null);
+    const ordemForcaVistaRef = useRef(null);
+    const [animarOrdemForca, setAnimarOrdemForca] = useState(false);
     // Guarda de ordem entre a vira e a revelação de vaza (ver
     // tentarIniciarRevelacaoVaza): a vaza não pode revelar o vencedor
     // enquanto a vira ainda estiver animando, senão tocam por cima uma da
@@ -2169,6 +2337,21 @@ export default function MesaExperimento({ estado, acoes }) {
     // dentro do commit) já tiver marcado `distribuindoRef` true, pra este
     // efeito continuar esperando a distribuição de verdade em vez de
     // disparar direto.
+    function entrarHoverVira() {
+        if (!vira) return;
+        clearTimeout(sairHoverViraTimerRef.current);
+        if (viraEmHover) return;
+        const primeiraVez = ordemForcaVistaRef.current !== vira.id;
+        ordemForcaVistaRef.current = vira.id;
+        setAnimarOrdemForca(primeiraVez);
+        setViraEmHover(true);
+    }
+
+    function sairHoverVira() {
+        clearTimeout(sairHoverViraTimerRef.current);
+        sairHoverViraTimerRef.current = setTimeout(() => setViraEmHover(false), VIRA_HOVER_FOLGA_MS);
+    }
+
     function dispararVira(viraDoServidor) {
         const carta = lerCarta(viraDoServidor.carta);
         if (!carta) return;
@@ -2653,7 +2836,7 @@ export default function MesaExperimento({ estado, acoes }) {
         const slotIndice = cartasVazaGanhas.filter((c) => c.assentoIndice === assentoIndice).length;
         const apostaVencedor = estado.apostas?.[vencedor] ?? 0;
         const destinoViagem = {
-            ...calcularPosicaoCartaVazaGanha(assentoIndice, slotIndice, destino.x, destino.y, apostaVencedor),
+            ...calcularPosicaoCartaVazaGanha(assentoIndice, slotIndice, destino.x, destino.y, apostaVencedor, estado.cartasRodada),
             rot: destino.rot,
         };
 
@@ -2706,8 +2889,10 @@ export default function MesaExperimento({ estado, acoes }) {
                 y: destino.y,
                 slotIndice,
                 apostaValor: apostaVencedor,
+                vagasBarra: estado.cartasRodada,
             },
         ]);
+        mostrarInfoTemporaria(assentoIndice, 'vaza');
         setVazaRevelando(null);
         setFaseRevelacaoVaza(null);
         revelacaoVazaAtivaRef.current = false;
@@ -2743,9 +2928,9 @@ export default function MesaExperimento({ estado, acoes }) {
     // quanto (com o MESMO resultado) pro alvo da viagem, então a carta já
     // chega pousada no lugar certo, sem "tp" nenhum na troca do componente
     // viajando pro card estático.
-    function calcularPosicaoCartaVazaGanha(assentoIndice, slotIndice, ancoraX, ancoraY, apostaValor) {
+    function calcularPosicaoCartaVazaGanha(assentoIndice, slotIndice, ancoraX, ancoraY, apostaValor, vagasBarra) {
         if (assentoIndice === 0) {
-            return somarPonto({ x: ancoraX, y: ancoraY }, posicaoVagaFicha(slotIndice));
+            return somarPonto({ x: ancoraX, y: ancoraY }, posicaoVagaFicha(slotIndice, vagasBarra));
         }
         const meio = (apostaValor - 1) / 2;
         const offset = slotIndice - meio;
@@ -2762,6 +2947,8 @@ export default function MesaExperimento({ estado, acoes }) {
         for (const [nome, valor] of Object.entries(apostas)) {
             if (apostasProcessadasRef.current.has(nome)) continue;
             apostasProcessadasRef.current.add(nome);
+            const indice = indiceDoNome(nome);
+            if (indice !== -1) mostrarInfoTemporaria(indice, 'aposta');
             animarAposta(nome, valor);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps -- animarAposta fecha sobre assentos/huesPorAssento atuais
@@ -2783,7 +2970,7 @@ export default function MesaExperimento({ estado, acoes }) {
             id: ++proximoIdFicha.current,
             de,
             para: ehVoce
-                ? somarPonto(ancora, posicaoVagaFicha(i))
+                ? somarPonto(ancora, posicaoVagaFicha(i, estado.cartasRodada))
                 : { x: ancora.x, y: ancora.y - (i - meio) * FICHA_EMPILHA_FANTASMA_PX },
             atrasoMs: i * FICHA_ATRASO_ENTRE_MS,
             hue,
@@ -2862,6 +3049,23 @@ export default function MesaExperimento({ estado, acoes }) {
         setApostaPopupAberto(false);
     }
 
+    // Mostra o popup "Aposta: N · Fez: M" do assento por INFO_TEMPORARIA_MS.
+    // `tipo` é o que disparou: 'aposta' (só "Aposta: N", mesmo que a fase
+    // de apostas feche no meio do popup) ou 'vaza'. Se outro chegar antes
+    // de este sumir, recomeça do zero (id novo), e o timer do antigo não
+    // apaga o novo.
+    function mostrarInfoTemporaria(indice, tipo) {
+        const id = ++proximoIdInfoRef.current;
+        setInfoTemporariaPorAssento((atual) => ({ ...atual, [indice]: { id, tipo } }));
+        setTimeout(() => {
+            setInfoTemporariaPorAssento((atual) => {
+                if (atual[indice]?.id !== id) return atual;
+                const { [indice]: _, ...resto } = atual;
+                return resto;
+            });
+        }, INFO_TEMPORARIA_MS);
+    }
+
     function mostrarVidaTemporaria(indice, duracaoMs = VIDA_TEMPORARIA_MS) {
         setAssentosVidaTemporaria((atual) => (atual.includes(indice) ? atual : [...atual, indice]));
         setTimeout(() => {
@@ -2916,7 +3120,7 @@ export default function MesaExperimento({ estado, acoes }) {
             if (cartaPilha) {
                 return {
                     id: ++proximoIdCartaDano.current,
-                    de: calcularPosicaoCartaVazaGanha(indice, cartaPilha.slotIndice, cartaPilha.x, cartaPilha.y, cartaPilha.apostaValor),
+                    de: calcularPosicaoCartaVazaGanha(indice, cartaPilha.slotIndice, cartaPilha.x, cartaPilha.y, cartaPilha.apostaValor, cartaPilha.vagasBarra),
                     carta: { rank: cartaPilha.rank, naipe: cartaPilha.naipe },
                     atrasoMs: i * DANO_CARTA_ATRASO_ENTRE_MS,
                     assentoIndice: indice,
@@ -3079,8 +3283,8 @@ export default function MesaExperimento({ estado, acoes }) {
 
     if (!estado.iniciada) {
         return (
-            <div className="mesa-exp-tela mesa-exp-tela-espera">
-                <CabecalhoMesa salaId={estado.salaId} senha={estado.senha} rodada={estado.iniciada ? estado.numeroRodada : 0} meuNome={estado.meuNome}>
+            <div className="mesa-exp-tela mesa-exp-tela-espera mf1">
+                <CabecalhoMesa salaId={estado.salaId} senha={estado.senha} rodada={estado.iniciada ? estado.numeroRodada : 0}>
                     {/* Antes de começar, acoes.sair é sairSala (libera a vaga e
                         volta pra lista de salas) — ver sair() em novo/Partida.jsx. */}
                     <button type="button" className="mesa-exp-sair" onClick={() => acoes?.sair?.()} disabled={!acoes?.sair}>
@@ -3095,26 +3299,45 @@ export default function MesaExperimento({ estado, acoes }) {
     const nomeDaVez = estado.jogadorDaVezAposta ?? estado.jogadorDaVez;
     const turnoAssentoIndex = nomeDaVez != null ? indiceDoNome(nomeDaVez) : -1;
     const rodadaCegaAtiva = estado.cartasRodada === 1;
+    // Ainda tem alguém pra apostar nesta rodada (ver TextoAposta).
+    const apostasEmAndamento = estado.jogadorDaVezAposta != null;
     // Anel de timer só quando o SEU timer está correndo no servidor (ver
     // timerTurno em novo/Partida.jsx — some quando você aposta/joga).
     const seuPrazo = estado.prazoTurno?.jogador === estado.meuNome ? estado.prazoTurno : null;
 
     return (
         <ManilhaContext.Provider value={vira ? vira.valorInt : null}>
-        <div ref={telaRef} className={`mesa-exp-tela${faseRevelacaoVaza === 'impacto' ? ' mesa-exp-tela-tremendo' : ''}`}>
-            <CabecalhoMesa salaId={estado.salaId} senha={estado.senha} rodada={estado.iniciada ? estado.numeroRodada : 0} meuNome={estado.meuNome}>
+        <div ref={telaRef} className={`mesa-exp-tela mf1${faseRevelacaoVaza === 'impacto' ? ' mesa-exp-tela-tremendo' : ''}`}>
+            <CabecalhoMesa salaId={estado.salaId} senha={estado.senha} rodada={estado.iniciada ? estado.numeroRodada : 0} comTitulo={false}>
                 <button type="button" className="mesa-exp-sair" onClick={() => acoes?.sair?.()} disabled={!acoes?.sair}>
                     Sair da partida
                 </button>
             </CabecalhoMesa>
 
-            {/* Indicação de vez (ver DEV-front.md — item que faltava: quando é
-                a SUA vez, o seu assento não tem fantasminha nenhum pra ganhar
-                o contorno azul de sempre, então esse banner cobre os dois
-                casos — sua vez OU vez de alguém — logo abaixo do CONTRA ZAP. */}
-            {!estado.vencedor && (
-                <div className="mesa-exp-turno-banner">{textoBannerVez ?? ' '}</div>
-            )}
+            {/* Primeira linha do canto de cima: banner de vez e, ao lado dele,
+                a bola do chat. O banner cobre sua vez OU vez de alguém —
+                quando é a SUA, o seu assento não tem fantasminha nenhum pra
+                ganhar o contorno azul de sempre. */}
+            <div className="mf1-topo">
+                {!estado.vencedor && <BannerVez texto={textoBannerVez} />}
+                <div className="mesa-exp-chat" ref={chatRef}>
+                    <button
+                        type="button"
+                        className="mesa-exp-chat-botao"
+                        onClick={() => setChatClicado((v) => !v)}
+                        aria-expanded={chatClicado}
+                        aria-label="Chat"
+                    >
+                        <svg className="mesa-exp-chat-icone" viewBox="0 0 32 28" width="40" height="35" aria-hidden="true">
+                            <path d="M5 2.5 H27 A3.5 3.5 0 0 1 30.5 6 V17 A3.5 3.5 0 0 1 27 20.5 H14 L7.5 26 V20.5 H5 A3.5 3.5 0 0 1 1.5 17 V6 A3.5 3.5 0 0 1 5 2.5 Z" />
+                            <circle cx="10" cy="11.5" r="1.8" />
+                            <circle cx="16" cy="11.5" r="1.8" />
+                            <circle cx="22" cy="11.5" r="1.8" />
+                        </svg>
+                    </button>
+                </div>
+                <TituloMesa salaId={estado.salaId} senha={estado.senha} />
+            </div>
 
             {/* Só chama de verdade na SUA vez — o servidor recusaria fora
                 dela mesmo (NAO_E_SUA_VEZ, ver PROTOCOLO.md), isto aqui só
@@ -3143,9 +3366,11 @@ export default function MesaExperimento({ estado, acoes }) {
 
             <BarraFichas
                 caixaRef={cantoFichasRef}
-                vagas={estado.cartasRodada ?? 0}
                 podeApostar={estado.jogadorDaVezAposta === estado.meuNome && !!acoes?.apostar && !apostaPopupAberto}
                 aposta={estado.apostas?.[estado.meuNome] ?? null}
+                feitas={estado.vazasFeitas?.[estado.meuNome] ?? 0}
+                mostrarFeitas={!apostasEmAndamento}
+                infoTemporaria={infoTemporariaPorAssento[0] ?? null}
             />
 
             {apostaPopupAberto && (() => {
@@ -3208,22 +3433,10 @@ export default function MesaExperimento({ estado, acoes }) {
                 );
             })()}
 
-            <div className="mesa-exp-chat" ref={chatRef}>
-                <button
-                    type="button"
-                    className="mesa-exp-chat-botao"
-                    onClick={() => setChatClicado((v) => !v)}
-                    aria-expanded={chatClicado}
-                    aria-label="Chat"
-                >
-                    <svg className="mesa-exp-chat-icone" viewBox="0 0 32 28" width="40" height="35" aria-hidden="true">
-                        <path d="M5 2.5 H27 A3.5 3.5 0 0 1 30.5 6 V17 A3.5 3.5 0 0 1 27 20.5 H14 L7.5 26 V20.5 H5 A3.5 3.5 0 0 1 1.5 17 V6 A3.5 3.5 0 0 1 5 2.5 Z" />
-                        <circle cx="10" cy="11.5" r="1.8" />
-                        <circle cx="16" cy="11.5" r="1.8" />
-                        <circle cx="22" cy="11.5" r="1.8" />
-                    </svg>
-                </button>
-                {chatClicado && (
+            {/* Chat aberto: coluna fixa à esquerda, abaixo da primeira linha
+                (banner de vez + bola do chat, ver .mf1-topo). */}
+            {chatClicado && (
+                <div className="mf1-chat-aberto">
                     <div className="mesa-exp-chat-linha" ref={chatLinhaRef}>
                         <div className="mesa-exp-chat-historico">
                             <h3>Histórico</h3>
@@ -3285,8 +3498,8 @@ export default function MesaExperimento({ estado, acoes }) {
                             {estado.erroChat && <span className="mesa-exp-chat-erro">{estado.erroChat}</span>}
                         </div>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
 
             <MedalhaoVida
                 caixaRef={caixaCoracoesRef}
@@ -3312,6 +3525,7 @@ export default function MesaExperimento({ estado, acoes }) {
                     const ladoVida = ladoFichas === 'esquerda' ? 'direita' : 'esquerda';
                     const estadoMorte = estadoMortePorAssento[i] ?? null;
                     const prazoDele = !assento.eVoce && nomeAssento != null && estado.prazoTurno?.jogador === nomeAssento ? estado.prazoTurno : null;
+                    const infoTemporaria = infoTemporariaPorAssento[i] ?? null;
                     return (
                         <div
                             key={i}
@@ -3330,9 +3544,7 @@ export default function MesaExperimento({ estado, acoes }) {
                                     {bolha.texto}
                                 </div>
                             )}
-                            {assento.eVoce ? (
-                                'Você'
-                            ) : estadoMorte === 'morto' ? (
+                            {assento.eVoce ? null : estadoMorte === 'morto' ? (
                                 <span className="mesa-exp-assento-eliminado">💀<br />Eliminado</span>
                             ) : (
                                 <>
@@ -3359,13 +3571,20 @@ export default function MesaExperimento({ estado, acoes }) {
                                         {rotuloAssento}
                                         {ehBot && <span className="mesa-exp-assento-bot-tag"> 🤖 bot</span>}
                                     </span>
-                                    {naVez ? (
+                                    {/* O popup temporário (aposta/vaza) passa na frente do
+                                        "Vez de": quem acabou de apostar ou de levar a vaza
+                                        quase sempre é também quem joga em seguida. */}
+                                    {infoTemporaria && apostaDele != null ? (
+                                        <span key={infoTemporaria.id} className={`mesa-exp-assento-aposta-legenda${assentoEmHoverIndex === i ? '' : ' mf1-info-temporaria'}`}>
+                                            <TextoAposta aposta={apostaDele} feitas={estado.vazasFeitas?.[nomeAssento] ?? 0} mostrarFeitas={!apostasEmAndamento && infoTemporaria.tipo !== 'aposta'} />
+                                        </span>
+                                    ) : naVez ? (
                                         <span className="mesa-exp-assento-aposta-legenda mesa-exp-assento-turno-legenda">
                                             Vez de {rotuloAssento}
                                         </span>
                                     ) : assentoEmHoverIndex === i && apostaDele != null && (
                                         <span className="mesa-exp-assento-aposta-legenda">
-                                            Aposta: {apostaDele}
+                                            <TextoAposta aposta={apostaDele} feitas={estado.vazasFeitas?.[nomeAssento] ?? 0} mostrarFeitas={!apostasEmAndamento} />
                                         </span>
                                     )}
                                     {(assentoEmHoverIndex === i || assentosVidaTemporaria.includes(i)) && (
@@ -3395,8 +3614,8 @@ export default function MesaExperimento({ estado, acoes }) {
                             '--vira-rot-z': `${estadoVira.rotZ}deg`,
                             transitionDuration: `${duracaoTransicaoVira}ms`,
                         }}
-                        onMouseEnter={() => setViraEmHover(true)}
-                        onMouseLeave={() => setViraEmHover(false)}
+                        onMouseEnter={entrarHoverVira}
+                        onMouseLeave={sairHoverVira}
                     >
                         <div
                             className="mesa-exp-vira-miolo"
@@ -3417,14 +3636,16 @@ export default function MesaExperimento({ estado, acoes }) {
 
                 {viraEmHover && vira && (
                     <div className="mesa-exp-vira-legenda" style={{ left: `${estadoVira.x}%`, top: `${estadoVira.y}%` }}>
-                        <strong>Vira</strong>
-                        <span>Manilha:</span>
+                        <OrdemForca key={vira.id} manilhaRank={ORDEM_RANKS[vira.valorInt] ?? vira.rank} animar={animarOrdemForca} />
+                        <span className="mf1-vira-legenda-manilha">Manilha</span>
                         <LequeManilha rank={ORDEM_RANKS[vira.valorInt] ?? vira.rank} />
                     </div>
                 )}
 
                 <div
                     className="mesa-exp-baralho"
+                    onMouseEnter={entrarHoverVira}
+                    onMouseLeave={sairHoverVira}
                     style={{
                         left: `${baralhoX}%`,
                         top: `${baralhoY}%`,
@@ -3609,7 +3830,7 @@ export default function MesaExperimento({ estado, acoes }) {
                 // enquanto essas cartas ainda estão na mesa esperando a
                 // animação de dano (era o "shift" estranho de carta/ficha
                 // que o Henrique via no fim de rodada).
-                const pos = calcularPosicaoCartaVazaGanha(carta.assentoIndice, carta.slotIndice, carta.x, carta.y, carta.apostaValor);
+                const pos = calcularPosicaoCartaVazaGanha(carta.assentoIndice, carta.slotIndice, carta.x, carta.y, carta.apostaValor, carta.vagasBarra);
                 return (
                     <div
                         key={carta.id}

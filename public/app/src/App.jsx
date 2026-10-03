@@ -3,6 +3,7 @@ import Login from './components/Login.jsx';
 import Lobby from './components/Lobby.jsx';
 import Partida from './components/Partida.jsx';
 import PartidaNovo from './components/novo/Partida.jsx';
+import PartidaMeetfront1 from './components/meetfront1/Partida.jsx';
 import LoginArcade from './components/arcade/Login.jsx';
 import LobbyArcade from './components/arcade/Lobby.jsx';
 import PartidaArcade from './components/arcade/Partida.jsx';
@@ -19,12 +20,16 @@ import { avisarSessaoRetomada, lerSessaoSalva, limparSessaoSalva, salvarSessao }
 // socket em components/novo/Partida.jsx) — ver SeletorFrente.jsx pra como a
 // escolha de frente é lembrada por navegador.
 //
+// "meetfront1" é igual ao "novo", com a Partida de components/meetfront1/
+// (cópia da mesa do novo onde entram as mudanças do encontro com o grupo).
+//
 // "arcade" é a casca de components/arcade/ (ver
 // design_handoff_frente_arcade/README.md) — mesmas props das outras, mais
 // `conectado`: ela desenha a própria faixa de conexão perdida, então o
 // banner global some nas telas dela.
 const FRENTES = {
     novo: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaNovo },
+    meetfront1: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaMeetfront1 },
     arcade: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaArcade },
     debugging: { Login, Lobby, Partida },
 };
@@ -184,7 +189,7 @@ export default function App() {
     }
 
     if (restaurandoSessao) {
-        if (frente === 'arcade' || frente === 'novo') {
+        if (frente === 'arcade' || frente === 'novo' || frente === 'meetfront1') {
             return (
                 <Casca conectado={conectado}>
                     <div className="az-tela az-tela-login">
@@ -203,8 +208,8 @@ export default function App() {
     const { Login: TelaLogin, Lobby: TelaLobby, Partida: TelaPartida } = FRENTES[frente];
     const ehArcade = frente === 'arcade';
     // Tela desenhada pela casca da arcade (que tem a própria faixa de
-    // conexão perdida): tudo na arcade, e Login/Lobby no "novo".
-    const telaArcade = ehArcade || (frente === 'novo' && !sala);
+    // conexão perdida): tudo na arcade, e Login/Lobby no "novo"/"meetfront1".
+    const telaArcade = ehArcade || ((frente === 'novo' || frente === 'meetfront1') && !sala);
     const propsConexao = telaArcade ? { conectado } : {};
 
     let tela;
@@ -255,7 +260,7 @@ export default function App() {
     return (
         <>
             <div className="badge-frente">
-                {frente === 'novo' ? '✨ Novo' : ehArcade ? '👾 Arcade' : '🐞 Debugging'}
+                {frente === 'novo' ? '✨ Novo' : frente === 'meetfront1' ? '🤝 Meetfront1' : ehArcade ? '👾 Arcade' : '🐞 Debugging'}
             </div>
             {/* Independe da tela atual — some sozinho quando 'connect' disparar de novo (ver socket.js) */}
             {!conectado && !telaArcade && (

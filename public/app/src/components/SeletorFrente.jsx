@@ -4,9 +4,10 @@ const CHAVE_FRENTE = 'contrazap-frente';
 
 // Escolha fica no localStorage (por navegador/aba, não pelo servidor) —
 // cada pessoa escolhe o front que quiser sem afetar quem mais está
-// conectado: as três frentes falam com o mesmo socket.js/sessao.js, então
-// alguém no "novo", no "arcade" e no "debugging" jogam na mesma sala normalmente.
-const FRENTES_VALIDAS = ['novo', 'arcade', 'debugging'];
+// conectado: as frentes falam todas com o mesmo socket.js/sessao.js, então
+// alguém no "novo", no "meetfront1", no "arcade" e no "debugging" jogam na
+// mesma sala normalmente.
+const FRENTES_VALIDAS = ['novo', 'meetfront1', 'arcade', 'debugging'];
 
 // Sem escolha salva (primeira visita, aba privada) abre direto na arcade —
 // o seletor só aparece quando alguém pede pelo botão 🔄 FRONT.
@@ -47,6 +48,15 @@ const OPCOES = [
         tags: ['EM OBRAS'],
         cor: '#f5c451',
         botao: 'az-btn-amarelo',
+    },
+    {
+        id: 'meetfront1',
+        icone: '🤝',
+        nome: 'MEETFRONT1',
+        desc: 'Mesa do NOVO com as mudanças combinadas no encontro com o grupo.',
+        tags: ['EM OBRAS', 'FEEDBACK'],
+        cor: '#3d9be9',
+        botao: 'az-btn-azul',
     },
     {
         id: 'debugging',
