@@ -390,3 +390,235 @@
 .mf1-frente .az-topo-filtro {
     display: none !important;
 }
+
+/* Marca do modo mobile (ver useModoMobile/modoMobile.js) no topo do popup
+   da vira — por enquanto a única coisa que o switch muda. */
+.mf1 .mf1-modo-mobile {
+    font: 400 14px Silkscreen, monospace;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #7dd3fc;
+}
+
+/* ---------- Modo mobile (ver modoMobile.js; .mf1-mobile na raiz) ---------- */
+
+/* Fichas e cartas de vaza um pouco menores, pra caber no sulco da barra
+   mais baixa (BARRA_MOBILE). */
+.mf1.mf1-mobile .mesa-exp-aposta-ficha-canto {
+    transform: translate(-50%, -50%) scale(.52);
+}
+.mf1.mf1-mobile .mesa-exp-carta-vaza-ganha-voce {
+    transform: translate(-50%, -50%) scale(.29);
+}
+
+/* Vida no mobile (ver VidaRetangulo): o resto da faixa de baixo, à direita
+   da barra de fichas (100% - 72%), da mesma altura dela. Madeira e aro
+   dourado do medalhão, canto de cima à esquerda arredondado (espelho da
+   barra), filete tracejado por dentro e o sulco reto com os corações. */
+.mf1 .mf1-vida-retangulo {
+    box-sizing: border-box;
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    z-index: 43;
+    width: 28vw;
+    height: 62px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+    border: 2px solid transparent;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 30px 0 0 0;
+    background:
+        repeating-radial-gradient(ellipse at 100% 100%, rgba(0, 0, 0, 0) 0 10px, rgba(0, 0, 0, .16) 10px 11px) padding-box,
+        radial-gradient(ellipse at 100% 100%, #4a2e19 0%, #2e1c10 45%, #1a1009 100%) padding-box,
+        linear-gradient(270deg, #c8861a, #ffd75e 55%, #fff4c2) border-box;
+    box-shadow: 0 -4px 14px rgba(0, 0, 0, .5);
+    transition: box-shadow .4s ease;
+}
+.mf1 .mf1-vida-retangulo::before {
+    content: '';
+    position: absolute;
+    inset: 5px 0 0 5px;
+    border: 1px dashed rgba(255, 215, 94, .22);
+    border-right: none;
+    border-bottom: none;
+    border-radius: 25px 0 0 0;
+    pointer-events: none;
+}
+.mf1 .mf1-vida-retangulo-vez {
+    box-shadow: 0 -4px 14px rgba(0, 0, 0, .5), 0 -2px 12px rgba(255, 190, 60, .55);
+}
+.mf1 .mf1-vida-retangulo-sulco {
+    flex: 1;
+    align-self: stretch;
+    margin: 10px 0 8px;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    border-radius: 14px;
+    background: #120b06;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, .8), 0 0 0 1px rgba(255, 215, 94, .28);
+}
+/* Corações espalhados por igual pelo sulco inteiro, não amontoados. */
+.mf1 .mf1-vida-retangulo .mesa-exp-coracoes {
+    flex: 1;
+    justify-content: space-evenly;
+}
+.mf1 .mf1-vida-retangulo .mesa-exp-coracao {
+    font-size: 24px;
+}
+
+/* Timer no mobile (ver BarraTimer): faixa de ponta a ponta em cima da
+   barra de fichas e da vida, afundada um pouco sobre a borda de cima
+   delas. */
+.mf1 .mf1-timer-barra {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 54px;
+    z-index: 43;
+    pointer-events: none;
+}
+.mf1 .mf1-timer-barra-svg {
+    display: block;
+    overflow: visible;
+}
+
+/* Seu fantasminha no mobile: na caixinha igual à dos outros (ver
+   CaixaFantasma), em tamanho normal (a escala da caixa já reduz), colada
+   no canto de baixo à direita, logo acima do timer (que termina a 84px da
+   base). O "Você" fica logo em cima da caixa, centralizado nela (o meio
+   da caixa: 4px da borda + metade da largura com o aro de 2px). */
+.mf1.mf1-mobile .mf1-seu-fantasminha {
+    right: 4px;
+    bottom: 86px;
+    scale: 1;
+}
+.mf1.mf1-mobile .mf1-seu-fantasminha-nome {
+    right: calc(4px + (266px * .45 + 4px) / 2);
+    translate: 50% 0;
+    bottom: calc(86px + 185px * .45 + 8px);
+    font-size: 12px;
+}
+
+/* Topo no mobile. Esquerda: na primeira linha o banner de vez (metade da
+   largura da tela, mais baixo que no computador) com SALA/SENHA ao lado,
+   como no computador; numa linha abaixo, o chat 30% menor (order + linha
+   inteira pra ele quebrar, já que no DOM ele vem entre os dois). Direita:
+   a rodada no canto e o "Sair da partida", menor, logo abaixo dela. */
+.mf1.mf1-mobile .mf1-topo {
+    top: 8px;
+    left: 8px;
+    max-width: calc(100vw - 110px);
+    flex-wrap: wrap;
+    gap: 6px 8px;
+}
+.mf1.mf1-mobile .mesa-exp-turno-banner {
+    width: 50vw;
+    padding: 3px 10px;
+    line-height: 22px;
+}
+.mf1.mf1-mobile .mf1-topo .mesa-exp-cabecalho-titulo {
+    order: 1;
+}
+.mf1.mf1-mobile .mf1-topo .mesa-exp-chat {
+    order: 2;
+    flex-basis: 100%;
+}
+.mf1.mf1-mobile .mesa-exp-chat-botao {
+    width: 34px;
+    height: 34px;
+}
+.mf1.mf1-mobile .mesa-exp-chat-icone {
+    width: 34px;
+    height: 30px;
+}
+.mf1.mf1-mobile .mf1-topo .mesa-exp-cabecalho-titulo {
+    gap: 8px;
+}
+.mf1.mf1-mobile .mf1-topo .mesa-exp-cabecalho-sala {
+    font-size: 11px;
+}
+.mf1.mf1-mobile .mf1-chat-aberto {
+    top: 84px;
+    left: 8px;
+}
+.mf1.mf1-mobile .mf1-chat-aberto .mesa-exp-chat-linha {
+    width: min(343px, calc(100vw - 16px));
+}
+.mf1.mf1-mobile .mesa-exp-cabecalho-direita {
+    top: 8px;
+    right: 8px;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+}
+.mf1.mf1-mobile .mf1-rodada {
+    font-size: 16px;
+}
+.mf1.mf1-mobile .mesa-exp-sair {
+    min-height: 26px;
+    padding: 0 8px;
+    font-size: 10px;
+    border-radius: 6px;
+}
+
+/* Caixinha dos fantasminhas no mobile (ver CaixaFantasma). Em px do
+   fantasminha de 180px: corpo de x=13% a 87% (133px) -> caixa com o dobro
+   (266px); olhos em 40px, fim do leque de cartas em ~140px -> caixa de 45px
+   acima do topo dele até 140px (185px), olhos a ~45% da altura. Tudo
+   multiplicado por --escala-caixa-fantasma pra caber no celular. */
+.mf1 .mf1-caixa-fantasma {
+    --escala-caixa-fantasma: .45;
+    position: relative;
+    box-sizing: content-box;
+    width: calc(266px * var(--escala-caixa-fantasma));
+    height: calc(185px * var(--escala-caixa-fantasma));
+    overflow: hidden;
+    background: rgba(8, 9, 12, .88);
+    border: 2px solid #23252f;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .5);
+}
+.mf1 .mf1-caixa-fantasma-miolo {
+    position: absolute;
+    left: 50%;
+    top: calc(45px * var(--escala-caixa-fantasma));
+    width: 180px;
+    height: 180px;
+    transform: translateX(-50%) scale(var(--escala-caixa-fantasma));
+    transform-origin: top center;
+}
+
+/* Mesa no mobile: bem maior, e quase quadrada — os lados passam bem das
+   bordas da tela, então as curvas dos cantos ficam quase todas fora dela
+   e o que se vê é uma borda de cima reta (ilusão de uma mesa maior que a
+   tela). O topo fica logo abaixo da linha da sala + uma caixinha de
+   fantasminha (onde ficam os do meio, ver calcularAssentosMobile) e a
+   base logo acima das suas cartas. */
+.mf1.mf1-mobile .mesa-exp-mesa {
+    --mesa-topo-mobile: 134px;
+    --mesa-base-mobile: 170px;
+    position: absolute;
+    left: -22vw;
+    right: -22vw;
+    top: var(--mesa-topo-mobile);
+    bottom: var(--mesa-base-mobile);
+    width: auto;
+    height: auto;
+    border-radius: 30vw;
+}
+
+/* Assento no mobile: do tamanho da caixinha + o nome embaixo (o de 280x190
+   do computador encavalaria uns nos outros). */
+.mf1.mf1-mobile .mesa-exp-assento {
+    width: 130px;
+    height: 120px;
+    gap: 4px;
+}
+.mf1.mf1-mobile .mesa-exp-assento-legenda {
+    font-size: 11px;
+}

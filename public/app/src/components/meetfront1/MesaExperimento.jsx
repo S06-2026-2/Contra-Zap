@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Fantasminha from './Fantasminha.jsx';
 import Carta, { ManilhaContext } from './Carta.jsx';
 import { JogadaManilha, DanosDaMesa, tremerElemento, calcularEmpurraoZap } from './MesaDanificada.jsx';
@@ -9,6 +9,8 @@ import { LIMITE_TEXTO_ABERTO } from '../../../../../conexao/chat/chat.js';
 import { modeloBotPorId } from '../../../../../bots/modelosBot.js';
 import { HP_INICIAL, corDoAssento, ehBot, inicial } from '../arcade/tema.js';
 import { MAO_REATIVA_PADRAO, calcularLayoutMao } from './maoReativa.js';
+import { dispararImpactoManilha } from './FiltroTela.jsx';
+import { useModoMobile } from './modoMobile.js';
 import './meetfront1.css';
 
 // Mesa de Partida "de verdade" — era um sandbox 100% desligado do socket
@@ -323,6 +325,45 @@ function calcularAssentos(quantidade) {
             eVoce,
             x: 50 + raioX * Math.cos(angulo),
             y: 50 + raioY * Math.sin(angulo),
+        };
+    });
+}
+
+// Assentos no mobile (ver modoMobile.js): os fantasminhas dos outros todos
+// em cima, num triângulo — o do meio mais alto, com a caixinha inteira
+// acima da mesa; os das pontas descendo pros cantos curvos dela, colados
+// na borda da tela sem sair dela. Calculado em px de tela (a partir da
+// caixa medida da mesa, `mesa`) e devolvido em % da mesa como o resto, pra
+// cartas/fichas/jogadas continuarem saindo do assento certo. "Você" fica
+// onde sempre esteve.
+const ASSENTO_MOBILE_CAIXA = { largura: 266 * 0.45 + 4, altura: 185 * 0.45 + 4 }; // ver .mf1-caixa-fantasma
+const ASSENTO_MOBILE_MARGEM_PX = 4;      // da caixa até a borda da tela
+// Negativo: a caixa do meio desce um pouco além do topo da mesa.
+const ASSENTO_MOBILE_FOLGA_MESA_PX = -12; // da caixa do meio até o topo da mesa
+const ASSENTO_MOBILE_DESCIDA_PX = 70;    // quanto as pontas descem em relação ao meio
+// O assento é a caixa + o nome embaixo (ver .mf1-mobile .mesa-exp-assento):
+// o centro da caixa fica acima do centro do assento.
+const ASSENTO_MOBILE_NOME_PX = 14;
+
+function calcularAssentosMobile(quantidade, mesa) {
+    const desktop = calcularAssentos(quantidade);
+    const outros = quantidade - 1;
+    if (!mesa || outros <= 0) return desktop;
+    const larguraTela = window.innerWidth;
+    const meiaCaixa = ASSENTO_MOBILE_CAIXA.largura / 2;
+    const xMin = ASSENTO_MOBILE_MARGEM_PX + meiaCaixa;
+    const xMax = larguraTela - ASSENTO_MOBILE_MARGEM_PX - meiaCaixa;
+    const yMeio = mesa.topoBorda - ASSENTO_MOBILE_FOLGA_MESA_PX - ASSENTO_MOBILE_CAIXA.altura / 2;
+    return desktop.map((assento, i) => {
+        if (assento.eVoce) return assento;
+        const f = outros === 1 ? 0.5 : (i - 1) / (outros - 1);
+        const t = f * 2 - 1;
+        const x = xMin + (xMax - xMin) * f;
+        const y = yMeio + t * t * ASSENTO_MOBILE_DESCIDA_PX + ASSENTO_MOBILE_NOME_PX;
+        return {
+            eVoce: false,
+            x: ((x - mesa.left) / mesa.width) * 100,
+            y: ((y - mesa.top) / mesa.height) * 100,
         };
     });
 }
@@ -890,11 +931,14 @@ function MedalhaoVida({ caixaRef, prazo, destaque, ...propsCoracoes }) {
 // você ver ele pensando logo. Leva dano junto com você (`danoVersao`);
 // eliminado, some. "Você" fica à direita, em cima do arco do timer, no
 // mesmo estilo do nome dos outros.
-function SeuFantasminha({ hue, chapeu, danoVersao, estadoMorte, pensando, quantidade = 0, lancamento = 0 }) {
+// No mobile ele vai numa caixinha igual à dos outros (CaixaFantasma), no
+// canto de baixo à direita, logo acima do timer.
+function SeuFantasminha({ hue, chapeu, danoVersao, estadoMorte, pensando, quantidade = 0, lancamento = 0, mobile = false }) {
     if (estadoMorte === 'morto') return null;
     return (
         <>
         <div className="mf1-seu-fantasminha">
+            <CaixaFantasma ativa={mobile}>
             <Fantasminha
                 monitor
                 hue={hue}
@@ -916,6 +960,7 @@ function SeuFantasminha({ hue, chapeu, danoVersao, estadoMorte, pensando, quanti
                     </div>
                 )}
             </Fantasminha>
+            </CaixaFantasma>
         </div>
         <span className="mf1-seu-fantasminha-nome">Você</span>
         </>
@@ -945,16 +990,31 @@ const BARRA_FICHAS = {
     largura: 436,    // px, fixa
     espacoVaga: 52,  // px entre o centro de uma vaga e o da próxima
 };
+// No mobile (ver modoMobile.js) a barra ocupa um pouco menos de 3/4 da
+// largura da tela, embaixo à esquerda, e é mais baixa; o resto da faixa de
+// baixo é da vida (VidaRetangulo) e, em cima das duas, corre o timer
+// (BarraTimer).
+const BARRA_MOBILE = {
+    fracaoLargura: 0.72,
+    altura: 62,
+};
 
-function espacoVagaFicha(vagas) {
-    const util = BARRA_FICHAS.largura - BARRA_INICIO_VAGAS_PX - BARRA_FOLGA_FIM_PX;
+// Tamanho da barra em px: fixo no computador; no mobile, a fração da
+// largura da janela neste momento.
+function geometriaBarra(mobile) {
+    if (!mobile) return { largura: BARRA_FICHAS.largura, altura: BARRA_ALTURA_PX };
+    return { largura: Math.round(window.innerWidth * BARRA_MOBILE.fracaoLargura), altura: BARRA_MOBILE.altura };
+}
+
+function espacoVagaFicha(vagas, geometria) {
+    const util = geometria.largura - BARRA_INICIO_VAGAS_PX - BARRA_FOLGA_FIM_PX;
     return Math.min(BARRA_FICHAS.espacoVaga, util / Math.max(1, vagas));
 }
 
 // Centro da vaga `indice` (de `vagas` na rodada), em px relativos ao canto
 // superior esquerdo da barra.
-function posicaoVagaFicha(indice, vagas) {
-    return { x: BARRA_INICIO_VAGAS_PX + espacoVagaFicha(vagas) * (indice + 0.5), y: BARRA_ALTURA_PX / 2 };
+function posicaoVagaFicha(indice, vagas, geometria) {
+    return { x: BARRA_INICIO_VAGAS_PX + espacoVagaFicha(vagas, geometria) * (indice + 0.5), y: geometria.altura / 2 };
 }
 
 function somarPonto(a, b) {
@@ -978,13 +1038,16 @@ function TextoAposta({ aposta, feitas, mostrarFeitas }) {
 // mostrarInfoTemporaria) — mostra a legenda sem hover; o id como key
 // reinicia a animação se outro chegar antes deste sumir. Popup de aposta
 // nunca mostra "Fez" (ver TextoAposta).
-function BarraFichas({ caixaRef, podeApostar, aposta, feitas = 0, mostrarFeitas = true, infoTemporaria = null }) {
-    const largura = BARRA_FICHAS.largura;
+// No mobile a largura vem em vw (acompanha a janela sem re-render).
+function BarraFichas({ caixaRef, podeApostar, aposta, feitas = 0, mostrarFeitas = true, infoTemporaria = null, mobile = false }) {
+    const estilo = mobile
+        ? { width: `${BARRA_MOBILE.fracaoLargura * 100}vw`, height: BARRA_MOBILE.altura }
+        : { width: BARRA_FICHAS.largura, height: BARRA_ALTURA_PX };
     return (
         <div
             ref={caixaRef}
             className={`mesa-exp-fichas-barra${podeApostar ? ' mesa-exp-fichas-barra-vez' : ''}${infoTemporaria ? ' mf1-fichas-barra-info' : ''}`}
-            style={{ width: largura, height: BARRA_ALTURA_PX }}
+            style={estilo}
         >
             <div className="mesa-exp-fichas-sulco" style={{ left: BARRA_INICIO_VAGAS_PX - 8 }} />
             {aposta != null && (
@@ -1246,6 +1309,153 @@ function ArcoTimer({ prazo, tamanho }) {
                 </text>
             </g>
         </svg>
+    );
+}
+
+// A SUA vida no mobile (ver modoMobile.js): em vez do quarto de elipse, um
+// retângulo no resto da faixa de baixo, à direita da barra de fichas — a
+// mesma madeira com aro dourado e filete tracejado do medalhão, e o sulco
+// escuro com fio dourado agora reto, com os corações em linha. Na sua vez
+// o aro acende como o do medalhão.
+function VidaRetangulo({ prazo, destaque, ...propsCoracoes }) {
+    return (
+        <div className={`mf1-vida-retangulo${prazo ? ' mf1-vida-retangulo-vez' : ''}${destaque ? ' mesa-exp-coracoes-destaque' : ''}`}>
+            <div className="mf1-vida-retangulo-sulco">
+                <Coracoes {...propsCoracoes} />
+            </div>
+        </div>
+    );
+}
+
+// O timer no mobile: o mesmo pavio do ArcoTimer, só que reto, numa faixa de
+// ponta a ponta em cima da barra de fichas e da vida. Queima da direita pra
+// esquerda (o que resta encolhe na direção da ficha), com a brasa na ponta,
+// marcas ao longo da trilha, o fogo esquentando nos últimos
+// ANEL_URGENTE_FRACAO e a ficha com os segundos à esquerda. Fora da sua vez
+// fica apagado. Mesmas classes de visual do anel (mesa-exp-anel-*).
+const TIMER_BARRA_ALTURA_PX = 30;
+const TIMER_BARRA_FICHA_X = 20;
+const TIMER_BARRA_INICIO_X = 40;
+const TIMER_BARRA_FOLGA_FIM_PX = 10;
+
+function BarraTimer({ prazo }) {
+    const caixaRef = useRef(null);
+    const [largura, setLargura] = useState(0);
+    useEffect(() => {
+        const caixa = caixaRef.current;
+        if (!caixa) return undefined;
+        const medir = () => setLargura(caixa.clientWidth);
+        medir();
+        const observador = new ResizeObserver(medir);
+        observador.observe(caixa);
+        return () => observador.disconnect();
+    }, []);
+    return (
+        <div ref={caixaRef} className="mf1-timer-barra" style={{ height: TIMER_BARRA_ALTURA_PX }}>
+            {largura > 0 && <PavioReto key={prazo?.inicio ?? 'inativo'} prazo={prazo} largura={largura} />}
+        </div>
+    );
+}
+
+function PavioReto({ prazo, largura }) {
+    const id = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+    const raizRef = useRef(null);
+    const restanteRef = useRef(null);
+    const pontaRef = useRef(null);
+    const segundosRef = useRef(null);
+    const meio = TIMER_BARRA_ALTURA_PX / 2;
+    const x0 = TIMER_BARRA_INICIO_X;
+    const comprimento = Math.max(0, largura - TIMER_BARRA_FOLGA_FIM_PX - x0);
+    const idOuro = `pavio-ouro-${id}`;
+    const idFogo = `pavio-fogo-${id}`;
+    const marcas = Array.from({ length: ANEL_MARCAS - 1 }, (_, i) => x0 + (comprimento * (i + 1)) / ANEL_MARCAS);
+
+    useEffect(() => {
+        if (!prazo) return undefined;
+        let urgente = null;
+        let quadro;
+        const passo = () => {
+            const restanteMs = Math.max(0, prazo.tempoMs - (Date.now() - prazo.inicio));
+            const fracao = restanteMs / prazo.tempoMs;
+            restanteRef.current.setAttribute('width', String(comprimento * fracao));
+            restanteRef.current.style.opacity = fracao > 0 ? '1' : '0';
+            pontaRef.current.setAttribute('transform', `translate(${(x0 + comprimento * fracao).toFixed(1)} ${meio})`);
+            pontaRef.current.style.opacity = fracao > 0 ? '1' : '0';
+            segundosRef.current.textContent = String(Math.ceil(restanteMs / 1000));
+            const agoraUrgente = fracao < ANEL_URGENTE_FRACAO;
+            if (agoraUrgente !== urgente) {
+                urgente = agoraUrgente;
+                raizRef.current.classList.toggle('mesa-exp-anel-urgente', urgente);
+                restanteRef.current.setAttribute('fill', `url(#${urgente ? idFogo : idOuro})`);
+            }
+            if (restanteMs > 0) quadro = requestAnimationFrame(passo);
+        };
+        passo();
+        return () => cancelAnimationFrame(quadro);
+    }, [prazo, comprimento, x0, meio, idOuro, idFogo]);
+
+    return (
+        <svg ref={raizRef} className={`mf1-timer-barra-svg${prazo ? '' : ' mesa-exp-anel-inativo'}`} width={largura} height={TIMER_BARRA_ALTURA_PX}>
+            <defs>
+                <linearGradient id={idOuro} gradientUnits="userSpaceOnUse" x1={x0} y1="0" x2={x0 + comprimento} y2="0">
+                    <stop offset="0%" stopColor="#c8861a" />
+                    <stop offset="55%" stopColor="#ffd75e" />
+                    <stop offset="100%" stopColor="#fff4c2" />
+                </linearGradient>
+                <linearGradient id={idFogo} gradientUnits="userSpaceOnUse" x1={x0} y1="0" x2={x0 + comprimento} y2="0">
+                    <stop offset="0%" stopColor="#b3261e" />
+                    <stop offset="60%" stopColor="#ff5a2e" />
+                    <stop offset="100%" stopColor="#ffb347" />
+                </linearGradient>
+            </defs>
+            <g className="mesa-exp-anel-borda">
+                <rect x={x0 - 4} y={meio - 9} width={comprimento + 8} height="18" rx="9" />
+            </g>
+            <g className="mesa-exp-anel-trilha">
+                <rect x={x0 - 2} y={meio - 7} width={comprimento + 4} height="14" rx="7" />
+            </g>
+            {marcas.map((x, i) => (
+                <circle key={i} className="mesa-exp-anel-marca" cx={x} cy={meio} r="1.8" />
+            ))}
+            <g className="mesa-exp-anel-restante">
+                <rect ref={restanteRef} x={x0} y={meio - 4.25} height="8.5" rx="4.25" width={prazo ? comprimento : 0} fill={`url(#${idOuro})`} />
+            </g>
+            <g ref={pontaRef} className="mesa-exp-anel-ponta" transform={`translate(${x0 + comprimento} ${meio})`}>
+                {ANEL_FAISCAS.map((f, i) => (
+                    <circle
+                        key={i}
+                        className="mesa-exp-anel-faisca"
+                        r="1.9"
+                        style={{ '--dx': `${f.dx}px`, '--dy': `${f.dy}px`, animationDelay: `${f.atraso}s` }}
+                    />
+                ))}
+                <circle className="mesa-exp-anel-brasa" r="6.5" />
+            </g>
+            <g className="mesa-exp-anel-ficha" transform={`translate(${TIMER_BARRA_FICHA_X} ${meio})`}>
+                <circle className="mesa-exp-anel-ficha-borda" r="13" />
+                <circle className="mesa-exp-anel-ficha-miolo" r="9" />
+                <text ref={segundosRef} className="mesa-exp-anel-ficha-texto" textAnchor="middle" dominantBaseline="central">
+                    {prazo ? null : '•'}
+                </text>
+            </g>
+        </svg>
+    );
+}
+
+// No mobile (ver modoMobile.js) cada fantasminha dos outros fica numa
+// caixinha no visual da barra de quem joga (placa quase preta, aro
+// escuro), sem texto. A caixa recorta o fantasminha reduzido: o topo tem
+// folga pra maioria dos chapéus, os olhos ficam um pouco acima do meio da
+// altura e a base corta logo depois do fim do leque de cartas (some um
+// pouco da cauda). De lado, o corpo ocupa metade da largura, com meio
+// corpo livre de cada lado. Medidas em px do fantasminha de 180px (ver
+// .mf1-caixa-fantasma no meetfront1.css); fora do mobile não muda nada.
+function CaixaFantasma({ ativa, children }) {
+    if (!ativa) return children;
+    return (
+        <div className="mf1-caixa-fantasma">
+            <div className="mf1-caixa-fantasma-miolo">{children}</div>
+        </div>
     );
 }
 
@@ -1595,10 +1805,13 @@ function CabecalhoMesa({ salaId, senha, rodada, comTitulo = true, children }) {
 // 1 em 1px (até BANNER_FONTE_MIN_PX) até caber. A altura não muda junto
 // porque o line-height é fixo em px. Remede quando a fonte do arcade
 // termina de carregar, já que a medida antes disso é da fonte reserva.
+// No mobile a barra é mais baixa (ver .mf1-mobile no meetfront1.css), então
+// a fonte começa menor.
 const BANNER_FONTE_MAX_PX = 20;
+const BANNER_FONTE_MAX_MOBILE_PX = 14;
 const BANNER_FONTE_MIN_PX = 9;
 
-function BannerVez({ texto }) {
+function BannerVez({ texto, mobile = false }) {
     const ref = useRef(null);
     useLayoutEffect(() => {
         const el = ref.current;
@@ -1606,7 +1819,7 @@ function BannerVez({ texto }) {
         let cancelado = false;
         function ajustar() {
             if (cancelado) return;
-            let tamanho = BANNER_FONTE_MAX_PX;
+            let tamanho = mobile ? BANNER_FONTE_MAX_MOBILE_PX : BANNER_FONTE_MAX_PX;
             el.style.fontSize = `${tamanho}px`;
             while (el.scrollWidth > el.clientWidth && tamanho > BANNER_FONTE_MIN_PX) {
                 tamanho -= 1;
@@ -1616,11 +1829,13 @@ function BannerVez({ texto }) {
         ajustar();
         document.fonts?.ready.then(ajustar);
         return () => { cancelado = true; };
-    }, [texto]);
+    }, [texto, mobile]);
     return <div ref={ref} className="mesa-exp-turno-banner">{texto ?? ' '}</div>;
 }
 
 export default function MesaExperimento({ estado, acoes }) {
+    // Switch do layout vertical de celular (ver modoMobile.js).
+    const mobile = useModoMobile();
     // Assentos na ordem de JOGO (`estado.ordem`, de novaRodadaIniciada — a
     // vez sempre anda pra frente nela), não na de entrada na sala de
     // `estado.jogadores`, que só serve de fallback antes da primeira rodada.
@@ -1638,7 +1853,15 @@ export default function MesaExperimento({ estado, acoes }) {
         return [...jogadores.slice(meuIndice), ...jogadores.slice(0, meuIndice)];
     }, [estado.jogadores, estado.ordem, estado.meuNome]);
 
-    const assentos = useMemo(() => calcularAssentos(Math.max(ordemAssentos.length, 1)), [ordemAssentos.length]);
+    // Caixa interna da mesa em px de tela (só no mobile, ver o efeito que
+    // mede logo depois de mesaRef) — base dos assentos do mobile.
+    const [mesaMedida, setMesaMedida] = useState(null);
+    const assentos = useMemo(
+        () => (mobile
+            ? calcularAssentosMobile(Math.max(ordemAssentos.length, 1), mesaMedida)
+            : calcularAssentos(Math.max(ordemAssentos.length, 1))),
+        [ordemAssentos.length, mobile, mesaMedida]
+    );
     const huesPorAssento = useMemo(
         () => Array.from({ length: ordemAssentos.length }, () => Math.random() * 360),
         [ordemAssentos.length]
@@ -1757,6 +1980,37 @@ export default function MesaExperimento({ estado, acoes }) {
     const desgasteMesaRef = useRef(0);
     const [desgasteMesa, setDesgasteMesa] = useState(0);
     const mesaRef = useRef(null);
+    // O elemento da mesa também em estado (via ref de callback): ele só
+    // existe depois que a partida começa (a tela de espera não tem mesa), e
+    // a medida abaixo precisa rodar de novo quando ele aparece, não só
+    // quando o modo mobile muda.
+    const [mesaEl, setMesaEl] = useState(null);
+    const registrarMesa = useCallback((el) => {
+        mesaRef.current = el;
+        setMesaEl(el);
+    }, []);
+    // Mede a área interna da mesa (onde os filhos absolutos se posicionam em
+    // %, sem a borda de madeira) enquanto estiver no mobile; `topoBorda` é o
+    // topo de fora, com a madeira (onde a caixinha do meio encosta).
+    useLayoutEffect(() => {
+        const el = mesaEl;
+        if (!mobile || !el) {
+            setMesaMedida(null);
+            return undefined;
+        }
+        const medir = () => {
+            const rect = el.getBoundingClientRect();
+            setMesaMedida({ left: rect.left + el.clientLeft, top: rect.top + el.clientTop, width: el.clientWidth, height: el.clientHeight, topoBorda: rect.top });
+        };
+        medir();
+        const observador = new ResizeObserver(medir);
+        observador.observe(el);
+        window.addEventListener('resize', medir);
+        return () => {
+            observador.disconnect();
+            window.removeEventListener('resize', medir);
+        };
+    }, [mobile, mesaEl]);
     const telaRef = useRef(null);
     const caixaCoracoesRef = useRef(null);
     const cartaMesaRefs = useRef({});
@@ -2986,7 +3240,7 @@ export default function MesaExperimento({ estado, acoes }) {
     // viajando pro card estático.
     function calcularPosicaoCartaVazaGanha(assentoIndice, slotIndice, ancoraX, ancoraY, apostaValor, vagasBarra) {
         if (assentoIndice === 0) {
-            return somarPonto({ x: ancoraX, y: ancoraY }, posicaoVagaFicha(slotIndice, vagasBarra));
+            return somarPonto({ x: ancoraX, y: ancoraY }, posicaoVagaFicha(slotIndice, vagasBarra, geometriaBarra(mobile)));
         }
         const meio = (apostaValor - 1) / 2;
         const offset = slotIndice - meio;
@@ -3026,7 +3280,7 @@ export default function MesaExperimento({ estado, acoes }) {
             id: ++proximoIdFicha.current,
             de,
             para: ehVoce
-                ? somarPonto(ancora, posicaoVagaFicha(i, estado.cartasRodada))
+                ? somarPonto(ancora, posicaoVagaFicha(i, estado.cartasRodada, geometriaBarra(mobile)))
                 : { x: ancora.x, y: ancora.y - (i - meio) * FICHA_EMPILHA_FANTASMA_PX },
             atrasoMs: i * FICHA_ATRASO_ENTRE_MS,
             hue,
@@ -3387,7 +3641,7 @@ export default function MesaExperimento({ estado, acoes }) {
 
     return (
         <ManilhaContext.Provider value={vira ? vira.valorInt : null}>
-        <div ref={telaRef} className={`mesa-exp-tela mf1${faseRevelacaoVaza === 'impacto' ? ' mesa-exp-tela-tremendo' : ''}`}>
+        <div ref={telaRef} className={`mesa-exp-tela mf1${mobile ? ' mf1-mobile' : ''}${faseRevelacaoVaza === 'impacto' ? ' mesa-exp-tela-tremendo' : ''}`}>
             <CabecalhoMesa salaId={estado.salaId} senha={estado.senha} rodada={estado.iniciada ? estado.numeroRodada : 0} comTitulo={false}>
                 <button type="button" className="mesa-exp-sair" onClick={() => acoes?.sair?.()} disabled={!acoes?.sair}>
                     Sair da partida
@@ -3399,7 +3653,7 @@ export default function MesaExperimento({ estado, acoes }) {
                 quando é a SUA, o seu assento não tem fantasminha nenhum pra
                 ganhar o contorno azul de sempre. */}
             <div className="mf1-topo">
-                {!estado.vencedor && <BannerVez texto={textoBannerVez} />}
+                {!estado.vencedor && <BannerVez texto={textoBannerVez} mobile={mobile} />}
                 <div className="mesa-exp-chat" ref={chatRef}>
                     <button
                         type="button"
@@ -3451,6 +3705,7 @@ export default function MesaExperimento({ estado, acoes }) {
                 feitas={estado.vazasFeitas?.[estado.meuNome] ?? 0}
                 mostrarFeitas={!apostasEmAndamento}
                 infoTemporaria={infoTemporariaPorAssento[0] ?? null}
+                mobile={mobile}
             />
 
             {apostaPopupAberto && (() => {
@@ -3589,19 +3844,34 @@ export default function MesaExperimento({ estado, acoes }) {
                 pensando={!!seuPrazo && !estado.vencedor}
                 quantidade={suaMao.filter((c) => !lancadasSeuFantasma.includes(c.id)).length}
                 lancamento={lancamentoSeuFantasma}
+                mobile={mobile}
             />
 
-            <MedalhaoVida
-                caixaRef={caixaCoracoesRef}
-                prazo={seuPrazo}
-                destaque={suaVidaEmDestaque}
-                vida={vidaPorAssento[0] ?? VIDA_MAXIMA}
-                assentoIndice={0}
-                registrarRef={registrarRefCoracao}
-                coracaoImpactado={coracoesImpactados[0] ?? null}
-            />
+            {mobile ? (
+                <>
+                    <VidaRetangulo
+                        prazo={seuPrazo}
+                        destaque={suaVidaEmDestaque}
+                        vida={vidaPorAssento[0] ?? VIDA_MAXIMA}
+                        assentoIndice={0}
+                        registrarRef={registrarRefCoracao}
+                        coracaoImpactado={coracoesImpactados[0] ?? null}
+                    />
+                    <BarraTimer prazo={seuPrazo} />
+                </>
+            ) : (
+                <MedalhaoVida
+                    caixaRef={caixaCoracoesRef}
+                    prazo={seuPrazo}
+                    destaque={suaVidaEmDestaque}
+                    vida={vidaPorAssento[0] ?? VIDA_MAXIMA}
+                    assentoIndice={0}
+                    registrarRef={registrarRefCoracao}
+                    coracaoImpactado={coracoesImpactados[0] ?? null}
+                />
+            )}
 
-            <div className="mesa-exp-mesa" ref={mesaRef}>
+            <div className="mesa-exp-mesa" ref={registrarMesa}>
                 <DanosDaMesa danos={danosMesa} desgasteAtual={desgasteMesa} camadasVisiveis={DANOS_CAMADAS_VISIVEIS} />
                 {assentos.map((assento, i) => {
                     const nomeAssento = ordemAssentos[i]?.nome;
@@ -3638,6 +3908,7 @@ export default function MesaExperimento({ estado, acoes }) {
                                 <span className="mesa-exp-assento-eliminado">💀<br />Eliminado</span>
                             ) : (
                                 <>
+                                    <CaixaFantasma ativa={mobile}>
                                     <Fantasminha destacado={destacado} danoVersao={danoPorAssento[i] ?? 0} bot={ehBot} monitor hue={huesPorAssento[i]} chapeu={chapeusPorAssento[i].src} ajusteChapeuPct={chapeusPorAssento[i].ajuste} naVez={naVez} estadoMorte={estadoMorte}>
                                         {/* `maos[i] > 0` é o que já chegou de VERDADE (via
                                             CartaVoando/aoChegarCarta) — sem essa trava a carta
@@ -3651,6 +3922,7 @@ export default function MesaExperimento({ estado, acoes }) {
                                             cartas={rodadaCegaAtiva && (maos[i] ?? 0) > 0 && estado.maosReveladas?.[nomeAssento] ? estado.maosReveladas[nomeAssento].map(lerCarta).filter(Boolean) : undefined}
                                         />
                                     </Fantasminha>
+                                    </CaixaFantasma>
                                     <span className="mesa-exp-assento-legenda">
                                         {/* Vaga do timer sempre no DOM: abre de 0 até a largura
                                             do círculo quando o prazo começa, empurrando o nome
@@ -3726,6 +3998,7 @@ export default function MesaExperimento({ estado, acoes }) {
 
                 {viraEmHover && vira && (
                     <div className="mesa-exp-vira-legenda" style={{ left: `${estadoVira.x}%`, top: `${estadoVira.y}%` }}>
+                        {mobile && <span className="mf1-modo-mobile">Mobile</span>}
                         <OrdemForca key={vira.id} manilhaRank={ORDEM_RANKS[vira.valorInt] ?? vira.rank} animar={animarOrdemForca} />
                         <span className="mf1-vira-legenda-manilha">Manilha</span>
                         <LequeManilha rank={ORDEM_RANKS[vira.valorInt] ?? vira.rank} />
@@ -3822,7 +4095,12 @@ export default function MesaExperimento({ estado, acoes }) {
                         mesaRef={mesaRef}
                         origem={carta.de}
                         pouso={carta.para}
-                        onDano={(dano) => adicionarDanoMesa({ ...dano, geracao: carta.geracao })}
+                        onDano={(dano) => {
+                            // Toda manilha marca a mesa no impacto — é aí que a
+                            // tela "sente" o golpe (ver choque em FiltroTela.jsx).
+                            dispararImpactoManilha();
+                            adicionarDanoMesa({ ...dano, geracao: carta.geracao });
+                        }}
                         onTremer={(forca) => tremerElemento(telaRef.current, forca)}
                         onEmpurrar={empurrarCartasDaMesa}
                         onFim={(pouso) => aoChegarCarta(carta, pouso)}
