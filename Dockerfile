@@ -42,6 +42,7 @@ COPY package.json Server.js GameStart.js index.js banco.json ./
 COPY conexao ./conexao
 COPY game ./game
 COPY bots ./bots
+COPY observabilidade ./observabilidade
 
 # Build do frontend gerado no stage 1 (sempre fresco, nunca uma cópia
 # antiga que porventura exista na sua máquina local)

@@ -1,0 +1,13 @@
+global:
+  # Intervalo de coleta. 15s é um bom padrão — granularidade suficiente sem
+  # gerar volume de dados exagerado pra um projeto deste porte.
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'contra-zap'
+    static_configs:
+      # SUBSTITUA pelo hostname interno real do seu serviço principal no
+      # Railway (Settings → Networking → Private Networking, do serviço do
+      # jogo — não deste serviço do Prometheus). Formato típico:
+      # <nome-do-servico>.railway.internal:<porta-interna>
+      - targets: ['contra-zap.railway.internal:3000']

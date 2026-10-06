@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { realpathSync } from 'node:fs';
 import { registrarSocketServer } from './conexao/socketServer.js';
 import { db } from './conexao/db.js';
+import { registro } from './observabilidade/metricas.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -38,6 +39,15 @@ export function criarServidor({ salaManager, limitesDeTaxa } = {}) {
     const io = new Server(server, {
         pingInterval: 10_000,
         pingTimeout: 15_000,
+    });
+
+    // Endpoint de métricas Prometheus — Grafana/Prometheus fazem scrape
+    // daqui periodicamente. Sem autenticação de propósito: é prática comum
+    // (o Prometheus do próprio projeto já não expõe isso publicamente,
+    // fica só na rede interna do Railway — ver configuração de infra).
+    app.get('/metrics', async (req, res) => {
+        res.set('Content-Type', registro.contentType);
+        res.end(await registro.metrics());
     });
 
     const manager = registrarSocketServer(io, salaManager, limitesDeTaxa);
