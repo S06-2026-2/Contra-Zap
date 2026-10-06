@@ -411,6 +411,15 @@
     transform: translate(-50%, -50%) scale(.29);
 }
 
+/* Placa "Apostar" no mobile: menor que no computador, e com o centro em
+   `bottom` a borda de baixo fica folgada acima do timer (que termina a
+   84px da base). */
+.mf1.mf1-mobile .mesa-exp-aposta-botao-mao {
+    bottom: 122px;
+    padding: 9px 26px;
+    font-size: 17px;
+}
+
 /* Vida no mobile (ver VidaRetangulo): o resto da faixa de baixo, à direita
    da barra de fichas (100% - 72%), da mesma altura dela. Madeira e aro
    dourado do medalhão, canto de cima à esquerda arredondado (espelho da
@@ -593,6 +602,25 @@
     transform-origin: top center;
 }
 
+/* Quem joga no mobile: a caixinha acende e pulsa no instante em que a
+   carta sai do centro dela (ver CAIXA_LANCOU_MS em MesaExperimento.jsx) —
+   amarra a carta voando ao dono. Mesmo amarelo do hover de carta. */
+.mf1.mf1-mobile .mf1-assento-lancou .mf1-caixa-fantasma {
+    animation: mf1-caixa-lancou .65s ease-out;
+}
+@keyframes mf1-caixa-lancou {
+    0% {
+        border-color: #ffcc00;
+        box-shadow: 0 0 0 2px #ffcc00, 0 0 18px rgba(255, 204, 0, .7), 0 4px 12px rgba(0, 0, 0, .5);
+        transform: scale(1.06);
+    }
+    100% {
+        border-color: #23252f;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, .5);
+        transform: scale(1);
+    }
+}
+
 /* Mesa no mobile: bem maior, e quase quadrada — os lados passam bem das
    bordas da tela, então as curvas dos cantos ficam quase todas fora dela
    e o que se vê é uma borda de cima reta (ilusão de uma mesa maior que a
@@ -612,13 +640,282 @@
     border-radius: 30vw;
 }
 
-/* Assento no mobile: do tamanho da caixinha + o nome embaixo (o de 280x190
-   do computador encavalaria uns nos outros). */
+/* Assento no mobile: do tamanho da caixinha + a bandeja de fichas + o nome
+   embaixo (o de 280x190 do computador encavalaria uns nos outros). */
 .mf1.mf1-mobile .mesa-exp-assento {
     width: 130px;
-    height: 120px;
+    height: 150px;
     gap: 4px;
 }
 .mf1.mf1-mobile .mesa-exp-assento-legenda {
     font-size: 11px;
+}
+
+/* ---------- Lab de pouso (ver LabPouso.jsx) ---------- */
+
+/* Camada das cartas tacadas e das zonas: a tela inteira, em % dela — o
+   mesmo sistema das zonas em zonasPouso.js. */
+.mf1 .mf1-lab-camada {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    pointer-events: none;
+}
+.mf1 .mf1-lab-carta {
+    position: absolute;
+    transform: translate(-50%, -50%) rotate(var(--rot)) scale(var(--escala));
+    animation: mf1-lab-carta-pousar .22s ease-out;
+}
+@keyframes mf1-lab-carta-pousar {
+    from { opacity: 0; transform: translate(-50%, -50%) rotate(var(--rot)) scale(calc(var(--escala) * 1.6)); }
+}
+.mf1 .mf1-lab-carta-dono .carta-exp {
+    box-shadow: 0 0 0 4px var(--cor-dono);
+}
+.mf1 .mf1-lab-zona {
+    position: absolute;
+    box-sizing: border-box;
+    border: 2px solid var(--cor);
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--cor) 16%, transparent);
+    pointer-events: auto;
+    touch-action: none;
+    cursor: move;
+}
+.mf1 .mf1-lab-zona-numero {
+    position: absolute;
+    left: 3px;
+    top: 1px;
+    font: 400 11px Silkscreen, monospace;
+    color: var(--cor);
+    text-shadow: 0 1px 2px #000;
+}
+.mf1 .mf1-lab-zona-alca {
+    position: absolute;
+    right: -9px;
+    bottom: -9px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--cor);
+    border: 2px solid #0c0d11;
+    touch-action: none;
+    cursor: nwse-resize;
+}
+
+/* Meladas de exemplo: a âncora fica no ponto salvo (em % da tela) e as
+   cartas saem dela com o mesmo deslocamento da mesa (deslocamentoMelada).
+   Arrastar qualquer uma move o canto inteiro. A faixa de baixo marca o
+   timer + fichas + vida do mobile (até 84px da base). */
+.mf1 .mf1-lab-melada {
+    position: absolute;
+    width: 0;
+    height: 0;
+}
+.mf1 .mf1-lab-melada-carta {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: auto;
+    touch-action: none;
+    cursor: move;
+}
+.mf1 .mf1-lab-melada-rotulo {
+    position: absolute;
+    left: -20px;
+    top: -64px;
+    font: 400 10px Silkscreen, monospace;
+    color: rgba(255, 255, 255, .6);
+    text-shadow: 0 1px 2px #000;
+    white-space: nowrap;
+}
+.mf1 .mf1-lab-faixa-baixo {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 84px;
+    z-index: 41;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: repeating-linear-gradient(45deg, #1a1c25 0 10px, #14161d 10px 20px);
+    border-top: 2px solid #262935;
+    font: 400 10px Silkscreen, monospace;
+    color: #6b7080;
+}
+
+.mf1 .mf1-lab-painel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    max-height: 48vh;
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 10px 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: linear-gradient(180deg, #1a1c25, #14161d);
+    border-top: 2px solid #262935;
+    box-shadow: 0 -6px 18px rgba(0, 0, 0, .6);
+    font: 400 13px Archivo, system-ui, sans-serif;
+    color: #cfd3dc;
+}
+.mf1 .mf1-lab-linha {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+.mf1 .mf1-lab-rotulo {
+    font: 400 11px Silkscreen, monospace;
+    color: #8a8f9c;
+    margin-right: 2px;
+}
+.mf1 .mf1-lab-valor {
+    font: 400 11px Silkscreen, monospace;
+    color: #f5c451;
+}
+.mf1 .mf1-lab-check {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.mf1 .mf1-lab-btn {
+    min-height: 30px;
+    padding: 0 10px;
+    border: 2px solid #262935;
+    border-radius: 6px;
+    background: #20232e;
+    color: #e6e8ee;
+    font: 400 11px Silkscreen, monospace;
+    cursor: pointer;
+}
+.mf1 .mf1-lab-btn-ativo {
+    border-color: #f5c451;
+    color: #f5c451;
+}
+.mf1 .mf1-lab-abrir {
+    position: fixed;
+    left: 8px;
+    bottom: 8px;
+    z-index: 60;
+}
+.mf1 .mf1-lab-nota {
+    font-size: 11px;
+    color: #8a8f9c;
+}
+.mf1 .mf1-lab-aviso {
+    font: 400 11px Silkscreen, monospace;
+    color: #ff4b3e;
+}
+.mf1 .mf1-lab-codigo {
+    box-sizing: border-box;
+    width: 100%;
+    height: 120px;
+    resize: vertical;
+    padding: 6px;
+    border: 2px solid #262935;
+    border-radius: 6px;
+    background: #0c0d11;
+    color: #cfd3dc;
+    font: 11px ui-monospace, Consolas, monospace;
+    user-select: text;
+}
+
+/* Lab do leque (ver LabMao.jsx): a mão fica embaixo, então o painel vai
+   pro topo. Cada ajuste numa linha: rótulo, slider, valor. */
+.mf1 .mf1-lab-painel-topo {
+    top: 0;
+    bottom: auto;
+    border-top: none;
+    border-bottom: 2px solid #262935;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .6);
+}
+.mf1 .mf1-lab-abrir-topo {
+    top: 8px;
+    bottom: auto;
+}
+.mf1 .mf1-lab-leitura {
+    font: 400 10px Silkscreen, monospace;
+    color: #f5c451;
+}
+.mf1 .mf1-lab-tabela {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 8px;
+    font: 11px ui-monospace, Consolas, monospace;
+    color: #8a8f9c;
+}
+.mf1 .mf1-lab-tabela-atual {
+    color: #f5c451;
+}
+.mf1 .mf1-lab-controle {
+    display: grid;
+    grid-template-columns: 9.5em 1fr 3.5em;
+    align-items: center;
+    gap: 6px;
+}
+.mf1 .mf1-lab-controle input {
+    width: 100%;
+    min-width: 0;
+}
+.mf1 .mf1-lab-controle-rotulo {
+    font-size: 12px;
+}
+
+/* Bandeja de fichas dos outros no mobile (ver BANDEJA_MOBILE em
+   MesaExperimento.jsx): compartimento logo abaixo da caixinha, mesma
+   largura e mesmo visual (placa quase preta, aro escuro), com um sulco por
+   dentro. As fichas pousam em fila nela, menores que as suas, e a carta de
+   vaza ganha fica em pé por baixo da ficha. Escalas = ESCALA_FICHA_BANDEJA
+   e ESCALA_VAZA_BANDEJA. */
+.mf1 .mf1-bandeja-fichas {
+    box-sizing: border-box;
+    width: calc(266px * .45 + 4px);
+    height: 24px;
+    flex: none;
+    /* Quase colada na caixinha: 4px de gap do assento - 3 = BANDEJA_MOBILE.folgaPx. */
+    margin-top: -3px;
+    background: rgba(8, 9, 12, .88);
+    border: 2px solid #23252f;
+    border-radius: 6px;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, .8), 0 4px 10px rgba(0, 0, 0, .45);
+}
+.mf1.mf1-mobile .mf1-ficha-bandeja {
+    transform: translate(-50%, -50%) scale(.3);
+}
+.mf1.mf1-mobile .mf1-vaza-bandeja {
+    transform: translate(-50%, -50%) scale(.2);
+}
+
+/* Popup "Aposta: N · Fez: M" dos outros no mobile: em cima da caixinha (o
+   topo dela fica ~10px abaixo do topo do assento), menor. Só o `top` muda:
+   o translate(-50%, -50%) continua, que é o que a animação de
+   .mf1-info-temporaria usa. Sem "Vez de" no mobile (ver naVez no JSX). */
+.mf1.mf1-mobile .mesa-exp-assento-aposta-legenda {
+    top: -4px;
+    font-size: 12px;
+    padding: 3px 7px;
+}
+
+/* Corações dos outros no mobile: menores, em coluna rente à borda da
+   caixinha (do lado oposto ao das fichas, ver ladoVida), centrados na
+   altura dela: o topo da caixa fica ~10px abaixo do topo do assento e ela
+   tem ~87px, então o meio cai em ~53px (o translateY(-50%) e o "pop" de
+   entrada são os de sempre). */
+.mf1.mf1-mobile .mesa-exp-assento-vida {
+    top: 53px;
+}
+.mf1.mf1-mobile .mesa-exp-assento-vida-direita {
+    right: 6px;
+}
+.mf1.mf1-mobile .mesa-exp-assento-vida-esquerda {
+    left: 6px;
+}
+.mf1.mf1-mobile .mesa-exp-assento-vida .mesa-exp-coracao {
+    font-size: 14px;
 }

@@ -156,6 +156,9 @@ não parece compensar o ganho agora.
     convidado vale 6h → risco de colisão de id — só bate numa sessão longa
     com restart no meio e convidado com token ainda válido rondando; uma
     demo curta sem restart não passa perto disso.
+- 🟡 **Pódio** — arcade mostra a ordem de eliminação (2º, 3º... "eliminado
+  na rodada N"). Precisa guardar `ordemEliminacao` a partir de
+  `jogadoresEliminados` (com o `numeroRodada` da hora).
 
 ---
 
@@ -234,11 +237,6 @@ de queda de rede, banner global de conexão perdida.
 - [ ] 🟡 **Expulso por inatividade** — hoje manda direto pra Lobby
       (`onSairDaPartida`). Arcade abre modal "VOCÊ SAIU DA MESA" com
       RECONECTAR ali mesmo (sem passar pela lista de salas).
-- [ ] 🟡 **Log da partida** — o histórico do chat só tem mensagens e
-      entrar/sair. Os outros dois têm log de eventos (apostou X, jogou Y,
-      vaza de Z, jogada automática por timeout, reconectou, desistiu,
-      virou adm). O `log` já é montado no `novo/Partida.jsx` e não é
-      passado — dá pra jogar no mesmo histórico com cor de sistema.
 - [ ] 🟡 **Jogada automática por timeout** (`jogadaAutomatica`) — nenhum
       aviso visual de que a carta/aposta foi feita pelo servidor.
 - [ ] 🟢 **Dica do bot** (arcade: botão "DICA DO BOT: ON/OFF", contorno
@@ -253,26 +251,14 @@ de queda de rede, banner global de conexão perdida.
 
 ### Fim de partida
 
-- [ ] 🔴 **Sem "Voltar às salas" na tela de vitória** — só existe "Jogar de
+-  🔴 **Sem "Voltar às salas" na tela de vitória** — só existe "Jogar de
       novo" (adm) e "Não" do convite; quem não é adm e não recebeu convite
       só sai pelo "Sair da partida" do cabeçalho (que ainda diz "partida").
-- [ ] 🟡 **Pódio** — arcade mostra a ordem de eliminação (2º, 3º... "eliminado
-      na rodada N"). Precisa guardar `ordemEliminacao` a partir de
-      `jogadoresEliminados` (com o `numeroRodada` da hora).
-- [ ] 🟡 "Jogar de novo" sem estado de carregando (`criandoRevanche` existe
+-  🟡 "Jogar de novo" sem estado de carregando (`criandoRevanche` existe
       no `novo/Partida.jsx` mas não é passado) — dá pra clicar duas vezes.
-- [ ] 🟢 "Agora não" no convite: arcade só fecha o convite e continua na
+-  🟢 "Agora não" no convite: arcade só fecha o convite e continua na
       tela; aqui "Não" já sai da sala.
 
----
-
-### Onde mexer
-
-Quase tudo é só **passar pro `estado`/`acoes`** coisas que o
-`novo/Partida.jsx` já calcula (`erro`, `log`, `criandoRevanche`, adm) ou
-copiar a lógica pronta do arcade (`contagem`, `ordemEliminacao`,
-`vazasFeitas`, `dicaBot`, `infoSala`, `tocarSom`). Nenhum item pede
-evento novo no protocolo.
 
 ---
 

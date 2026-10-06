@@ -8,9 +8,10 @@ import { MENSAGENS_CHAT } from '../../../../../conexao/chat/mensagensChat.js';
 import { LIMITE_TEXTO_ABERTO } from '../../../../../conexao/chat/chat.js';
 import { modeloBotPorId } from '../../../../../bots/modelosBot.js';
 import { HP_INICIAL, corDoAssento, ehBot, inicial } from '../arcade/tema.js';
-import { MAO_REATIVA_PADRAO, calcularLayoutMao } from './maoReativa.js';
+import { MAO_REATIVA_MOBILE, MAO_REATIVA_PADRAO, calcularLayoutMao } from './maoReativa.js';
 import { dispararImpactoManilha } from './FiltroTela.jsx';
 import { useModoMobile } from './modoMobile.js';
+import { ESCALA_CARTA_JOGADA_MOBILE, MELADA_POUSO_MOBILE, ZONAS_POUSO_MOBILE, sortearPontoNaZona } from './zonasPouso.js';
 import './meetfront1.css';
 
 // Mesa de Partida "de verdade" — era um sandbox 100% desligado do socket
@@ -75,6 +76,12 @@ const CHAT_FOLGA_FECHAR_PX = 48;
 
 const DURACAO_SAIDA_MAO_MS = 220;
 const DURACAO_JOGADA_MS = Math.round(650 / VELOCIDADE);
+// No mobile a carta jogada sai do centro da caixinha de quem jogou (ver
+// origemJogada) e voa mais devagar, pra dar tempo de o olho seguir da caixa
+// até a zona de pouso; a caixa acende no lançamento por CAIXA_LANCOU_MS
+// (.mf1-assento-lancou no meetfront1.css).
+const DURACAO_JOGADA_MOBILE_MS = Math.round(1000 / VELOCIDADE);
+const CAIXA_LANCOU_MS = 650;
 const ESCALA_CARTA_JOGADA_INICIAL = 0.34;
 const ESCALA_CARTA_JOGADA_FINAL = 0.6;
 const ALCANCE_JOGADA = 0.3;
@@ -91,6 +98,14 @@ const MELADA_CANTO_Y = 20;
 const MELADA_CANTO_ESPACAMENTO_PX = 10;
 const MELADA_GRUPO_ESPACAMENTO_PX = 60;
 const MELADA_PRIMEIRO_GRUPO_EXTRA_PX = 20;
+// Deslocamento em px da melada `indice` do grupo `grupo` em relação ao
+// canto das meladas.
+export function deslocamentoMelada(grupo, indice) {
+    return {
+        x: grupo * MELADA_GRUPO_ESPACAMENTO_PX + indice * MELADA_CANTO_ESPACAMENTO_PX - (grupo === 0 ? MELADA_PRIMEIRO_GRUPO_EXTRA_PX : 0),
+        y: indice * MELADA_CANTO_ESPACAMENTO_PX,
+    };
+}
 
 // Bot de verdade (bots/Bot.js sempre nomeia "Bot N" e nunca entra em
 // `desconectados`) ou humano jogando no automático (entra em
@@ -341,11 +356,42 @@ const ASSENTO_MOBILE_MARGEM_PX = 4;      // da caixa até a borda da tela
 // Negativo: a caixa do meio desce um pouco além do topo da mesa.
 const ASSENTO_MOBILE_FOLGA_MESA_PX = -12; // da caixa do meio até o topo da mesa
 const ASSENTO_MOBILE_DESCIDA_PX = 70;    // quanto as pontas descem em relação ao meio
-// O assento é a caixa + o nome embaixo (ver .mf1-mobile .mesa-exp-assento):
-// o centro da caixa fica acima do centro do assento.
+// O assento é a caixa + a bandeja de fichas + o nome embaixo (ver
+// .mf1-mobile .mesa-exp-assento): o centro da caixa fica acima do centro do
+// assento.
 const ASSENTO_MOBILE_NOME_PX = 14;
+// Bandeja de fichas dos outros no mobile (.mf1-bandeja-fichas): logo abaixo
+// da caixinha, da mesma largura dela. As fichas da aposta ficam em fila
+// horizontal, uma vaga por carta da rodada (ver posicaoFichaBandeja), e a
+// carta de vaza ganha pousa em pé em cima da ficha de mesmo número, 40%
+// menor que a do computador. As escalas têm que bater com as do
+// meetfront1.css (.mf1-ficha-bandeja e .mf1-vaza-bandeja).
+// `folgaPx`: espaço entre a caixinha e a bandeja (margin-top da
+// .mf1-bandeja-fichas tira o resto do gap de 4px do assento).
+const BANDEJA_MOBILE = { altura: 24, folgaPx: 1, margemPx: 8, espacoVagaPx: 20 };
+const ESCALA_FICHA_BANDEJA = 0.3;
+const ESCALA_VAZA_BANDEJA = 0.2;
+// Do centro da caixa até o centro do assento: metade do que vem embaixo
+// dela (bandeja colada nela + nome).
+const ASSENTO_MOBILE_ABAIXO_CAIXA_PX = ASSENTO_MOBILE_NOME_PX + (BANDEJA_MOBILE.altura + BANDEJA_MOBILE.folgaPx) / 2;
 
-function calcularAssentosMobile(quantidade, mesa) {
+// Centro da vaga `indice` da bandeja (de `vagas` na rodada), em px a partir
+// da borda esquerda dela, na altura do meio.
+function posicaoFichaBandeja(indice, vagas) {
+    const util = ASSENTO_MOBILE_CAIXA.largura - 2 * BANDEJA_MOBILE.margemPx;
+    const espaco = Math.min(BANDEJA_MOBILE.espacoVagaPx, util / Math.max(1, vagas));
+    return { x: BANDEJA_MOBILE.margemPx + espaco * (indice + 0.5), y: 0 };
+}
+
+// Caixa interna da mesa em px de tela (onde os filhos absolutos se
+// posicionam em %, sem a borda de madeira); `topoBorda` é o topo de fora,
+// com a madeira.
+export function medirMesa(el) {
+    const rect = el.getBoundingClientRect();
+    return { left: rect.left + el.clientLeft, top: rect.top + el.clientTop, width: el.clientWidth, height: el.clientHeight, topoBorda: rect.top };
+}
+
+export function calcularAssentosMobile(quantidade, mesa) {
     const desktop = calcularAssentos(quantidade);
     const outros = quantidade - 1;
     if (!mesa || outros <= 0) return desktop;
@@ -359,7 +405,7 @@ function calcularAssentosMobile(quantidade, mesa) {
         const f = outros === 1 ? 0.5 : (i - 1) / (outros - 1);
         const t = f * 2 - 1;
         const x = xMin + (xMax - xMin) * f;
-        const y = yMeio + t * t * ASSENTO_MOBILE_DESCIDA_PX + ASSENTO_MOBILE_NOME_PX;
+        const y = yMeio + t * t * ASSENTO_MOBILE_DESCIDA_PX + ASSENTO_MOBILE_ABAIXO_CAIXA_PX;
         return {
             eVoce: false,
             x: ((x - mesa.left) / mesa.width) * 100,
@@ -409,7 +455,7 @@ function CartaVoando({ de, para, anguloInicial, anguloFinal, escalaInicial, esca
     );
 }
 
-function FichaVoando({ de, para, atrasoMs, onChegou, hue }) {
+function FichaVoando({ de, para, atrasoMs, onChegou, hue, escalaPouso = ESCALA_FICHA_CANTO }) {
     const [posBase, setPosBase] = useState(de);
     const [alturaExtra, setAlturaExtra] = useState(0);
     const [escala, setEscala] = useState(1);
@@ -442,17 +488,20 @@ function FichaVoando({ de, para, atrasoMs, onChegou, hue }) {
                 ? 1 + (params.escalaPico - 1) * easeOutCubic(fase)
                 : params.escalaPico - (params.escalaPico - 1) * easeInCubic(fase);
             const desvio = Math.sin(t * Math.PI) * params.desvioLateral;
+            // Pouso menor que o de sempre (bandeja do mobile): a ficha vai
+            // encolhendo no caminho até a proporção dele.
+            const encolhe = 1 + (escalaPouso / ESCALA_FICHA_CANTO - 1) * t;
 
             setPosBase({ x: de.x + (para.x - de.x) * t + desvio, y: de.y + (para.y - de.y) * t });
             setAlturaExtra(altura);
-            setEscala(escalaAtual);
+            setEscala(escalaAtual * encolhe);
             setRotY(params.voltas * 360 * t);
 
             if (t < 1) {
                 raf = requestAnimationFrame((prox) => quadro(inicio, prox));
             } else {
                 setPousada(true);
-                setEscala(ESCALA_FICHA_CANTO);
+                setEscala(escalaPouso);
                 timerAssentar = setTimeout(onChegou, FICHA_ASSENTAMENTO_MS);
             }
         };
@@ -584,7 +633,7 @@ function calcularEstadoRevelacaoVaza(fase, destino) {
         };
     }
     if (fase === 'viajando' || fase === 'pousada') {
-        return { x: destino.x, y: destino.y, rot: destino.rot ?? VAZA_POUSO_ROT_GRAUS, escala: VAZA_POUSO_ESCALA };
+        return { x: destino.x, y: destino.y, rot: destino.rot ?? VAZA_POUSO_ROT_GRAUS, escala: destino.escala ?? VAZA_POUSO_ESCALA };
     }
     return {
         x: window.innerWidth * VAZA_REVELACAO_X_FRACAO,
@@ -933,7 +982,7 @@ function MedalhaoVida({ caixaRef, prazo, destaque, ...propsCoracoes }) {
 // mesmo estilo do nome dos outros.
 // No mobile ele vai numa caixinha igual à dos outros (CaixaFantasma), no
 // canto de baixo à direita, logo acima do timer.
-function SeuFantasminha({ hue, chapeu, danoVersao, estadoMorte, pensando, quantidade = 0, lancamento = 0, mobile = false }) {
+export function SeuFantasminha({ hue, chapeu, danoVersao, estadoMorte, pensando, quantidade = 0, lancamento = 0, mobile = false }) {
     if (estadoMorte === 'morto') return null;
     return (
         <>
@@ -1450,7 +1499,7 @@ function PavioReto({ prazo, largura }) {
 // pouco da cauda). De lado, o corpo ocupa metade da largura, com meio
 // corpo livre de cada lado. Medidas em px do fantasminha de 180px (ver
 // .mf1-caixa-fantasma no meetfront1.css); fora do mobile não muda nada.
-function CaixaFantasma({ ativa, children }) {
+export function CaixaFantasma({ ativa, children }) {
     if (!ativa) return children;
     return (
         <div className="mf1-caixa-fantasma">
@@ -1507,7 +1556,9 @@ export function MaoEmLeque({ quantidade, cartas }) {
 // `escalaForaDaVez` e cresce quando a vez chega; com muitas cartas ela
 // encolhe e fecha o leque pra caber na largura da tela onde a mão está
 // ancorada (medida de verdade, acompanha o redimensionar da janela).
-function SuaMaoEmLeque({ cartas, idSaindo, onJogar, escondida, naVez, apostando, onApostar }) {
+// `ajustes`: MAO_REATIVA_PADRAO no computador, MAO_REATIVA_MOBILE no mobile
+// (o lab do leque passa os dele).
+export function SuaMaoEmLeque({ cartas, idSaindo, onJogar, escondida, naVez, apostando, onApostar, ajustes = MAO_REATIVA_PADRAO }) {
     const maoRef = useRef(null);
     const [larguraDisponivel, setLarguraDisponivel] = useState(0);
     const temCartas = cartas.length > 0;
@@ -1523,15 +1574,15 @@ function SuaMaoEmLeque({ cartas, idSaindo, onJogar, escondida, naVez, apostando,
 
     if (!temCartas) return null;
     const meio = (cartas.length - 1) / 2;
-    const { escala, angulo, deslocamento } = calcularLayoutMao(cartas.length, larguraDisponivel);
-    const escalaVez = naVez || apostando ? 1 : MAO_REATIVA_PADRAO.escalaForaDaVez;
+    const { escala, subida, angulo, deslocamento } = calcularLayoutMao(cartas.length, larguraDisponivel, ajustes);
+    const escalaVez = naVez || apostando ? 1 : ajustes.escalaForaDaVez;
 
     return (
         <>
         <div
             ref={maoRef}
             className={`mesa-exp-sua-mao${naVez ? ' mesa-exp-sua-mao-vez' : ''}${apostando ? ' mesa-exp-sua-mao-apostando' : ''}`}
-            style={{ '--escala-mao': escala * escalaVez, '--escala-vez': escalaVez }}
+            style={{ '--escala-mao': escala * escalaVez, '--escala-vez': escalaVez, marginBottom: subida }}
         >
             {cartas.map((carta, i) => {
                 const offset = i - meio;
@@ -1862,6 +1913,34 @@ export default function MesaExperimento({ estado, acoes }) {
             : calcularAssentos(Math.max(ordemAssentos.length, 1))),
         [ordemAssentos.length, mobile, mesaMedida]
     );
+    // Onde a carta jogada pelo assento `indice` pousa, em % da mesa. No
+    // mobile, dentro da zona desse assento (ver zonasPouso.js, em % da tela,
+    // convertida aqui pela mesa medida); sem zona pra essa quantidade de
+    // jogadores, o pouso do computador.
+    const zonasPouso = mobile && mesaMedida ? ZONAS_POUSO_MOBILE[assentos.length] : null;
+    const escalaCartaJogada = mobile ? ESCALA_CARTA_JOGADA_MOBILE : ESCALA_CARTA_JOGADA_FINAL;
+    function telaParaMesa(ponto) {
+        return {
+            x: ((ponto.x / 100) * window.innerWidth - mesaMedida.left) / mesaMedida.width * 100,
+            y: ((ponto.y / 100) * window.innerHeight - mesaMedida.top) / mesaMedida.height * 100,
+        };
+    }
+    function alvoJogada(indice) {
+        const zona = zonasPouso?.[indice];
+        return zona ? telaParaMesa(sortearPontoNaZona(zona)) : calcularAlvoJogada(assentos[indice]);
+    }
+    // Canto onde as meladas se juntam, em % da mesa (no mobile vem de
+    // zonasPouso.js, em % da tela).
+    // De onde a carta jogada sai, em % da mesa: no mobile, o centro da
+    // caixinha dos outros (o assento inclui bandeja e nome embaixo dela);
+    // você e o computador, o próprio assento.
+    function origemJogada(indice) {
+        const assento = assentos[indice];
+        if (!mobile || !mesaMedida || assento.eVoce) return assento;
+        return { ...assento, y: assento.y - (ASSENTO_MOBILE_ABAIXO_CAIXA_PX / mesaMedida.height) * 100 };
+    }
+    const duracaoJogada = mobile ? DURACAO_JOGADA_MOBILE_MS : DURACAO_JOGADA_MS;
+    const cantoMelada = mobile && mesaMedida ? telaParaMesa(MELADA_POUSO_MOBILE) : { x: MELADA_CANTO_X, y: MELADA_CANTO_Y };
     const huesPorAssento = useMemo(
         () => Array.from({ length: ordemAssentos.length }, () => Math.random() * 360),
         [ordemAssentos.length]
@@ -1998,10 +2077,7 @@ export default function MesaExperimento({ estado, acoes }) {
             setMesaMedida(null);
             return undefined;
         }
-        const medir = () => {
-            const rect = el.getBoundingClientRect();
-            setMesaMedida({ left: rect.left + el.clientLeft, top: rect.top + el.clientTop, width: el.clientWidth, height: el.clientHeight, topoBorda: rect.top });
-        };
+        const medir = () => setMesaMedida(medirMesa(el));
         medir();
         const observador = new ResizeObserver(medir);
         observador.observe(el);
@@ -2098,6 +2174,7 @@ export default function MesaExperimento({ estado, acoes }) {
     const proximoIdFicha = useRef(0);
     const cantoFichasRef = useRef(null);
     const assentoRefs = useRef([]);
+    const bandejaRefs = useRef([]);
     const apostasProcessadasRef = useRef(new Set());
 
     // Cartas de dano do fim de rodada (ver dispararCartasDeDano/Coracoes) —
@@ -2128,6 +2205,9 @@ export default function MesaExperimento({ estado, acoes }) {
     const [apostaEnviando, setApostaEnviando] = useState(false);
 
     const [assentoEmHoverIndex, setAssentoEmHoverIndex] = useState(null);
+    // Assentos cuja caixinha está acesa por ter acabado de lançar uma carta
+    // (só no mobile, ver CAIXA_LANCOU_MS).
+    const [assentosLancando, setAssentosLancando] = useState([]);
 
     const rodadaProcessadaRef = useRef(0);
     const placarProcessadoRef = useRef(null);
@@ -2340,6 +2420,10 @@ export default function MesaExperimento({ estado, acoes }) {
             if (suaCartaJogada) {
                 setSuaMao((atual) => atual.filter((c) => c.id !== suaCartaJogada.id));
             }
+            if (mobile && indice !== 0) {
+                setAssentosLancando((atual) => (atual.includes(indice) ? atual : [...atual, indice]));
+                setTimeout(() => setAssentosLancando((atual) => atual.filter((i) => i !== indice)), CAIXA_LANCOU_MS);
+            }
             const giroInicial = 360 + Math.random() * 360;
             const rotFinal = Math.random() * 360;
             const id = ++proximoIdCarta.current;
@@ -2351,12 +2435,13 @@ export default function MesaExperimento({ estado, acoes }) {
                     especial,
                     geracao,
                     jogador: nome,
-                    de: assento,
-                    para: calcularAlvoJogada(assento),
+                    de: origemJogada(indice),
+                    para: alvoJogada(indice),
+                    duracaoMs: duracaoJogada,
                     anguloInicial: rotFinal + giroInicial,
                     anguloFinal: rotFinal,
                     escalaInicial: ESCALA_CARTA_JOGADA_INICIAL,
-                    escalaFinal: ESCALA_CARTA_JOGADA_FINAL,
+                    escalaFinal: escalaCartaJogada,
                     carta,
                 },
             ]);
@@ -2689,7 +2774,7 @@ export default function MesaExperimento({ estado, acoes }) {
             const indice = indiceDoNome(jogada.jogador);
             const carta = lerCarta(jogada.carta);
             if (indice === -1 || !carta || !assentos[indice]) return [];
-            const alvo = calcularAlvoJogada(assentos[indice]);
+            const alvo = alvoJogada(indice);
             return [{
                 id: ++proximoIdCarta.current,
                 jogador: jogada.jogador,
@@ -2698,7 +2783,7 @@ export default function MesaExperimento({ estado, acoes }) {
                 x: alvo.x,
                 y: alvo.y,
                 rot: Math.random() * 360,
-                escala: ESCALA_CARTA_JOGADA_FINAL,
+                escala: escalaCartaJogada,
             }];
         }));
         setCartaEmHoverId(null);
@@ -3148,6 +3233,7 @@ export default function MesaExperimento({ estado, acoes }) {
         const destinoViagem = {
             ...calcularPosicaoCartaVazaGanha(assentoIndice, slotIndice, destino.x, destino.y, apostaVencedor, estado.cartasRodada),
             rot: destino.rot,
+            escala: destino.escala,
         };
 
         const origem = {
@@ -3217,6 +3303,11 @@ export default function MesaExperimento({ estado, acoes }) {
             const rect = cantoFichasRef.current?.getBoundingClientRect();
             return rect ? { x: rect.left, y: rect.top, rot: VAZA_POUSO_ROT_GRAUS } : null;
         }
+        const bandeja = mobile ? bandejaRefs.current[assentoIndice] : null;
+        if (bandeja) {
+            const rect = bandeja.getBoundingClientRect();
+            return { x: rect.left, y: rect.top + rect.height / 2, rot: 0, escala: ESCALA_VAZA_BANDEJA };
+        }
         const el = assentoRefs.current[assentoIndice];
         if (!el) return null;
         const rect = el.getBoundingClientRect();
@@ -3242,6 +3333,7 @@ export default function MesaExperimento({ estado, acoes }) {
         if (assentoIndice === 0) {
             return somarPonto({ x: ancoraX, y: ancoraY }, posicaoVagaFicha(slotIndice, vagasBarra, geometriaBarra(mobile)));
         }
+        if (mobile) return somarPonto({ x: ancoraX, y: ancoraY }, posicaoFichaBandeja(slotIndice, vagasBarra));
         const meio = (apostaValor - 1) / 2;
         const offset = slotIndice - meio;
         return { x: ancoraX, y: ancoraY - offset * FICHA_EMPILHA_FANTASMA_PX };
@@ -3275,14 +3367,18 @@ export default function MesaExperimento({ estado, acoes }) {
         const ehVoce = assentos[indice]?.eVoce;
         const hue = ehVoce ? undefined : huesPorAssento[indice];
         const meio = (valor - 1) / 2;
+        const naBandeja = !ehVoce && mobile;
 
         const novasFichas = Array.from({ length: valor }, (_, i) => ({
             id: ++proximoIdFicha.current,
             de,
             para: ehVoce
                 ? somarPonto(ancora, posicaoVagaFicha(i, estado.cartasRodada, geometriaBarra(mobile)))
-                : { x: ancora.x, y: ancora.y - (i - meio) * FICHA_EMPILHA_FANTASMA_PX },
+                : naBandeja
+                    ? somarPonto(ancora, posicaoFichaBandeja(i, estado.cartasRodada))
+                    : { x: ancora.x, y: ancora.y - (i - meio) * FICHA_EMPILHA_FANTASMA_PX },
             atrasoMs: i * FICHA_ATRASO_ENTRE_MS,
+            naBandeja,
             hue,
             assentoIndice: indice,
         }));
@@ -3696,6 +3792,7 @@ export default function MesaExperimento({ estado, acoes }) {
                 naVez={estado.jogadorDaVez === estado.meuNome && !estado.jogadorDaVezAposta && !estado.vencedor}
                 apostando={estado.jogadorDaVezAposta === estado.meuNome && !!acoes?.apostar}
                 onApostar={apostaPopupAberto ? undefined : abrirPopupAposta}
+                ajustes={mobile ? MAO_REATIVA_MOBILE : MAO_REATIVA_PADRAO}
             />
 
             <BarraFichas
@@ -3890,7 +3987,7 @@ export default function MesaExperimento({ estado, acoes }) {
                         <div
                             key={i}
                             ref={(el) => { assentoRefs.current[i] = el; }}
-                            className={`mesa-exp-assento${assento.eVoce ? ' mesa-exp-assento-voce' : ''}`}
+                            className={`mesa-exp-assento${assento.eVoce ? ' mesa-exp-assento-voce' : ''}${assentosLancando.includes(i) ? ' mf1-assento-lancou' : ''}`}
                             style={{ left: `${assento.x}%`, top: `${assento.y}%` }}
                             onMouseEnter={() => !assento.eVoce && setAssentoEmHoverIndex(i)}
                             onMouseLeave={() => !assento.eVoce && setAssentoEmHoverIndex(null)}
@@ -3923,6 +4020,7 @@ export default function MesaExperimento({ estado, acoes }) {
                                         />
                                     </Fantasminha>
                                     </CaixaFantasma>
+                                    {mobile && <div ref={(el) => { bandejaRefs.current[i] = el; }} className="mf1-bandeja-fichas" />}
                                     <span className="mesa-exp-assento-legenda">
                                         {/* Vaga do timer sempre no DOM: abre de 0 até a largura
                                             do círculo quando o prazo começa, empurrando o nome
@@ -3940,7 +4038,7 @@ export default function MesaExperimento({ estado, acoes }) {
                                         <span key={infoTemporaria.id} className={`mesa-exp-assento-aposta-legenda${assentoEmHoverIndex === i ? '' : ' mf1-info-temporaria'}`}>
                                             <TextoAposta aposta={apostaDele} feitas={estado.vazasFeitas?.[nomeAssento] ?? 0} mostrarFeitas={!apostasEmAndamento && infoTemporaria.tipo !== 'aposta'} />
                                         </span>
-                                    ) : naVez ? (
+                                    ) : naVez && !mobile ? (
                                         <span className="mesa-exp-assento-aposta-legenda mesa-exp-assento-turno-legenda">
                                             Vez de {rotuloAssento}
                                         </span>
@@ -4033,6 +4131,7 @@ export default function MesaExperimento({ estado, acoes }) {
                     const { grupo: grupoMelada, indice: indiceMelada } = melada
                         ? localizarGrupoMelada(carta.id)
                         : { grupo: 0, indice: 0 };
+                    const desvioMelada = deslocamentoMelada(grupoMelada, indiceMelada);
                     const jogadorHover = assentoEmHoverIndex != null
                         ? ordemAssentos[assentoEmHoverIndex]?.nome
                         : null;
@@ -4052,9 +4151,9 @@ export default function MesaExperimento({ estado, acoes }) {
                                 top: `${explosao.y}%`,
                                 transform: `translate(-50%, -50%) perspective(700px) rotate(${explosao.rot}deg) rotateY(${explosao.flip}deg) scale(${explosao.escala})`,
                             } : melada ? {
-                                left: `${MELADA_CANTO_X}%`,
-                                top: `${MELADA_CANTO_Y}%`,
-                                transform: `translate(calc(-50% + ${grupoMelada * MELADA_GRUPO_ESPACAMENTO_PX + indiceMelada * MELADA_CANTO_ESPACAMENTO_PX - (grupoMelada === 0 ? MELADA_PRIMEIRO_GRUPO_EXTRA_PX : 0)}px), calc(-50% + ${indiceMelada * MELADA_CANTO_ESPACAMENTO_PX}px)) rotate(${carta.rot}deg) scale(${carta.escala})`,
+                                left: `${cantoMelada.x}%`,
+                                top: `${cantoMelada.y}%`,
+                                transform: `translate(calc(-50% + ${desvioMelada.x}px), calc(-50% + ${desvioMelada.y}px)) rotate(${carta.rot}deg) scale(${carta.escala})`,
                             } : {
                                 left: `${carta.x}%`,
                                 top: `${carta.y}%`,
@@ -4072,7 +4171,7 @@ export default function MesaExperimento({ estado, acoes }) {
                     const melada = analiseMesa.idsMeladas.has(cartaEmHover.id);
                     const vencendo = cartaEmHover.id === analiseMesa.idVencedora;
                     const pos = melada
-                        ? { x: MELADA_CANTO_X, y: MELADA_CANTO_Y }
+                        ? cantoMelada
                         : { x: cartaEmHover.x, y: cartaEmHover.y };
                     return (
                         <div
@@ -4116,7 +4215,7 @@ export default function MesaExperimento({ estado, acoes }) {
                         escalaFinal={carta.escalaFinal}
                         carta={carta.carta}
                         escondida={carta.escondida}
-                        duracaoMs={carta.tipo === 'jogar' ? DURACAO_JOGADA_MS : DURACAO_CARTA_MS}
+                        duracaoMs={carta.tipo === 'jogar' ? carta.duracaoMs ?? DURACAO_JOGADA_MS : DURACAO_CARTA_MS}
                         onChegou={() => aoChegarCarta(carta)}
                     />
                 )))}
@@ -4140,6 +4239,7 @@ export default function MesaExperimento({ estado, acoes }) {
                         atrasoMs={ficha.atrasoMs}
                         onChegou={() => aoChegarFichaFantasma(ficha)}
                         hue={ficha.hue}
+                        escalaPouso={ficha.naBandeja ? ESCALA_FICHA_BANDEJA : undefined}
                     />
                 ))}
                 {cartasDanoVoando.map((carta) => (
@@ -4158,7 +4258,7 @@ export default function MesaExperimento({ estado, acoes }) {
             {fichasFantasmaNoCanto.map((ficha) => (
                 <div
                     key={ficha.id}
-                    className="mesa-exp-aposta-ficha-canto"
+                    className={`mesa-exp-aposta-ficha-canto${ficha.naBandeja ? ' mf1-ficha-bandeja' : ''}`}
                     style={{ left: `${ficha.para.x}px`, top: `${ficha.para.y}px` }}
                 >
                     <Ficha hue={ficha.hue} />
@@ -4202,7 +4302,7 @@ export default function MesaExperimento({ estado, acoes }) {
                 return (
                     <div
                         key={carta.id}
-                        className={`mesa-exp-carta-vaza-ganha${carta.assentoIndice === 0 ? ' mesa-exp-carta-vaza-ganha-voce' : ''}`}
+                        className={`mesa-exp-carta-vaza-ganha${carta.assentoIndice === 0 ? ' mesa-exp-carta-vaza-ganha-voce' : mobile ? ' mf1-vaza-bandeja' : ''}`}
                         style={{ left: `${pos.x}px`, top: `${pos.y}px` }}
                     >
                         <Carta rank={carta.rank} naipe={carta.naipe} />
