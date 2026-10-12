@@ -1194,6 +1194,66 @@
     to { transform: translateX(-100%); }
 }
 
+/* Fogo de Copas em flipbook (ver fogoFlipbook.js e FogoFlipbook em
+   MesaDanificada.jsx): a janela de um quadro dentro da fogueira, um pouco
+   mais alta que ela em cima. Usa as mesmas camadas em degraus da borda. */
+.mf1-fogo-flip {
+    position: absolute;
+    left: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+/* Fogo de Copas desenhado num canvas só (fogo: 'canvas', ver FogoCanvas em
+   MesaDanificada.jsx) — posição e tamanho vêm por style. */
+.mf1-fogo-inteiro {
+    position: absolute;
+    pointer-events: none;
+}
+
+/* Marca carbonizada como imagem (marca: 'imagem' em ajustesCopas.js): a
+   mancha já borrada numa <img> e a brasa num SVG por cima, os dois na
+   caixa da .mesa-exp-carbonizado. */
+.mf1-carbonizado-img,
+.mf1-carbonizado-brasa-svg {
+    position: absolute;
+    left: 0;
+    top: 0;
+    overflow: visible;
+    pointer-events: none;
+}
+
+/* Brasa sem filtro (brasaFiltro: false): a fria parada embaixo; a quente
+   (traço claro + halo largo translúcido no lugar do drop-shadow) some por
+   opacidade no mesmo tempo do esfriar original. */
+.mf1-brasa-fria,
+.mf1-brasa-halo,
+.mf1-brasa-traco {
+    fill: none;
+}
+.mf1-brasa-fria {
+    stroke: #5a2208;
+    stroke-width: 1.4;
+    opacity: .35;
+}
+.mf1-brasa-halo {
+    stroke: #ff5a00;
+    stroke-width: 5;
+    stroke-linejoin: round;
+    opacity: .35;
+}
+.mf1-brasa-traco {
+    stroke: #ffb347;
+    stroke-width: 1.4;
+}
+.mf1-brasa-quente {
+    animation: mf1-brasa-apagar 4s ease-out forwards;
+}
+@keyframes mf1-brasa-apagar {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
 /* Raios por dentro sem drop-shadow: o halo vira a camada .mf1-raio-halo
    (traço largo translúcido, ver RaiosNaCarta.jsx). */
 .carta-exp-brilho-leve .carta-exp-raio {
@@ -1258,6 +1318,18 @@
 @keyframes mf1-zap-apagar {
     from { opacity: 1; }
     to { opacity: 0; }
+}
+
+/* Zap em canvas (ver ZapCanvas em MesaDanificada.jsx e zapCanvas.js): a
+   tela inteira, por cima da carta da jogada, mesmo andar do raio do céu. */
+.mf1-zap-canvas {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 49;
+    pointer-events: none;
 }
 
 /* Raio do céu sem drop-shadow da tela inteira: halo largo por baixo. */

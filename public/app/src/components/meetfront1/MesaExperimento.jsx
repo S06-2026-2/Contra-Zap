@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Fantasminha from './Fantasminha.jsx';
 import Carta, { ManilhaContext } from './Carta.jsx';
-import { JogadaManilha, DanosDaMesa, tremerElemento, calcularEmpurraoZap } from './MesaDanificada.jsx';
+import { JogadaManilha, DanosDaMesa, tremerElemento, calcularEmpurraoZap, prepararFogoCopasInteiro } from './MesaDanificada.jsx';
+import { prepararBitmapsFogo } from './fogoInteiro.js';
 import Ficha from './Ficha.jsx';
 import { sortearChapeu } from '../../chapeus.js';
 import { MENSAGENS_CHAT } from '../../../../../conexao/chat/mensagensChat.js';
@@ -12,6 +13,8 @@ import { MAO_REATIVA_MOBILE, MAO_REATIVA_PADRAO, calcularLayoutMao } from './mao
 import { dispararImpactoManilha } from './FiltroTela.jsx';
 import { useAjustesZap } from './ajustesZap.js';
 import { prepararFlipbookBorda } from './bordaFlipbook.js';
+import { useAjustesCopas } from './ajustesCopas.js';
+import { prepararFlipbookFogo, prepararFlipbookFogoDecodificado } from './fogoFlipbook.js';
 import { useModoMobile } from './modoMobile.js';
 import { ESCALA_CARTA_JOGADA_MOBILE, MELADA_POUSO_MOBILE, ZONAS_POUSO_MOBILE, sortearPontoNaZona } from './zonasPouso.js';
 import './meetfront1.css';
@@ -1895,6 +1898,16 @@ export default function MesaExperimento({ estado, acoes }) {
     useEffect(() => {
         if (bordaZap === 'flipbook') prepararFlipbookBorda();
     }, [bordaZap]);
+    // Idem pro fogo de Copas pré-desenhado (ver fogoFlipbook.js e
+    // fogoInteiro.js).
+    const { fogo: fogoCopas, fogoDecodificar } = useAjustesCopas();
+    useEffect(() => {
+        if (fogoCopas === 'original' || fogoCopas === 'off') return;
+        if (fogoDecodificar) prepararFlipbookFogoDecodificado();
+        else prepararFlipbookFogo();
+        if (fogoCopas === 'canvas') prepararBitmapsFogo();
+        if (fogoCopas === 'flipbook-unico') prepararFogoCopasInteiro();
+    }, [fogoCopas, fogoDecodificar]);
     // Assentos na ordem de JOGO (`estado.ordem`, de novaRodadaIniciada — a
     // vez sempre anda pra frente nela), não na de entrada na sala de
     // `estado.jogadores`, que só serve de fallback antes da primeira rodada.

@@ -33,6 +33,13 @@ import { createContext, useContext } from 'react';
 //   enquanto ela cresce.
 // - raiosNoImpacto: false = não solta raio novo (dentro nem fora) na
 //   dissipação, depois que ela bate na mesa.
+//
+// Zap em canvas (em teste, ver zapCanvas.js):
+// - canvas: true = na jogada, os raios de dentro da carta, os de fora e o
+//   raio do céu são desenhados num canvas só por cima da tela, em vez de
+//   SVG (raiosDentro/raiosFora/raioCeu continuam ligando cada um).
+// - canvasBrilho: com o canvas, o brilho borrado em volta dos raios (o
+//   lugar dos drop-shadow) volta.
 export const AJUSTES_ZAP_ORIGINAL = {
     borda: 'viva',
     bordaPulo: 1,
@@ -45,14 +52,28 @@ export const AJUSTES_ZAP_ORIGINAL = {
     cartaGrande: false,
     semRaiosNaSubida: false,
     raiosNoImpacto: true,
+    canvas: false,
+    canvasBrilho: true,
 };
-// Otimizado = o que a demo de desempenho escolheu no S20: borda em
+// Otimizado em SVG = o que a demo escolheu no S20 em 2026-10-11: borda em
 // flipbook (custa o mesmo que sem borda) + brilho sem filtro. Os ajustes
-// da crescida não deram ganho e ficam como no original.
-export const AJUSTES_ZAP_OTIMIZADO = {
+// da crescida não deram ganho e ficam como no original. Era o padrão do
+// jogo até o canvas; os lotes antigos da demo continuam usando ele.
+export const AJUSTES_ZAP_SVG = {
     ...AJUSTES_ZAP_ORIGINAL,
     borda: 'flipbook',
     brilhoFiltro: false,
+};
+// Otimizado = lote ZAP CANVAS (S20, 2026-10-12): borda em flipbook e toda a
+// eletricidade da jogada num canvas (travado 377 -> ~236 ms na rodada
+// curta). Sem os raios SVG, os brilhos saem de graça e voltam: o borrado
+// dos raios (canvasBrilho) e o drop-shadow/brightness da carta
+// (brilhoFiltro, como no original).
+export const AJUSTES_ZAP_OTIMIZADO = {
+    ...AJUSTES_ZAP_ORIGINAL,
+    borda: 'flipbook',
+    canvas: true,
+    canvasBrilho: true,
 };
 
 // false = o jogo usa o zap original; true = o otimizado.

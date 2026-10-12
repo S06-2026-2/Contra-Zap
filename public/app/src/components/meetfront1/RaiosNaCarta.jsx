@@ -99,7 +99,7 @@ function gerarRamos(x0, y0, x1, y1, profundidade, inicio, duracao, lista) {
 
 // `halo`: uma terceira camada larga e translúcida por baixo, no lugar do
 // drop-shadow do SVG (ver .carta-exp-brilho-leve em meetfront1.css).
-function criarRaio(svg, agora, tempestade, halo) {
+function sortearRamosDoRaio() {
     const origem = pontoNaCarta();
     let destino = pontoNaCarta();
     for (let i = 0; i < 6 && Math.hypot(destino[0] - origem[0], destino[1] - origem[1]) < DISTANCIA_MIN; i++) {
@@ -107,6 +107,23 @@ function criarRaio(svg, agora, tempestade, halo) {
     }
     const ramos = [];
     gerarRamos(origem[0], origem[1], destino[0], destino[1], 0, 0, PROPAGACAO, ramos);
+    return ramos;
+}
+
+// Mesmo raio, só os dados (sem DOM) — pro zap em canvas (zapCanvas.js), que
+// desenha ele a cada quadro com a mesma conta de atualizarRaio.
+export function sortearRaioDentro(agora, tempestade) {
+    const [vMin, vMax] = tempestade ? VIDA_TEMPESTADE_MS : VIDA_CALMA_MS;
+    return { ramos: sortearRamosDoRaio(), nasceu: agora, vida: sortear(vMin, vMax) };
+}
+
+export {
+    LARGURA as RAIO_DENTRO_LARGURA, ALTURA as RAIO_DENTRO_ALTURA, INTERVALO_CALMO_MS, MAX_RAIOS_VIVOS, INICIO_SUMIR, LARGURA_CAMADA,
+    taxaDaRampa, sortear as sortearEntre,
+};
+
+function criarRaio(svg, agora, tempestade, halo) {
+    const ramos = sortearRamosDoRaio();
     const g = document.createElementNS(SVG_NS, 'g');
     for (const ramo of ramos) {
         const espessura = 0.62 ** ramo.profundidade;

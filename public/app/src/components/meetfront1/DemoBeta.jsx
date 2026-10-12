@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import MesaExperimento from './MesaExperimento.jsx';
-import FiltroTela, { CHOQUE_MODO, FILTRO_ANTIGO_SVG } from './FiltroTela.jsx';
+import FiltroTela, { CHOQUE_MODO, FILTRO_ANTIGO_SVG, GRAO_NA_PARTIDA } from './FiltroTela.jsx';
 import { criarMedidor } from './medidorDesempenho.js';
-import { AJUSTES_ZAP_ORIGINAL, AJUSTES_ZAP_OTIMIZADO, AJUSTES_ZAP_PADRAO, AjustesZapContext } from './ajustesZap.js';
+import { AJUSTES_ZAP_ORIGINAL, AJUSTES_ZAP_OTIMIZADO, AJUSTES_ZAP_SVG, AJUSTES_ZAP_PADRAO, AjustesZapContext } from './ajustesZap.js';
 import { prepararFlipbookBorda } from './bordaFlipbook.js';
+import { AJUSTES_COPAS_ORIGINAL, AJUSTES_COPAS_OTIMIZADO, AJUSTES_COPAS_COMPLETA, AJUSTES_COPAS_PADRAO, COPAS_PELADA, AjustesCopasContext } from './ajustesCopas.js';
+import { prepararFlipbookFogo, prepararFlipbookFogoDecodificado } from './fogoFlipbook.js';
+import { prepararBitmapsFogo } from './fogoInteiro.js';
+import { prepararFogoCopasInteiro } from './MesaDanificada.jsx';
 
 // Partida beta (botão "🎬 DEMO" no login): uma rodada fixa só de bots, sem
 // servidor, pra medir desempenho da mesa do meetfront1. O roteiro abaixo
@@ -95,16 +99,22 @@ function montarRoteiro() {
     return passos;
 }
 
-// Roteiro curto (lote "SÓ ZAP"): rodada de 1 carta, apostas de uma vez, e o
-// zap é a primeira carta da vaza — jogado por mim, pra ele passar pela mão
-// também. Só mede a partir do turno do zap (`iniciarMedicao`); cada teste
-// remonta a mesa, então ela começa sempre limpa.
-function montarRoteiroZap() {
+// Roteiro curto (lotes "SÓ ZAP" e "COPAS"): rodada de 1 carta, apostas de
+// uma vez, e a manilha (`carta`, um A — a vira é K) é a primeira carta da
+// vaza — jogada por mim, pra ela passar pela mão também. Só mede a partir
+// do turno dela (`iniciarMedicao`); cada teste remonta a mesa, então ela
+// começa sempre limpa.
+const ROTEIROS_CURTOS = {
+    zap: { carta: '[A de Paus]', nome: 'zap' },
+    copas: { carta: '[A de Copas]', nome: 'copas' },
+};
+
+function montarRoteiroCurto({ carta, nome }) {
     return [
         {
             eventos: [
                 ['novaRodadaIniciada', { numero: 1, cartas: 1, ordem: ORDEM }],
-                ['suaMao', { mao: ['[A de Paus]'] }],
+                ['suaMao', { mao: [carta] }],
                 ['manilhaVirada', { vira: '[K de Ouros]', viraValor: 7 }],
             ],
         },
@@ -113,13 +123,13 @@ function montarRoteiroZap() {
             atraso: 400,
             esperarMesa: true,
             iniciarMedicao: true,
-            fase: 'zap na mão',
+            fase: `${nome} na mão`,
             eventos: [
                 ['turnoJogador', { jogador: EU }],
                 ['timerTurno', { jogador: EU, tipo: 'jogada', tempoMs: ATRASO_BOT_MS }],
             ],
         },
-        { atraso: ATRASO_BOT_MS, fase: 'zap jogado', eventos: [['cartaJogada', { jogador: EU, carta: '[A de Paus]' }]] },
+        { atraso: ATRASO_BOT_MS, fase: `${nome} jogado`, eventos: [['cartaJogada', { jogador: EU, carta }]] },
     ];
 }
 
@@ -236,7 +246,7 @@ function PartidaDemo({ medidor, roteiro, onFim, onSair }) {
         }
 
         (async () => {
-            const passos = roteiro === 'zap' ? montarRoteiroZap() : montarRoteiro();
+            const passos = ROTEIROS_CURTOS[roteiro] ? montarRoteiroCurto(ROTEIROS_CURTOS[roteiro]) : montarRoteiro();
             const medeDesdeOInicio = !passos.some((p) => p.iniciarMedicao);
             if (medeDesdeOInicio) {
                 medidor.fase('início');
@@ -310,9 +320,12 @@ const PECAS = [
 // `antigo`: qual filtro (ver FILTRO_ANTIGO_SVG em FiltroTela.jsx) — começa
 // no que a mesa usa de verdade.
 // `zap`: ajustes da manilha de Paus (ver ajustesZap.js) — também começa no
-// que a mesa usa.
-const TUDO_LIGADO = { ...Object.fromEntries(PECAS.map((p) => [p.chave, true])), antigo: FILTRO_ANTIGO_SVG, zap: AJUSTES_ZAP_PADRAO };
-const TUDO_DESLIGADO = { ...Object.fromEntries(PECAS.map((p) => [p.chave, false])), antigo: FILTRO_ANTIGO_SVG, zap: AJUSTES_ZAP_PADRAO };
+// que a mesa usa. `copas`: idem, da manilha de Copas (ajustesCopas.js).
+const TUDO_LIGADO = { ...Object.fromEntries(PECAS.map((p) => [p.chave, true])), antigo: FILTRO_ANTIGO_SVG, zap: AJUSTES_ZAP_PADRAO, copas: AJUSTES_COPAS_PADRAO };
+// O que a partida de verdade usa: tudo do jeito padrão, sem o grão (ver
+// GRAO_NA_PARTIDA em FiltroTela.jsx). A tela de configuração começa nele.
+const COMO_NO_JOGO = { ...TUDO_LIGADO, grao: GRAO_NA_PARTIDA, choqueModo: CHOQUE_MODO };
+const TUDO_DESLIGADO = { ...Object.fromEntries(PECAS.map((p) => [p.chave, false])), antigo: FILTRO_ANTIGO_SVG, zap: AJUSTES_ZAP_PADRAO, copas: AJUSTES_COPAS_PADRAO };
 
 // Peças do zap que dá pra ligar/desligar na tela de configuração. A borda
 // gira a cada toque pelos estados de BORDAS (modo + pulo).
@@ -321,6 +334,8 @@ const PECAS_ZAP = [
     { chave: 'raiosDentro', rotulo: 'Raios por dentro da carta' },
     { chave: 'raiosFora', rotulo: 'Raios em volta da carta' },
     { chave: 'raioCeu', rotulo: 'Raio do céu no impacto' },
+    { chave: 'canvas', rotulo: 'Eletricidade da jogada num canvas só (em vez de SVG)' },
+    { chave: 'canvasBrilho', rotulo: 'Brilho borrado nos raios do canvas' },
 ];
 const BORDAS = [
     { borda: 'viva', bordaPulo: 1 },
@@ -355,6 +370,7 @@ function rotuloZap(z) {
     const igual = (a) => Object.keys(a).every((k) => a[k] === z[k]);
     if (igual(AJUSTES_ZAP_ORIGINAL)) return 'zap original';
     if (igual(AJUSTES_ZAP_OTIMIZADO)) return 'zap otimizado';
+    if (igual(AJUSTES_ZAP_SVG)) return 'zap otimizado em svg';
     if (igual(ZAP_PELADO)) return 'zap sem efeitos';
     const partes = [];
     const pulo = z.bordaPulo ?? 1;
@@ -369,7 +385,51 @@ function rotuloZap(z) {
     if (z.cartaGrande) partes.push('carta grande');
     if (z.semRaiosNaSubida) partes.push('sem raios na subida');
     if (z.raiosNoImpacto === false) partes.push('sem raios no impacto');
+    if (z.canvas) partes.push(z.canvasBrilho === false ? 'canvas sem brilho' : 'canvas com brilho');
     return `zap: ${partes.join(', ')}`;
+}
+
+// Peças da jogada de Copas na tela de configuração: cada toque gira pelos
+// valores da peça.
+const PECAS_COPAS = [
+    { chave: 'fogo', valores: ['original', 'flipbook', 'flipbook-unico', 'canvas', 'off'], rotulo: 'Fogo' },
+    { chave: 'marca', valores: ['original', 'imagem', 'off'], rotulo: 'Marca carbonizada' },
+    { chave: 'brasaFiltro', valores: [true, false], rotulo: 'Brasa por drop-shadow' },
+    { chave: 'fogoDecodificar', valores: [false, true], rotulo: 'Sprites do fogo já decodificados' },
+    { chave: 'fogoMontarAntes', valores: [false, true], rotulo: 'Fogo montado antes (na subida)' },
+];
+const ROTULO_VALOR_COPAS = {
+    fogo: {
+        original: 'original (bolinhas + blend)',
+        flipbook: 'flipbook (pré-desenhado por fogueira)',
+        'flipbook-unico': 'flipbook único (o fogo inteiro num sprite)',
+        canvas: 'canvas (o fogo inteiro desenhado a cada quadro)',
+        off: 'desligado',
+    },
+    marca: { original: 'original (SVG com blur)', imagem: 'imagem (blur desenhado uma vez)', off: 'desligada' },
+    brasaFiltro: { true: 'sim', false: 'não (halo sem filtro)' },
+    fogoDecodificar: { true: 'sim', false: 'não' },
+    fogoMontarAntes: { true: 'sim', false: 'não' },
+};
+
+const mesmoAjuste = (a, b) => Object.keys(b).every((k) => a[k] === b[k]);
+
+function rotuloCopas(c) {
+    if (mesmoAjuste(c, AJUSTES_COPAS_ORIGINAL)) return 'copas original';
+    if (mesmoAjuste(c, AJUSTES_COPAS_OTIMIZADO)) return 'copas otimizada';
+    if (mesmoAjuste(c, AJUSTES_COPAS_COMPLETA)) return 'copas completa';
+    if (mesmoAjuste(c, COPAS_PELADA)) return 'copas sem efeitos';
+    const partes = [];
+    if (c.fogo === 'flipbook') partes.push('fogo flipbook');
+    if (c.fogo === 'flipbook-unico') partes.push('fogo flipbook único');
+    if (c.fogo === 'canvas') partes.push('fogo canvas');
+    if (c.fogo === 'off') partes.push('sem fogo');
+    if (c.marca === 'imagem') partes.push('marca imagem');
+    if (c.marca === 'off') partes.push('sem marca');
+    if (!c.brasaFiltro) partes.push('brasa sem filtro');
+    if (c.fogoDecodificar) partes.push('decodificado');
+    if (c.fogoMontarAntes) partes.push('montado antes');
+    return `copas: ${partes.join(', ')}`;
 }
 
 function sobrescritaDe(cfg) {
@@ -385,9 +445,15 @@ function rotuloDe(cfg) {
     const ligadas = PECAS.filter((p) => cfg[p.chave]);
     const filtro = ligadas.length ? `${rotuloPecas(cfg, ligadas)} · ${cfg.antigo ? 'filtro antigo' : 'filtro leve'}` : 'tudo desligado';
     const modoChoque = cfg.choque && cfg.choqueModo && cfg.choqueModo !== 'tela' ? ` · choque ${cfg.choqueModo}` : '';
-    const rotulo = `${cfg.zap ? `${filtro} · ${rotuloZap(cfg.zap)}` : filtro}${modoChoque}`;
+    // No roteiro curto de Copas o zap não entra em jogo; fora dele, Copas só
+    // aparece no rótulo quando não é a do jogo.
+    const soCopas = cfg.roteiro === 'copas';
+    const zap = cfg.zap && !soCopas ? ` · ${rotuloZap(cfg.zap)}` : '';
+    const copas = cfg.copas && (soCopas || !mesmoAjuste(cfg.copas, AJUSTES_COPAS_PADRAO)) ? ` · ${rotuloCopas(cfg.copas)}` : '';
+    const rotulo = `${filtro}${zap}${copas}${modoChoque}`;
     if (cfg.nome) return `${cfg.nome} (${rotulo})`;
-    return cfg.roteiro === 'zap' ? `só zap · ${rotulo}` : rotulo;
+    if (cfg.roteiro === 'zap') return `só zap · ${rotulo}`;
+    return soCopas ? `só copas · ${rotulo}` : rotulo;
 }
 
 function rotuloPecas(cfg, ligadas) {
@@ -584,7 +650,7 @@ const VOLTA_ZAP = [
     comZap({ ...AJUSTES_ZAP_ORIGINAL, raiosDentro: false }),
     comZap({ ...AJUSTES_ZAP_ORIGINAL, raiosFora: false }),
     comZap({ ...AJUSTES_ZAP_ORIGINAL, raioCeu: false }),
-    comZap(AJUSTES_ZAP_OTIMIZADO),
+    comZap(AJUSTES_ZAP_SVG),
     comZap(ZAP_PELADO),
 ];
 // "BORDA": filtro leve e o resto do zap original em todos; varia só a borda
@@ -601,14 +667,14 @@ const VOLTA_BORDA = [
     comBorda('flipbook'),
     comBorda('leve'),
     comBorda('off'),
-    comZap({ ...AJUSTES_ZAP_OTIMIZADO, borda: 'flipbook' }),
+    comZap({ ...AJUSTES_ZAP_SVG, borda: 'flipbook' }),
 ];
 // "SÓ ZAP": todas as formas do zap dos lotes ZAP e BORDA, uma vez cada, no
 // roteiro curto (montarRoteiroZap).
 const VOLTA_SO_ZAP = [...new Map([...VOLTA_ZAP, ...VOLTA_BORDA].map((c) => [rotuloDe(c), { ...c, roteiro: 'zap' }])).values()];
 // "CRESCIDA": roteiro curto, todos com o zap vencedor (flipbook + brilho
 // sem filtro); cada ajuste da crescida sozinho e todos juntos.
-const ZAP_VENCEDOR = { ...AJUSTES_ZAP_OTIMIZADO, borda: 'flipbook' };
+const ZAP_VENCEDOR = { ...AJUSTES_ZAP_SVG, borda: 'flipbook' };
 const AJUSTES_CRESCIDA = ['escuroOpacidade', 'raiosForaAntes', 'cartaGrande', 'semRaiosNaSubida'];
 const VOLTA_CRESCIDA = [
     ZAP_VENCEDOR,
@@ -637,19 +703,77 @@ const VOLTA_CHOQUE = [
     comZapCurto(ZAP_VENCEDOR, { choqueModo: 'franjas-glitch' }),
     comZapCurto(ZAP_VENCEDOR, { choque: false }),
 ];
+// "ZAP CANVAS": roteiro curto; o zap original, sem efeitos, o otimizado de
+// hoje, e o otimizado com a eletricidade em canvas (ver zapCanvas.js) — com
+// brilho, sem brilho, e com o brilho da carta de volta no filtro original
+// (drop-shadow/brightness no container dela).
+const ZAP_CANVAS = { ...AJUSTES_ZAP_SVG, canvas: true, canvasBrilho: true };
+const VOLTA_ZAP_CANVAS = [
+    comZapCurto(AJUSTES_ZAP_ORIGINAL),
+    comZapCurto(ZAP_PELADO),
+    comZapCurto(AJUSTES_ZAP_SVG),
+    comZapCurto(ZAP_CANVAS),
+    comZapCurto({ ...ZAP_CANVAS, canvasBrilho: false }),
+    comZapCurto({ ...ZAP_CANVAS, brilhoFiltro: true }),
+];
 // "ANTES × AGORA": a partida inteira como era antes da otimização (filtro
-// antigo com a aberração SVG na tela toda, zap original, choque por filtro)
-// e como está agora (filtro leve, zap otimizado, choque em franjas +
-// glitch). Um de cada por volta, alternados, pra variação do celular cair
-// igual nos dois.
+// antigo com grão e aberração SVG na tela toda, zap e Copas originais,
+// choque por filtro) e como o jogo está agora (COMO_NO_JOGO). Um de cada
+// por volta, alternados, pra variação do celular cair igual nos dois.
 const VOLTA_ANTES_AGORA = [
-    { ...TUDO_LIGADO, nome: 'ANTES', antigo: true, zap: AJUSTES_ZAP_ORIGINAL, choqueModo: 'tela' },
-    { ...TUDO_LIGADO, nome: 'AGORA', antigo: false, zap: AJUSTES_ZAP_OTIMIZADO, choqueModo: 'franjas-glitch' },
+    { ...TUDO_LIGADO, nome: 'ANTES', antigo: true, zap: AJUSTES_ZAP_ORIGINAL, copas: AJUSTES_COPAS_ORIGINAL, choqueModo: 'tela' },
+    { ...COMO_NO_JOGO, nome: 'AGORA' },
+];
+// "COPAS": roteiro curto com a manilha de Copas; a jogada original, cada
+// peça trocada sozinha (a do fogo é a otimizada, a do jogo), a completa (as
+// três trocadas) e sem efeitos.
+const comCopas = (copas) => ({ ...TUDO_LIGADO, antigo: false, roteiro: 'copas', copas });
+const VOLTA_COPAS = [
+    comCopas(AJUSTES_COPAS_ORIGINAL),
+    comCopas({ ...AJUSTES_COPAS_ORIGINAL, fogo: 'flipbook' }),
+    comCopas({ ...AJUSTES_COPAS_ORIGINAL, fogo: 'off' }),
+    comCopas({ ...AJUSTES_COPAS_ORIGINAL, marca: 'imagem' }),
+    comCopas({ ...AJUSTES_COPAS_ORIGINAL, brasaFiltro: false }),
+    comCopas(AJUSTES_COPAS_COMPLETA),
+    comCopas(COPAS_PELADA),
+];
+// Copas com o fogo por fogueira em flipbook (o padrão do jogo até o fogo
+// em canvas) — base dos lotes de fogo abaixo.
+const COPAS_FLIPBOOK = { ...AJUSTES_COPAS_ORIGINAL, fogo: 'flipbook' };
+// "FOGO DA COPAS": roteiro curto com a Copas em flipbook por fogueira;
+// atrás do quadro travado de quando o fogo aparece na pulsada — sprites já
+// decodificados, fogueiras montadas antes, os dois juntos, e sem fogo de
+// referência.
+const VOLTA_FOGO_COPAS = [
+    comCopas(COPAS_FLIPBOOK),
+    comCopas({ ...COPAS_FLIPBOOK, fogoDecodificar: true }),
+    comCopas({ ...COPAS_FLIPBOOK, fogoMontarAntes: true }),
+    comCopas({ ...COPAS_FLIPBOOK, fogoDecodificar: true, fogoMontarAntes: true }),
+    comCopas({ ...COPAS_FLIPBOOK, fogo: 'off' }),
+];
+// "FOGO INTEIRO": roteiro curto; o fogo de trás da
+// carta por fogueira (flipbook), o fogo inteiro num sprite só, o fogo
+// inteiro num canvas desenhado a cada quadro, e sem fogo.
+const VOLTA_FOGO_INTEIRO = [
+    comCopas(COPAS_FLIPBOOK),
+    comCopas({ ...COPAS_FLIPBOOK, fogo: 'flipbook-unico' }),
+    comCopas({ ...COPAS_FLIPBOOK, fogo: 'canvas' }),
+    comCopas({ ...COPAS_FLIPBOOK, fogo: 'off' }),
 ];
 // Botão "DEMO COM ZAP FLIPBOOK": a partida inteira com o vencedor do lote SÓ
 // ZAP (borda flipbook + brilho sem filtro), pra ver ele no jogo.
 const DEMO_ZAP_FLIPBOOK = comZap(ZAP_VENCEDOR);
 const usaFlipbook = (configs) => configs.some((c) => (c.zap ?? AJUSTES_ZAP_PADRAO).borda === 'flipbook');
+const usaFogo = (configs, ...modos) => configs.some((c) => modos.includes((c.copas ?? AJUSTES_COPAS_PADRAO).fogo));
+// Os flipbooks são gerados antes de começar a medir, pra geração não entrar
+// na conta (no jogo ela roda uma vez e fica guardada).
+async function prepararFlipbooks(configs) {
+    if (usaFlipbook(configs)) await prepararFlipbookBorda();
+    if (usaFogo(configs, 'flipbook', 'flipbook-unico', 'canvas')) await prepararFlipbookFogo();
+    if (usaFogo(configs, 'canvas')) await prepararBitmapsFogo();
+    if (usaFogo(configs, 'flipbook-unico')) await prepararFogoCopasInteiro();
+    if (configs.some((c) => (c.copas ?? AJUSTES_COPAS_PADRAO).fogoDecodificar)) await prepararFlipbookFogoDecodificado();
+}
 // Teste que voltou com a página pausada (ver `invalido` em
 // medidorDesempenho.js) roda de novo no fim do lote, até esse tanto de vezes.
 const REPETICOES_INVALIDO_MAX = 3;
@@ -677,7 +801,7 @@ async function enviarLote(lote) {
 
 export default function DemoBeta({ onVoltar }) {
     const [etapa, setEtapa] = useState('config');
-    const [cfg, setCfg] = useState(TUDO_LIGADO);
+    const [cfg, setCfg] = useState(COMO_NO_JOGO);
     const [rodada, setRodada] = useState(0);
     const [medidor, setMedidor] = useState(null);
     const [atual, setAtual] = useState(null);
@@ -692,9 +816,12 @@ export default function DemoBeta({ onVoltar }) {
     const resultadosLoteRef = useRef([]);
     const repeticoesRef = useRef(0);
 
-    // Vai gerando o flipbook da borda enquanto a tela de configuração está
-    // aberta, pra não ter espera ao começar.
-    useEffect(() => { prepararFlipbookBorda(); }, []);
+    // Vai gerando os flipbooks (borda do zap, fogo de Copas) enquanto a tela
+    // de configuração está aberta, pra não ter espera ao começar.
+    useEffect(() => {
+        prepararFlipbookBorda();
+        prepararFlipbookFogo();
+    }, []);
 
     function rodar(config) {
         setCfg(config);
@@ -703,10 +830,8 @@ export default function DemoBeta({ onVoltar }) {
         setEtapa('rodando');
     }
 
-    // O flipbook é gerado antes de começar a medir, pra geração não entrar
-    // na conta (no jogo ela roda uma vez e fica guardada).
     async function iniciar(config = cfg) {
-        if (usaFlipbook([config])) await prepararFlipbookBorda();
+        await prepararFlipbooks([config]);
         setTotalLote(0);
         setFila([]);
         setLoteFeito(null);
@@ -715,7 +840,7 @@ export default function DemoBeta({ onVoltar }) {
     }
 
     async function iniciarLote(volta) {
-        if (usaFlipbook(volta)) await prepararFlipbookBorda();
+        await prepararFlipbooks(volta);
         const lote = montarLote(volta, voltas);
         resultadosLoteRef.current = [];
         repeticoesRef.current = 0;
@@ -775,9 +900,11 @@ export default function DemoBeta({ onVoltar }) {
     if (etapa === 'rodando') {
         return (
             <>
-                <FiltroTela sobrescrita={sobrescritaDe(cfg)} semChoque={!cfg.choque} antigo={!!cfg.antigo} choqueModo={cfg.choqueModo ?? CHOQUE_MODO}>
+                <FiltroTela sobrescrita={sobrescritaDe(cfg)} semChoque={!cfg.choque} semGrao={!cfg.grao} antigo={!!cfg.antigo} choqueModo={cfg.choqueModo ?? CHOQUE_MODO}>
                     <AjustesZapContext.Provider value={cfg.zap ?? AJUSTES_ZAP_PADRAO}>
-                        <PartidaDemo key={rodada} medidor={medidor} roteiro={cfg.roteiro} onFim={terminar} onSair={cancelar} />
+                        <AjustesCopasContext.Provider value={cfg.copas ?? AJUSTES_COPAS_PADRAO}>
+                            <PartidaDemo key={rodada} medidor={medidor} roteiro={cfg.roteiro} onFim={terminar} onSair={cancelar} />
+                        </AjustesCopasContext.Provider>
                     </AjustesZapContext.Provider>
                 </FiltroTela>
                 <MostradorAoVivo
@@ -823,6 +950,7 @@ export default function DemoBeta({ onVoltar }) {
                     </button>
                 ))}
                 <div className="mf1-demo-botoes">
+                    <button type="button" className="az-b az-px az-btn az-btn-cinza" onClick={() => setCfg(COMO_NO_JOGO)}>COMO NO JOGO</button>
                     <button type="button" className="az-b az-px az-btn az-btn-cinza" onClick={() => setCfg(TUDO_LIGADO)}>TUDO LIGADO</button>
                     <button type="button" className="az-b az-px az-btn az-btn-cinza" onClick={() => setCfg(TUDO_DESLIGADO)}>TUDO DESLIGADO</button>
                 </div>
@@ -865,10 +993,39 @@ export default function DemoBeta({ onVoltar }) {
                     <button type="button" className="az-b az-px az-btn az-btn-cinza" onClick={() => setCfg((c) => ({ ...c, zap: AJUSTES_ZAP_ORIGINAL }))}>ZAP ORIGINAL</button>
                     <button type="button" className="az-b az-px az-btn az-btn-cinza" onClick={() => setCfg((c) => ({ ...c, zap: AJUSTES_ZAP_OTIMIZADO }))}>ZAP OTIMIZADO</button>
                 </div>
+                <div className="az-px mf1-demo-subtitulo">COPAS (MANILHA DE COPAS)</div>
+                {PECAS_COPAS.map((p) => {
+                    const valor = (cfg.copas ?? AJUSTES_COPAS_PADRAO)[p.chave];
+                    return (
+                        <button
+                            key={p.chave}
+                            type="button"
+                            className="az-b mf1-demo-check"
+                            onClick={() => setCfg((c) => {
+                                const atual = c.copas ?? AJUSTES_COPAS_PADRAO;
+                                const i = p.valores.indexOf(atual[p.chave]);
+                                return { ...c, copas: { ...atual, [p.chave]: p.valores[(i + 1) % p.valores.length] } };
+                            })}
+                        >
+                            <span className={`mf1-demo-marca${valor !== 'off' && valor !== false ? ' mf1-demo-marca-ligada' : ''}`} />
+                            <span>{p.rotulo}: {ROTULO_VALOR_COPAS[p.chave][String(valor)]}</span>
+                        </button>
+                    );
+                })}
+                <div className="mf1-demo-botoes">
+                    <button type="button" className="az-b az-px az-btn az-btn-cinza" onClick={() => setCfg((c) => ({ ...c, copas: AJUSTES_COPAS_ORIGINAL }))}>COPAS ORIGINAL</button>
+                    <button type="button" className="az-b az-px az-btn az-btn-cinza" onClick={() => setCfg((c) => ({ ...c, copas: AJUSTES_COPAS_OTIMIZADO }))}>COPAS OTIMIZADA</button>
+                </div>
                 <div className="mf1-demo-nota">Vai rodar: <strong>{rotuloDe(cfg)}</strong></div>
                 <button type="button" className="az-b az-px az-btn az-btn-amarelo az-btn-g" onClick={() => iniciar()}>COMEÇAR DEMO</button>
                 <button type="button" className="az-b az-px az-btn az-btn-verde az-btn-g" onClick={() => iniciar(DEMO_ZAP_FLIPBOOK)}>
                     DEMO COM ZAP FLIPBOOK
+                </button>
+                <button type="button" className="az-b az-px az-btn az-btn-verde az-btn-g" onClick={() => iniciar({ ...cfg, roteiro: 'zap' })}>
+                    SÓ ZAP (com os ajustes acima)
+                </button>
+                <button type="button" className="az-b az-px az-btn az-btn-verde az-btn-g" onClick={() => iniciar({ ...cfg, roteiro: 'copas' })}>
+                    SÓ COPAS (com os ajustes acima)
                 </button>
 
                 <div className="az-px mf1-demo-subtitulo">VÁRIOS TESTES</div>
@@ -902,13 +1059,27 @@ export default function DemoBeta({ onVoltar }) {
                     <strong>Impacto</strong>: rodada curta do zap vencedor; sem o choque de aberração da tela, sem o raio
                     do céu, sem os raios depois do impacto, e os três desligados juntos — {VOLTA_IMPACTO.length} testes por volta.
                     <br />
-                    <strong>Antes × agora</strong>: a partida inteira como era antes da otimização (filtro antigo, zap
-                    original, choque por filtro SVG) e como está agora (filtro leve, zap otimizado, franjas + glitch) —
+                    <strong>Antes × agora</strong>: a partida inteira como era antes da otimização (filtro antigo com grão,
+                    zap e Copas originais, choque por filtro SVG) e como o jogo está agora (só scanlines, franjas + glitch no
+                    impacto, zap e Copas otimizados) —
                     {' '}{VOLTA_ANTES_AGORA.length} testes por volta, alternados.
                     <br />
                     <strong>Choque</strong>: rodada curta do zap vencedor; o choque da tela no impacto como é hoje (filtro
                     SVG na tela toda), curto (300 ms, sem tremido), em glitch pré-desenhado (sem filtro), em franjas
                     coloridas nas cartas (drop-shadow), franjas + glitch, e sem choque — {VOLTA_CHOQUE.length} testes por volta.
+                    <br />
+                    <strong>Copas</strong>: rodada curta com a manilha de Copas (filtro leve); a jogada original, fogo em
+                    flipbook, sem fogo, marca carbonizada como imagem, brasa sem filtro, as três trocadas e sem efeitos — {VOLTA_COPAS.length} testes por volta.
+                    <br />
+                    <strong>Fogo da Copas</strong>: rodada curta com a Copas do jogo (fogo em flipbook); com os sprites já
+                    decodificados, com as fogueiras montadas antes (na subida), os dois juntos, e sem fogo — {VOLTA_FOGO_COPAS.length} testes por volta.
+                    <br />
+                    <strong>Zap canvas</strong>: rodada curta do zap; original, sem efeitos, o otimizado de hoje, e o otimizado
+                    com a eletricidade (raios de dentro, de fora e do céu) num canvas só — com brilho, sem brilho, e com o brilho
+                    da carta no filtro original — {VOLTA_ZAP_CANVAS.length} testes por volta.
+                    <br />
+                    <strong>Fogo inteiro</strong>: rodada curta com a Copas do jogo; o fogo de trás da carta por fogueira (o do
+                    jogo), inteiro num sprite só, inteiro num canvas desenhado a cada quadro, e sem fogo — {VOLTA_FOGO_INTEIRO.length} testes por volta.
                     <br />
                     Teste em que a página ficou pausada (tela apagou, app em segundo plano) é refeito sozinho no fim.
                 </div>
@@ -950,6 +1121,18 @@ export default function DemoBeta({ onVoltar }) {
                 </button>
                 <button type="button" className="az-b az-px az-btn az-btn-amarelo az-btn-g" onClick={() => iniciarLote(VOLTA_CHOQUE)}>
                     CHOQUE ({VOLTA_CHOQUE.length * voltas} · ~{Math.max(1, Math.round(VOLTA_CHOQUE.length * voltas * 0.25))} min)
+                </button>
+                <button type="button" className="az-b az-px az-btn az-btn-amarelo az-btn-g" onClick={() => iniciarLote(VOLTA_ZAP_CANVAS)}>
+                    ZAP CANVAS ({VOLTA_ZAP_CANVAS.length * voltas} · ~{Math.max(1, Math.round(VOLTA_ZAP_CANVAS.length * voltas * 0.25))} min)
+                </button>
+                <button type="button" className="az-b az-px az-btn az-btn-amarelo az-btn-g" onClick={() => iniciarLote(VOLTA_COPAS)}>
+                    COPAS ({VOLTA_COPAS.length * voltas} · ~{Math.max(1, Math.round(VOLTA_COPAS.length * voltas * 0.25))} min)
+                </button>
+                <button type="button" className="az-b az-px az-btn az-btn-amarelo az-btn-g" onClick={() => iniciarLote(VOLTA_FOGO_COPAS)}>
+                    FOGO DA COPAS ({VOLTA_FOGO_COPAS.length * voltas} · ~{Math.max(1, Math.round(VOLTA_FOGO_COPAS.length * voltas * 0.25))} min)
+                </button>
+                <button type="button" className="az-b az-px az-btn az-btn-amarelo az-btn-g" onClick={() => iniciarLote(VOLTA_FOGO_INTEIRO)}>
+                    FOGO INTEIRO ({VOLTA_FOGO_INTEIRO.length * voltas} · ~{Math.max(1, Math.round(VOLTA_FOGO_INTEIRO.length * voltas * 0.25))} min)
                 </button>
                 <button type="button" className="az-b az-px az-btn az-btn-verde az-btn-g" onClick={() => iniciarLote(VOLTA_ANTES_AGORA)}>
                     ANTES × AGORA ({VOLTA_ANTES_AGORA.length * voltas} · ~{Math.round(VOLTA_ANTES_AGORA.length * voltas * 0.95)} min)

@@ -34,6 +34,12 @@ const FILTRO_PADRAO_MF1 = {
 // o padrão do meetfront1 não usa nenhum dos dois.
 export const FILTRO_ANTIGO_SVG = false;
 
+// Grão na partida. false (padrão) = o filtro fica só com as scanlines e o
+// choque de aberração no impacto da manilha, seja qual for o grão do ajuste
+// salvo no navegador; true = o grão do ajuste salvo volta. A demo de
+// desempenho liga e desliga pela prop `semGrao`.
+export const GRAO_NA_PARTIDA = false;
+
 // Choque de manilha: quando uma manilha bate na mesa (a mesa dispara
 // EVENTO_IMPACTO_MANILHA, ver dispararImpactoManilha), a aberração da tela
 // salta CHOQUE_PICO_PX a mais e volta ao ajuste normal em CHOQUE_DURACAO_MS,
@@ -227,11 +233,12 @@ function GraoLeve({ opacidade, animado, colorido }) {
     );
 }
 
-// `sobrescrita`/`semChoque`/`antigo`/`choqueModo`: só a demo de desempenho
-// (DemoBeta.jsx) usa — desliga peças do filtro por cima do ajuste salvo,
-// sem gravar, escolhe entre o filtro leve e o antigo e o jeito do choque.
-export default function FiltroTela({ children, sobrescrita = null, semChoque = false, antigo = FILTRO_ANTIGO_SVG, choqueModo = CHOQUE_MODO }) {
-    const filtroSalvo = useFiltros(CHAVE_FILTRO_MF1, FILTRO_PADRAO_MF1, sobrescrita, { animarSemente: antigo });
+// `sobrescrita`/`semChoque`/`semGrao`/`antigo`/`choqueModo`: só a demo de
+// desempenho (DemoBeta.jsx) muda — desliga peças do filtro por cima do
+// ajuste salvo, sem gravar, escolhe entre o filtro leve e o antigo e o
+// jeito do choque.
+export default function FiltroTela({ children, sobrescrita = null, semChoque = false, semGrao = !GRAO_NA_PARTIDA, antigo = FILTRO_ANTIGO_SVG, choqueModo = CHOQUE_MODO }) {
+    const filtroSalvo = useFiltros(CHAVE_FILTRO_MF1, FILTRO_PADRAO_MF1, semGrao ? { ...sobrescrita, grao: 0 } : sobrescrita, { animarSemente: antigo });
     const [aberto, setAberto] = useState(false);
     const { extra: choque, glitches, franjas } = useChoqueAberracao(!semChoque, antigo ? 'tela' : choqueModo);
     if (!antigo) return <FiltroLeve f={filtroSalvo} choque={choque} glitches={glitches} franjas={franjas}>{children}</FiltroLeve>;
