@@ -1,5 +1,11 @@
-import { createContext, useContext, useEffect, useId, useRef } from 'react';
+import { createContext, useContext, useEffect, useId, useRef, useState } from 'react';
 import RaiosNaCarta from './RaiosNaCarta.jsx';
+import { useAjustesZap } from './ajustesZap.js';
+import {
+    BORDA_CICLO_MS, BORDA_DESLIZE_X, BORDA_DESLIZE_Y,
+    FLIP_COLUNAS, FLIP_FOLGA, FLIP_FPS, FLIP_LINHAS, FLIP_QUADROS, FLIP_QUADRO_A, FLIP_QUADRO_L,
+    prepararFlipbookBorda, urlFlipbookBorda,
+} from './bordaFlipbook.js';
 
 // Carta de baralho pro protótipo de mesa (MesaExperimento) — componente
 // NOVO, não o .carta/.carta-face que Partida.jsx já usa de verdade; classes
@@ -76,50 +82,143 @@ const PIPS = {
 // pais têm transform 3D, transição ou filter animado — justamente a carta na
 // jogada do Zap —, e a borda congelava. Atributo mudado pelo DOM sempre
 // invalida o filtro.
-const BORDA_CICLO_MS = 5000;
-const BORDA_DESLIZE_Y = 220;
-const BORDA_DESLIZE_X = 160;
+//
+// Modos (ver ajustesZap.js):
+// - 'viva': o filtro acima, 4 ruídos de 6 oitavas.
+// - 'enxuta': o mesmo desenho com 2 ruídos de 3 oitavas — o 1º e o 2º ruído
+//   da viva são idênticos (mesma seed), assim como o 3º e o 4º, então cada
+//   um é calculado uma vez e deslocado duas; as oitavas de cima só dão
+//   detalhe menor que um pixel nessa escala.
+// - 'leve': o filtro com menos oitavas e sem deslize — calculado uma vez,
+//   numa camada própria (.carta-exp-zap-borda-leve) que só treme por
+//   transform.
+// - 'flipbook': quadros da viva pré-desenhados num sprite (bordaFlipbook.js);
+//   mostra a leve enquanto o sprite não fica pronto.
+// `pulo` (viva/enxuta): o deslize é escrito só a cada `pulo` quadros.
+const BORDA_OITAVAS = 6;
+const BORDA_OITAVAS_ENXUTA = 3;
+const BORDA_OITAVAS_LEVE = 2;
 
-function BordaEletrica() {
+function BordaFiltro({ modo, pulo }) {
     const idFiltro = `carta-exp-zap-filtro-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
     const deslocRefs = useRef([]);
+    const desliza = modo !== 'leve';
 
     useEffect(() => {
+        if (!desliza) return undefined;
         let quadro;
+        let contagem = 0;
         function passo(agora) {
-            const f = (agora % BORDA_CICLO_MS) / BORDA_CICLO_MS;
-            const [d1, d2, d3, d4] = deslocRefs.current;
-            d1?.setAttribute('dy', (BORDA_DESLIZE_Y * (1 - f)).toFixed(2));
-            d2?.setAttribute('dy', (-BORDA_DESLIZE_Y * f).toFixed(2));
-            d3?.setAttribute('dx', (BORDA_DESLIZE_X * (1 - f)).toFixed(2));
-            d4?.setAttribute('dx', (-BORDA_DESLIZE_X * f).toFixed(2));
+            if (contagem++ % pulo === 0) {
+                const f = (agora % BORDA_CICLO_MS) / BORDA_CICLO_MS;
+                const [d1, d2, d3, d4] = deslocRefs.current;
+                d1?.setAttribute('dy', (BORDA_DESLIZE_Y * (1 - f)).toFixed(2));
+                d2?.setAttribute('dy', (-BORDA_DESLIZE_Y * f).toFixed(2));
+                d3?.setAttribute('dx', (BORDA_DESLIZE_X * (1 - f)).toFixed(2));
+                d4?.setAttribute('dx', (-BORDA_DESLIZE_X * f).toFixed(2));
+            }
             quadro = requestAnimationFrame(passo);
         }
         quadro = requestAnimationFrame(passo);
         return () => cancelAnimationFrame(quadro);
-    }, []);
+    }, [desliza, pulo]);
+
+    const desloc = (i) => (el) => { deslocRefs.current[i] = el; };
+    let ruidos;
+    if (modo === 'enxuta') {
+        ruidos = (
+            <>
+                <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves={BORDA_OITAVAS_ENXUTA} result="ruidoA" seed="1" />
+                <feOffset ref={desloc(0)} in="ruidoA" dx="0" dy={BORDA_DESLIZE_Y} result="ruidoDesloc1" />
+                <feOffset ref={desloc(1)} in="ruidoA" dx="0" dy="0" result="ruidoDesloc2" />
+                <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves={BORDA_OITAVAS_ENXUTA} result="ruidoB" seed="2" />
+                <feOffset ref={desloc(2)} in="ruidoB" dx={BORDA_DESLIZE_X} dy="0" result="ruidoDesloc3" />
+                <feOffset ref={desloc(3)} in="ruidoB" dx="0" dy="0" result="ruidoDesloc4" />
+            </>
+        );
+    } else {
+        const oitavas = modo === 'leve' ? BORDA_OITAVAS_LEVE : BORDA_OITAVAS;
+        ruidos = (
+            <>
+                <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves={oitavas} result="ruido1" seed="1" />
+                <feOffset ref={desloc(0)} in="ruido1" dx="0" dy={BORDA_DESLIZE_Y} result="ruidoDesloc1" />
+                <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves={oitavas} result="ruido2" seed="1" />
+                <feOffset ref={desloc(1)} in="ruido2" dx="0" dy="0" result="ruidoDesloc2" />
+                <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves={oitavas} result="ruido3" seed="2" />
+                <feOffset ref={desloc(2)} in="ruido3" dx={BORDA_DESLIZE_X} dy="0" result="ruidoDesloc3" />
+                <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves={oitavas} result="ruido4" seed="2" />
+                <feOffset ref={desloc(3)} in="ruido4" dx="0" dy="0" result="ruidoDesloc4" />
+            </>
+        );
+    }
 
     return (
-        <div className="carta-exp-zap-borda" aria-hidden="true">
-            <svg className="carta-exp-zap-borda-svg" viewBox="0 0 114 158">
-                <defs>
-                    <filter id={idFiltro} colorInterpolationFilters="sRGB" x="-20%" y="-20%" width="140%" height="140%">
-                        <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves="6" result="ruido1" seed="1" />
-                        <feOffset ref={(el) => { deslocRefs.current[0] = el; }} in="ruido1" dx="0" dy={BORDA_DESLIZE_Y} result="ruidoDesloc1" />
-                        <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves="6" result="ruido2" seed="1" />
-                        <feOffset ref={(el) => { deslocRefs.current[1] = el; }} in="ruido2" dx="0" dy="0" result="ruidoDesloc2" />
-                        <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves="6" result="ruido3" seed="2" />
-                        <feOffset ref={(el) => { deslocRefs.current[2] = el; }} in="ruido3" dx={BORDA_DESLIZE_X} dy="0" result="ruidoDesloc3" />
-                        <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves="6" result="ruido4" seed="2" />
-                        <feOffset ref={(el) => { deslocRefs.current[3] = el; }} in="ruido4" dx="0" dy="0" result="ruidoDesloc4" />
-                        <feComposite in="ruidoDesloc1" in2="ruidoDesloc2" result="parte1" />
-                        <feComposite in="ruidoDesloc3" in2="ruidoDesloc4" result="parte2" />
-                        <feBlend in="parte1" in2="parte2" mode="color-dodge" result="ruidoFinal" />
-                        <feDisplacementMap in="SourceGraphic" in2="ruidoFinal" scale="11" xChannelSelector="R" yChannelSelector="B" />
-                    </filter>
-                </defs>
-                <rect className="carta-exp-zap-borda-linha" x="1" y="1" width="112" height="156" rx="9" filter={`url(#${idFiltro})`} />
-            </svg>
+        <svg className="carta-exp-zap-borda-svg" viewBox="0 0 114 158">
+            <defs>
+                <filter id={idFiltro} colorInterpolationFilters="sRGB" x="-20%" y="-20%" width="140%" height="140%">
+                    {ruidos}
+                    <feComposite in="ruidoDesloc1" in2="ruidoDesloc2" result="parte1" />
+                    <feComposite in="ruidoDesloc3" in2="ruidoDesloc4" result="parte2" />
+                    <feBlend in="parte1" in2="parte2" mode="color-dodge" result="ruidoFinal" />
+                    <feDisplacementMap in="SourceGraphic" in2="ruidoFinal" scale="11" xChannelSelector="R" yChannelSelector="B" />
+                </filter>
+            </defs>
+            <rect className="carta-exp-zap-borda-linha" x="1" y="1" width="112" height="156" rx="9" filter={`url(#${idFiltro})`} />
+        </svg>
+    );
+}
+
+// O sprite é uma grade FLIP_COLUNAS x FLIP_LINHAS; duas camadas andam em
+// degraus (steps) — a de dentro pelas colunas, a de fora pelas linhas — e
+// juntas passam por todos os quadros em ordem, só com transform.
+function BordaFlipbook({ url }) {
+    const quadroMs = 1000 / FLIP_FPS;
+    return (
+        <div
+            className="mf1-borda-flip"
+            style={{ left: -FLIP_FOLGA, top: -FLIP_FOLGA, width: FLIP_QUADRO_L, height: FLIP_QUADRO_A }}
+        >
+            <div
+                className="mf1-borda-flip-linhas"
+                style={{
+                    width: FLIP_QUADRO_L * FLIP_COLUNAS,
+                    height: FLIP_QUADRO_A * FLIP_LINHAS,
+                    animationDuration: `${quadroMs * FLIP_QUADROS}ms`,
+                    animationTimingFunction: `steps(${FLIP_LINHAS})`,
+                }}
+            >
+                <img
+                    className="mf1-borda-flip-colunas"
+                    src={url}
+                    alt=""
+                    draggable={false}
+                    style={{
+                        animationDuration: `${quadroMs * FLIP_COLUNAS}ms`,
+                        animationTimingFunction: `steps(${FLIP_COLUNAS})`,
+                    }}
+                />
+            </div>
+        </div>
+    );
+}
+
+function BordaEletrica({ modo = 'viva', pulo = 1 }) {
+    const [urlFlip, setUrlFlip] = useState(urlFlipbookBorda);
+
+    useEffect(() => {
+        if (modo !== 'flipbook' || urlFlip) return undefined;
+        let ativo = true;
+        prepararFlipbookBorda().then((url) => { if (ativo && url) setUrlFlip(url); });
+        return () => { ativo = false; };
+    }, [modo, urlFlip]);
+
+    const efetivo = modo === 'flipbook' && !urlFlip ? 'leve' : modo;
+
+    return (
+        <div className={`carta-exp-zap-borda${efetivo === 'leve' ? ' carta-exp-zap-borda-leve' : ''}`} aria-hidden="true">
+            {efetivo === 'flipbook'
+                ? <BordaFlipbook url={urlFlip} />
+                : <BordaFiltro modo={efetivo} pulo={pulo} />}
             <div className="carta-exp-zap-borda-externa" />
             <div className="carta-exp-zap-borda-brilho carta-exp-zap-borda-brilho-1" />
             <div className="carta-exp-zap-borda-brilho carta-exp-zap-borda-brilho-2" />
@@ -141,9 +240,10 @@ const ORDEM_RANKS = ['4', '5', '6', '7', 'Q', 'J', 'K', 'A', '2', '3'];
 
 // `taxaRaios`/`taxaRaiosTransicaoMs`: só pro Zap (ver RaiosNaCarta) — quantos
 // raios extras por segundo riscam dentro da carta e em quanto tempo chegar
-// nessa taxa.
-export default function Carta({ rank, naipe, valorInt, manilha, efeitoManilha = false, virada = false, taxaRaios = 0, taxaRaiosTransicaoMs = 0 }) {
+// nessa taxa. `raiosPausados`: não nasce raio novo enquanto true.
+export default function Carta({ rank, naipe, valorInt, manilha, efeitoManilha = false, virada = false, taxaRaios = 0, taxaRaiosTransicaoMs = 0, raiosPausados = false }) {
     const valorManilhaDaMesa = useContext(ManilhaContext);
+    const zap = useAjustesZap();
     if (virada) {
         return <div className="carta-exp carta-exp-verso" />;
     }
@@ -161,7 +261,7 @@ export default function Carta({ rank, naipe, valorInt, manilha, efeitoManilha = 
     const pips = PIPS[rank];
 
     return (
-        <div className={`carta-exp${ehManilha ? ' carta-exp-manilha' : ''}${classeMaterial ? ` ${classeMaterial}` : ''}`}>
+        <div className={`carta-exp${ehManilha ? ' carta-exp-manilha' : ''}${classeMaterial ? ` ${classeMaterial}` : ''}${zap.brilhoFiltro ? '' : ' carta-exp-brilho-leve'}`}>
             {/* Decoração por naipe, só quando é manilha — cada uma só
                 aparece na carta do próprio naipe (ver classeMaterial acima
                 escolhendo QUAL destas quatro classes entra). Abaixo do
@@ -180,8 +280,8 @@ export default function Carta({ rank, naipe, valorInt, manilha, efeitoManilha = 
             )}
             {ehManilha && naipe === 'Paus' && (
                 <>
-                    <RaiosNaCarta taxa={taxaRaios} transicaoMs={taxaRaiosTransicaoMs} />
-                    <BordaEletrica />
+                    {zap.raiosDentro && <RaiosNaCarta taxa={taxaRaios} transicaoMs={taxaRaiosTransicaoMs} halo={!zap.brilhoFiltro} pausado={raiosPausados} />}
+                    {zap.borda !== 'off' && <BordaEletrica modo={zap.borda} pulo={zap.bordaPulo ?? 1} />}
                 </>
             )}
 

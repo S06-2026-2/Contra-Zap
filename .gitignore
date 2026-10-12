@@ -47,3 +47,6 @@ __pycache__/
 # Saída do Playwright (E2E) — relatório HTML, traces e screenshots de falha
 /playwright-report/
 /test-results/
+
+# Resultados da demo de desempenho do meetfront1 (POST /api/demo-desempenho)
+/resultados-demo/

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import PunhalAssembly from './PunhalAssembly.jsx';
 import Carta from './Carta.jsx';
+import { useAjustesZap } from './ajustesZap.js';
+import { marcarFase } from './medidorDesempenho.js';
 
 // Sandbox isolada (pedido do Henrique 2026-09-21): a mesma "sala" visual
 // de MesaExperimento.jsx, mas só fundo+mesa — sem fantasminhas, cartas,
@@ -1593,12 +1595,15 @@ function sortearRaioDaCarta(comprimento, chanceRamo) {
 // núcleo branco fino em cima). non-scaling-stroke: a espessura fica igual na
 // tela esteja a carta grande (2.2x) ou pousada (0.6x). Se remove sozinho no
 // fim da própria animação CSS.
-function criarGrupoRaio(svg, tracos, classe, duracaoMs) {
+// `halo` (zap sem filtro, ver ajustesZap.js): camada larga translúcida por
+// baixo no lugar do drop-shadow de cada grupo.
+function criarGrupoRaio(svg, tracos, classe, duracaoMs, halo) {
     const g = document.createElementNS(SVG_NS, 'g');
     g.setAttribute('class', classe);
     g.style.animationDuration = `${duracaoMs}ms`;
+    const camadas = halo ? ['mf1-zap-raio-halo', 'mesa-exp-zap-raio-brilho', 'mesa-exp-zap-raio-nucleo'] : ['mesa-exp-zap-raio-brilho', 'mesa-exp-zap-raio-nucleo'];
     for (const pontos of tracos) {
-        for (const camada of ['mesa-exp-zap-raio-brilho', 'mesa-exp-zap-raio-nucleo']) {
+        for (const camada of camadas) {
             const path = document.createElementNS(SVG_NS, 'path');
             path.setAttribute('d', pontosParaD(pontos));
             path.setAttribute('class', camada);
@@ -1611,32 +1616,33 @@ function criarGrupoRaio(svg, tracos, classe, duracaoMs) {
     return g;
 }
 
-function soltarEletricidade(svg, perfil, t) {
+function soltarEletricidade(svg, perfil, t, halo) {
     if (perfil.tipo === 'faisca') {
         // Zigue-zague curtinho nascendo na borda e voando pra fora.
         const { tracos, angulo } = sortearRaioDaCarta(8 + Math.random() * 8, 0);
-        const g = criarGrupoRaio(svg, tracos, 'mesa-exp-zap-faisca', 280 + Math.random() * 120);
+        const g = criarGrupoRaio(svg, tracos, 'mesa-exp-zap-faisca', 280 + Math.random() * 120, halo);
         const voo = 20 + Math.random() * 25;
         g.style.setProperty('--dx', `${Math.cos(angulo) * voo}px`);
         g.style.setProperty('--dy', `${Math.sin(angulo) * voo}px`);
         return;
     }
     const comprimento = sortear(ZAP_RAIO_COMPRIMENTO) * perfil.comprimento(t);
-    criarGrupoRaio(svg, sortearRaioDaCarta(comprimento, perfil.ramo(t)).tracos, 'mesa-exp-zap-raio', 90 + Math.random() * 80);
+    criarGrupoRaio(svg, sortearRaioDaCarta(comprimento, perfil.ramo(t)).tracos, 'mesa-exp-zap-raio', 90 + Math.random() * 80, halo);
     if (perfil.chao && Math.random() < perfil.chao(t)) {
         const { tracos } = sortearRaioDaCarta(sortear(ZAP_CHAO_COMPRIMENTO), 0.5);
-        criarGrupoRaio(svg, tracos, 'mesa-exp-zap-raio', 160 + Math.random() * 100);
+        criarGrupoRaio(svg, tracos, 'mesa-exp-zap-raio', 160 + Math.random() * 100, halo);
     }
 }
 
 // Camada de raios presa à carta (dentro do miolo, então escala e gira com
 // ela). Os raios são criados direto no DOM, fora do React: são dezenas por
 // segundo vivendo ~100ms cada, não faz sentido passar isso por estado.
-function RaiosZap({ modo, duracaoModoMs }) {
+// `pausado`: monta o svg mas não solta nada.
+function RaiosZap({ modo, duracaoModoMs, halo = false, pausado = false }) {
     const svgRef = useRef(null);
     useEffect(() => {
         const perfil = ZAP_PERFIS[modo];
-        if (!perfil) return undefined;
+        if (!perfil || pausado) return undefined;
         const inicio = performance.now();
         let anterior = inicio;
         let acumulado = 0;
@@ -1647,13 +1653,13 @@ function RaiosZap({ modo, duracaoModoMs }) {
             anterior = agora;
             while (acumulado >= 1 && svgRef.current) {
                 acumulado -= 1;
-                soltarEletricidade(svgRef.current, perfil, t);
+                soltarEletricidade(svgRef.current, perfil, t, halo);
             }
             quadro = requestAnimationFrame(passo);
         }
         quadro = requestAnimationFrame(passo);
         return () => cancelAnimationFrame(quadro);
-    }, [modo, duracaoModoMs]);
+    }, [modo, duracaoModoMs, halo, pausado]);
     return <svg ref={svgRef} className="mesa-exp-zap-raios" />;
 }
 
@@ -1661,7 +1667,9 @@ function RaiosZap({ modo, duracaoModoMs }) {
 // sorteado acima do topo da tela e termina exatamente na carta, com algumas
 // ramificações descendo pros lados. Mais o clarão da tela inteira, centrado
 // no ponto de impacto.
-function RaioDaQueda({ ponto }) {
+// `semRaio`: só o clarão (zap com raioCeu desligado); `leve`: halo como
+// traço largo translúcido em vez do drop-shadow da tela inteira.
+function RaioDaQueda({ ponto, semRaio = false, leve = false }) {
     const [tracos] = useState(() => {
         const principal = gerarCaminhoRaio(ponto.x + (Math.random() * 2 - 1) * 140, -40, ponto.x, ponto.y, 90, 7);
         const ramos = Array.from({ length: 3 + Math.floor(Math.random() * 2) }, () => {
@@ -1678,14 +1686,15 @@ function RaioDaQueda({ ponto }) {
                 className="mesa-exp-zap-clarao"
                 style={{ '--cx': `${ponto.x}px`, '--cy': `${ponto.y}px` }}
             />
-            <svg className="mesa-exp-zap-queda" style={{ animationDuration: `${ZAP_RAIO_QUEDA_MS}ms` }}>
+            {!semRaio && <svg className={`mesa-exp-zap-queda${leve ? ' mf1-zap-queda-leve' : ''}`} style={{ animationDuration: `${ZAP_RAIO_QUEDA_MS}ms` }}>
                 {tracos.map((pontos, i) => (
                     <g key={i}>
+                        {leve && <path className="mf1-zap-queda-halo" d={pontosParaD(pontos)} />}
                         <path className="mesa-exp-zap-raio-brilho" d={pontosParaD(pontos)} />
                         <path className="mesa-exp-zap-raio-nucleo" d={pontosParaD(pontos)} />
                     </g>
                 ))}
-            </svg>
+            </svg>}
         </>
     );
 }
@@ -1749,6 +1758,7 @@ function CrateraRaio({ cratera }) {
 }
 
 function CartaPausSimulada({ mesaRef, onImpacto, onFim, origem: origemFixa, pouso, rank = '4' }) {
+    const zap = useAjustesZap();
     const [fase, setFase] = useState('jogando');
     const [partiu, setPartiu] = useState(false);
     const [origem] = useState(() => origemFixa ?? sortearOrigemJogador());
@@ -1760,6 +1770,11 @@ function CartaPausSimulada({ mesaRef, onImpacto, onFim, origem: origemFixa, pous
     const [pontoImpacto, setPontoImpacto] = useState(null);
     const empurraoRef = useRef({ x: 0, y: 0 });
     const wrapperRef = useRef(null);
+
+    // Demo de desempenho: cada etapa da jogada vira uma fase da medição.
+    useEffect(() => {
+        marcarFase(`zap: ${fase === 'jogando' ? 'voando' : fase}`);
+    }, [fase]);
 
     useEffect(() => {
         let cancelado = false;
@@ -1839,13 +1854,21 @@ function CartaPausSimulada({ mesaRef, onImpacto, onFim, origem: origemFixa, pous
         : fase === 'dissipando' ? { taxaRaios: 0, taxaRaiosTransicaoMs: ZAP_DISSIPAR_MS }
         : {};
     const duracaoModo = { subindo: SIM_CRESCIDA_DURACAO_MS, segurando: ZAP_SEGURAR_MS, caindo: ZAP_QUEDA_MS, dissipando: ZAP_DISSIPAR_MS }[fase] ?? 1;
-    const classeCarga = fase === 'dissipando' ? ' mesa-exp-zap-descarga'
-        : fase === 'segurando' || fase === 'caindo' ? ' mesa-exp-zap-eletrizada'
+    // Sem filtro (ver ajustesZap.js): halo de box-shadow parado e clarão de
+    // opacidade, cada um na própria camada, no lugar dos drop-shadow/
+    // brightness no container da carta.
+    const sufixoBrilho = zap.brilhoFiltro ? '' : '-leve';
+    const raiosPausados = (zap.semRaiosNaSubida && fase === 'subindo') || (!zap.raiosNoImpacto && fase === 'dissipando');
+    // cartaGrande (ver ajustesZap.js): o miolo é desenhado já no tamanho da
+    // crescida e a escala vira relativa a ele; a perspectiva acompanha.
+    const zoomMiolo = zap.cartaGrande ? SIM_CRESCIDA_ESCALA : 1;
+    const classeCarga = fase === 'dissipando' ? ` mesa-exp-zap-descarga${sufixoBrilho}`
+        : fase === 'segurando' || fase === 'caindo' ? ` mesa-exp-zap-eletrizada${sufixoBrilho}`
         : '';
     return (
         <>
             <div
-                className={`mesa-exp-vaza-overlay${escurecendo ? ' mesa-exp-vaza-overlay-escuro' : ''}`}
+                className={`mesa-exp-vaza-overlay${escurecendo ? ' mesa-exp-vaza-overlay-escuro' : ''}${zap.escuroOpacidade ? ' mf1-overlay-opaco' : ''}`}
                 style={{ pointerEvents: escurecendo ? 'auto' : 'none' }}
             />
             <div
@@ -1857,26 +1880,31 @@ function CartaPausSimulada({ mesaRef, onImpacto, onFim, origem: origemFixa, pous
                     transition: `left ${duracaoPos}ms ${easing}, top ${duracaoPos}ms ${easing}, transform ${duracaoPos}ms ${easing}`,
                     transform: `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px)`,
                     zIndex: fase === 'pousada' ? Z_CARTA_SIMULADA_POUSADA : undefined,
+                    perspective: zap.cartaGrande ? `${700 * zoomMiolo}px` : undefined,
                 }}
             >
                 <div
-                    className="mesa-exp-paus-miolo"
+                    className={`mesa-exp-paus-miolo${zap.brilhoFiltro ? '' : ' mf1-zap-sem-filtro'}`}
                     style={{
                         transition: `transform ${duracaoPos}ms ${easing}`,
-                        transform: `scale(${escala}) rotateX(${pitch}deg) rotateZ(${rotZ}deg)`,
+                        transform: `scale(${escala / zoomMiolo}) rotateX(${pitch}deg) rotateZ(${rotZ}deg)`,
+                        zoom: zap.cartaGrande ? zoomMiolo : undefined,
+                        willChange: zap.cartaGrande ? 'transform' : undefined,
                     }}
                 >
                     <div className={`mesa-exp-zap-carga${classeCarga}`}>
-                        <Carta rank={rank} naipe="Paus" efeitoManilha {...raiosDentro} />
+                        <Carta rank={rank} naipe="Paus" efeitoManilha {...raiosDentro} raiosPausados={raiosPausados} />
                     </div>
                     {/* Só monta enquanto tem eletricidade — pousada de vez,
-                        o loop de rAF não fica rodando à toa. */}
-                    {fase !== 'jogando' && fase !== 'pousada' && (
-                        <RaiosZap modo={fase} duracaoModoMs={duracaoModo} />
+                        o loop de rAF não fica rodando à toa. Com
+                        raiosForaAntes já monta no voo (sem perfil, não solta
+                        nada). */}
+                    {zap.raiosFora && fase !== 'pousada' && (fase !== 'jogando' || zap.raiosForaAntes) && (
+                        <RaiosZap modo={fase} duracaoModoMs={duracaoModo} halo={!zap.brilhoFiltro} pausado={raiosPausados} />
                     )}
                 </div>
             </div>
-            {pontoImpacto && fase === 'dissipando' && <RaioDaQueda ponto={pontoImpacto} />}
+            {pontoImpacto && fase === 'dissipando' && <RaioDaQueda ponto={pontoImpacto} semRaio={!zap.raioCeu} leve={!zap.brilhoFiltro} />}
         </>
     );
 }

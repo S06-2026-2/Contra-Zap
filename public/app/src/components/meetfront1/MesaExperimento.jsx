@@ -10,6 +10,8 @@ import { modeloBotPorId } from '../../../../../bots/modelosBot.js';
 import { HP_INICIAL, corDoAssento, ehBot, inicial } from '../arcade/tema.js';
 import { MAO_REATIVA_MOBILE, MAO_REATIVA_PADRAO, calcularLayoutMao } from './maoReativa.js';
 import { dispararImpactoManilha } from './FiltroTela.jsx';
+import { useAjustesZap } from './ajustesZap.js';
+import { prepararFlipbookBorda } from './bordaFlipbook.js';
 import { useModoMobile } from './modoMobile.js';
 import { ESCALA_CARTA_JOGADA_MOBILE, MELADA_POUSO_MOBILE, ZONAS_POUSO_MOBILE, sortearPontoNaZona } from './zonasPouso.js';
 import './meetfront1.css';
@@ -1887,6 +1889,12 @@ function BannerVez({ texto, mobile = false }) {
 export default function MesaExperimento({ estado, acoes }) {
     // Switch do layout vertical de celular (ver modoMobile.js).
     const mobile = useModoMobile();
+    // Borda do zap em flipbook (ver bordaFlipbook.js): já vai gerando o
+    // sprite quando a mesa abre, pra ele estar pronto no primeiro zap.
+    const bordaZap = useAjustesZap().borda;
+    useEffect(() => {
+        if (bordaZap === 'flipbook') prepararFlipbookBorda();
+    }, [bordaZap]);
     // Assentos na ordem de JOGO (`estado.ordem`, de novaRodadaIniciada — a
     // vez sempre anda pra frente nela), não na de entrada na sala de
     // `estado.jogadores`, que só serve de fallback antes da primeira rodada.

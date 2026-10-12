@@ -4,6 +4,7 @@ import { Server } from 'socket.io';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { realpathSync } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { registrarSocketServer } from './conexao/socketServer.js';
 import { db } from './conexao/db.js';
 
@@ -72,6 +73,27 @@ export function criarServidor({ salaManager, limitesDeTaxa } = {}) {
             timestamp: new Date().toISOString(),
         });
     });
+
+    // Resultado da demo de desempenho do meetfront1 (botão "VÁRIOS TESTES",
+    // ver public/app/src/components/meetfront1/DemoBeta.jsx): grava o lote
+    // em resultados-demo/ (fora do git) pra ser lido depois no repo. Só fora
+    // de produção — é ferramenta de teste local, não pode virar um jeito de
+    // qualquer um escrever arquivo no disco do servidor publicado.
+    if (process.env.NODE_ENV !== 'production') {
+        app.post('/api/demo-desempenho', express.json({ limit: '512kb' }), async (req, res) => {
+            try {
+                const pasta = path.join(__dirname, 'resultados-demo');
+                await mkdir(pasta, { recursive: true });
+                const nome = `${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+                await writeFile(path.join(pasta, nome), JSON.stringify(req.body, null, 2));
+                console.log(`[demo] resultado salvo em resultados-demo/${nome}`);
+                res.json({ ok: true, arquivo: nome });
+            } catch (err) {
+                console.error('[demo] falha ao salvar resultado:', err);
+                res.status(500).json({ ok: false });
+            }
+        });
+    }
 
     // Fallback de SPA: '/*splat' (não só '/') pra rotas próprias do front que
     // não existem como arquivo nenhum (ver ROTA_EXPERIMENTO em App.jsx) —
