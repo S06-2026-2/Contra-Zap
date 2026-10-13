@@ -496,6 +496,101 @@
     overflow: visible;
 }
 
+/* Pavio leve (timerLeve em ajustesMesa.js, ver PavioRetoLeve): as camadas
+   empilhadas na mesma caixa. A de baixo (parada) leva as sombras de
+   sempre e é desenhada uma vez; a dinâmica e a ponta ficam cada uma na
+   própria camada (will-change), pra o que muda a cada quadro não fazer o
+   navegador redesenhar as sombras da de baixo junto. */
+.mf1-pavio-leve {
+    position: relative;
+}
+.mf1-pavio-camada {
+    position: absolute;
+    left: 0;
+    top: 0;
+    overflow: visible;
+}
+.mf1-pavio-dinamico {
+    will-change: transform;
+}
+.mf1-pavio-halo {
+    fill: #ffb02e;
+    opacity: .35;
+}
+.mf1-pavio-leve.mesa-exp-anel-urgente .mf1-pavio-halo {
+    fill: #ff4a24;
+    animation: mf1-pavio-pulsar .5s ease-in-out infinite alternate;
+}
+@keyframes mf1-pavio-pulsar {
+    from { opacity: .35; }
+    to { opacity: .8; }
+}
+.mf1-pavio-ponta {
+    position: absolute;
+    left: 0;
+    top: 0;
+    will-change: transform;
+}
+.mf1-pavio-ponta svg {
+    display: block;
+    overflow: visible;
+}
+.mf1-pavio-leve .mf1-pavio-brasa,
+.mf1-pavio-leve.mesa-exp-anel-urgente .mf1-pavio-brasa {
+    filter: none;
+}
+/* O "bater" da ficha nos últimos segundos: um brilho vermelho atrás dela
+   que só pulsa a opacidade (no original é drop-shadow animado). */
+.mf1-pavio-ficha-brilho {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 60, 30, .85) 35%, rgba(255, 60, 30, 0) 70%);
+    opacity: 0;
+    will-change: opacity;
+    pointer-events: none;
+}
+.mf1-pavio-leve.mesa-exp-anel-urgente .mf1-pavio-ficha-brilho {
+    animation: mf1-pavio-ficha-bater .5s ease-in-out infinite alternate;
+}
+@keyframes mf1-pavio-ficha-bater {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+.mf1-pavio-leve.mesa-exp-anel-inativo .mf1-pavio-restante,
+.mf1-pavio-leve.mesa-exp-anel-inativo .mf1-pavio-halo {
+    display: none;
+}
+
+/* Disco do timer dos outros sem drop-shadow (timerLeve): a sombra vira o
+   círculo escuro parado .mf1-timer-nome-sombra dentro do próprio SVG. */
+.mf1-timer-nome-leve {
+    filter: none;
+}
+.mf1-timer-nome-sombra {
+    fill: rgba(0, 0, 0, .35);
+}
+
+/* Cartas voando por transform (cartasTransform, ver CartaVoando): o trilho
+   cobre a mesa e anda em % dela; a carta fica no canto dele. Os dois em
+   camada própria — o trilho não pinta nada, então não ocupa memória. */
+.mf1-voo-trilho {
+    position: absolute;
+    inset: 0;
+    z-index: 17;
+    pointer-events: none;
+    transition-property: transform;
+    transition-timing-function: ease;
+    will-change: transform;
+}
+.mf1-voo-trilho > .mf1-voo-carta {
+    left: 0;
+    top: 0;
+    transition-property: transform;
+    will-change: transform;
+}
+
 /* Seu fantasminha no mobile: na caixinha igual à dos outros (ver
    CaixaFantasma), em tamanho normal (a escala da caixa já reduz), colada
    no canto de baixo à direita, logo acima do timer (que termina a 84px da

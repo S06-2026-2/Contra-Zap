@@ -14,6 +14,7 @@ import { dispararImpactoManilha } from './FiltroTela.jsx';
 import { useAjustesZap } from './ajustesZap.js';
 import { prepararFlipbookBorda } from './bordaFlipbook.js';
 import { useAjustesCopas } from './ajustesCopas.js';
+import { useAjustesMesa } from './ajustesMesa.js';
 import { prepararFlipbookFogo, prepararFlipbookFogoDecodificado } from './fogoFlipbook.js';
 import { useModoMobile } from './modoMobile.js';
 import { ESCALA_CARTA_JOGADA_MOBILE, MELADA_POUSO_MOBILE, ZONAS_POUSO_MOBILE, sortearPontoNaZona } from './zonasPouso.js';
@@ -426,6 +427,7 @@ export function calcularAssentosMobile(quantidade, mesa) {
 // ANTES dela pousar escondida em SuaMaoEmLeque, exatamente o vazamento que
 // a rodada cega existe pra evitar.
 function CartaVoando({ de, para, anguloInicial, anguloFinal, escalaInicial, escalaFinal, duracaoMs, carta, escondida, onChegou }) {
+    const { cartasTransform } = useAjustesMesa();
     const [pos, setPos] = useState(de);
     const [escala, setEscala] = useState(escalaInicial);
     const [angulo, setAngulo] = useState(anguloInicial);
@@ -444,6 +446,29 @@ function CartaVoando({ de, para, anguloInicial, anguloFinal, escalaInicial, esca
         // eslint-disable-next-line react-hooks/exhaustive-deps -- de/para/escala.../angulo.../onChegou são fixos por instância (cada carta voa uma vez só)
     }, []);
 
+    // cartasTransform (ajustesMesa.js): um "trilho" do tamanho da mesa leva a
+    // carta por translate em % (do próprio trilho = da mesa) e ela, presa no
+    // canto dele, só gira/escala — tudo transição de transform, sem left/top.
+    if (cartasTransform) {
+        return (
+            <div
+                className="mf1-voo-trilho"
+                style={{ transform: `translate(${pos.x}%, ${pos.y}%)`, transitionDuration: `${duracaoMs}ms` }}
+            >
+                <div
+                    className="mesa-exp-carta-voando mf1-voo-carta"
+                    style={{
+                        transitionDuration: `${duracaoMs}ms`,
+                        '--angulo-carta': `${angulo}deg`,
+                        '--escala-carta': escala,
+                    }}
+                >
+                    {carta && !escondida ? <Carta rank={carta.rank} naipe={carta.naipe} /> : <Carta virada />}
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div
             className="mesa-exp-carta-voando"
@@ -460,7 +485,22 @@ function CartaVoando({ de, para, anguloInicial, anguloFinal, escalaInicial, esca
     );
 }
 
+// Posição de um voo quadro a quadro (FichaVoando, CartaDanoVoando). Com
+// voosTransform (ajustesMesa.js) vai tudo no transform, com o elemento numa
+// camada própria; senão, left/top + transform como sempre. `resto` é o
+// transform depois de posicionar (centralizar, escala, giro).
+function estiloVoo(x, y, resto, emTransform) {
+    return emTransform
+        ? { transform: `translate3d(${x}px, ${y}px, 0) ${resto}`, willChange: 'transform' }
+        : { left: `${x}px`, top: `${y}px`, transform: resto };
+}
+
+const sombraDaFicha = (altura) => Math.max(0.35, 1 - Math.abs(altura) / (FICHA_FORCA_SUBIDA_MAX * 1.3));
+
 function FichaVoando({ de, para, atrasoMs, onChegou, hue, escalaPouso = ESCALA_FICHA_CANTO }) {
+    const { voosTransform } = useAjustesMesa();
+    const fichaRef = useRef(null);
+    const sombraRef = useRef(null);
     const [posBase, setPosBase] = useState(de);
     const [alturaExtra, setAlturaExtra] = useState(0);
     const [escala, setEscala] = useState(1);
@@ -497,10 +537,25 @@ function FichaVoando({ de, para, atrasoMs, onChegou, hue, escalaPouso = ESCALA_F
             // encolhendo no caminho até a proporção dele.
             const encolhe = 1 + (escalaPouso / ESCALA_FICHA_CANTO - 1) * t;
 
-            setPosBase({ x: de.x + (para.x - de.x) * t + desvio, y: de.y + (para.y - de.y) * t });
-            setAlturaExtra(altura);
-            setEscala(escalaAtual * encolhe);
-            setRotY(params.voltas * 360 * t);
+            const pos = { x: de.x + (para.x - de.x) * t + desvio, y: de.y + (para.y - de.y) * t };
+            const giro = params.voltas * 360 * t;
+            if (voosTransform && t < 1) {
+                // Direto no elemento, sem re-render: o React só fica sabendo
+                // da posição no pouso (abaixo), igual à que já está aqui.
+                const sombra = sombraDaFicha(altura);
+                if (sombraRef.current) {
+                    sombraRef.current.style.transform = estiloVoo(pos.x, pos.y, `translate(-50%, -50%) scale(${sombra})`, true).transform;
+                    sombraRef.current.style.opacity = String(sombra * 0.55);
+                }
+                if (fichaRef.current) {
+                    fichaRef.current.style.transform = estiloVoo(pos.x, pos.y + altura, `translate(-50%, -50%) scale(${escalaAtual * encolhe}) rotateY(${giro}deg)`, true).transform;
+                }
+            } else {
+                setPosBase(pos);
+                setAlturaExtra(altura);
+                setEscala(escalaAtual * encolhe);
+                setRotY(giro);
+            }
 
             if (t < 1) {
                 raf = requestAnimationFrame((prox) => quadro(inicio, prox));
@@ -524,26 +579,22 @@ function FichaVoando({ de, para, atrasoMs, onChegou, hue, escalaPouso = ESCALA_F
         // eslint-disable-next-line react-hooks/exhaustive-deps -- de/para/atrasoMs/onChegou são fixos por instância (cada ficha voa uma vez só)
     }, []);
 
-    const sombraEscala = Math.max(0.35, 1 - Math.abs(alturaExtra) / (FICHA_FORCA_SUBIDA_MAX * 1.3));
+    const sombraEscala = sombraDaFicha(alturaExtra);
 
     return (
         <>
             <div
+                ref={sombraRef}
                 className="mesa-exp-ficha-sombra"
                 style={{
-                    left: `${posBase.x}px`,
-                    top: `${posBase.y}px`,
-                    transform: `translate(-50%, -50%) scale(${sombraEscala})`,
+                    ...estiloVoo(posBase.x, posBase.y, `translate(-50%, -50%) scale(${sombraEscala})`, voosTransform),
                     opacity: sombraEscala * 0.55,
                 }}
             />
             <div
+                ref={fichaRef}
                 className={`mesa-exp-ficha-voando${pousada ? ' mesa-exp-ficha-pousada' : ''}`}
-                style={{
-                    left: `${posBase.x}px`,
-                    top: `${posBase.y + alturaExtra}px`,
-                    transform: `translate(-50%, -50%) scale(${escala}) rotateY(${rotY}deg)`,
-                }}
+                style={estiloVoo(posBase.x, posBase.y + alturaExtra, `translate(-50%, -50%) scale(${escala}) rotateY(${rotY}deg)`, voosTransform)}
             >
                 <Ficha destacada={pousada} hue={hue} />
             </div>
@@ -568,6 +619,8 @@ function FichaVoando({ de, para, atrasoMs, onChegou, hue, escalaPouso = ESCALA_F
 // rotateY em vez de virar carta), não mais uma carta virada pra baixo. `hue`
 // só se aplica a esse caso (cor da ficha do fantasminha, ver Ficha.jsx).
 function CartaDanoVoando({ de, obterDestino, atrasoMs, carta, hue, onChegou }) {
+    const { voosTransform } = useAjustesMesa();
+    const cartaRef = useRef(null);
     const [posBase, setPosBase] = useState(de);
     const [alturaExtra, setAlturaExtra] = useState(0);
     const [escala, setEscala] = useState(1);
@@ -589,10 +642,17 @@ function CartaDanoVoando({ de, obterDestino, atrasoMs, carta, hue, onChegou }) {
                 ? 1 + (DANO_CARTA_ESCALA_PICO - 1) * easeOutCubic(fase)
                 : DANO_CARTA_ESCALA_PICO - (DANO_CARTA_ESCALA_PICO - DANO_CARTA_ESCALA_POUSO) * easeInCubic(fase);
 
-            setPosBase({ x: de.x + (para.x - de.x) * t, y: de.y + (para.y - de.y) * t });
-            setAlturaExtra(altura);
-            setEscala(escalaAtual);
-            setRotY(720 * t);
+            const pos = { x: de.x + (para.x - de.x) * t, y: de.y + (para.y - de.y) * t };
+            if (voosTransform && t < 1) {
+                if (cartaRef.current) {
+                    cartaRef.current.style.transform = estiloVoo(pos.x, pos.y + altura, `translate(-50%, -50%) scale(${escalaAtual}) rotateY(${720 * t}deg)`, true).transform;
+                }
+            } else {
+                setPosBase(pos);
+                setAlturaExtra(altura);
+                setEscala(escalaAtual);
+                setRotY(720 * t);
+            }
 
             if (t < 1) {
                 raf = requestAnimationFrame((prox) => quadro(para, inicio, prox));
@@ -616,12 +676,9 @@ function CartaDanoVoando({ de, obterDestino, atrasoMs, carta, hue, onChegou }) {
 
     return (
         <div
+            ref={cartaRef}
             className={`mesa-exp-carta-dano-voando${carta ? '' : ' mesa-exp-carta-dano-voando-ficha'}`}
-            style={{
-                left: `${posBase.x}px`,
-                top: `${posBase.y + alturaExtra}px`,
-                transform: `translate(-50%, -50%) scale(${escala}) rotateY(${rotY}deg)`,
-            }}
+            style={estiloVoo(posBase.x, posBase.y + alturaExtra, `translate(-50%, -50%) scale(${escala}) rotateY(${rotY}deg)`, voosTransform)}
         >
             {carta ? <Carta rank={carta.rank} naipe={carta.naipe} /> : <Ficha hue={hue} />}
         </div>
@@ -1216,6 +1273,7 @@ function caminhoFatia(c, r, fracao) {
 }
 
 function TimerNome({ prazo }) {
+    const { timerLeve } = useAjustesMesa();
     const restoRef = useRef(null);
     const lado = (TIMER_NOME_RAIO + 2) * 2;
     const c = lado / 2;
@@ -1236,7 +1294,10 @@ function TimerNome({ prazo }) {
         return { x: c + TIMER_NOME_RAIO * Math.sin(angulo), y: c - TIMER_NOME_RAIO * Math.cos(angulo) };
     });
     return (
-        <svg className="mesa-exp-timer-nome" width={lado} height={lado} viewBox={`0 0 ${lado} ${lado}`} aria-hidden="true">
+        <svg className={`mesa-exp-timer-nome${timerLeve ? ' mf1-timer-nome-leve' : ''}`} width={lado} height={lado} viewBox={`0 0 ${lado} ${lado}`} aria-hidden="true">
+            {/* timerLeve (ajustesMesa.js): a sombra parada no lugar do
+                drop-shadow, que era refeito a cada quadro com o disco. */}
+            {timerLeve && <circle className="mf1-timer-nome-sombra" cx={c} cy={c + 1} r={TIMER_NOME_RAIO + 1.5} />}
             <circle className="mesa-exp-timer-nome-fundo" cx={c} cy={c} r={TIMER_NOME_RAIO} />
             <g transform={`translate(${lado} 0) scale(-1 1)`}>
                 <path ref={restoRef} className="mesa-exp-timer-nome-resto" />
@@ -1411,7 +1472,148 @@ function BarraTimer({ prazo }) {
     );
 }
 
-function PavioReto({ prazo, largura }) {
+function PavioReto(props) {
+    const { timerLeve } = useAjustesMesa();
+    return timerLeve ? <PavioRetoLeve {...props} /> : <PavioRetoFiltro {...props} />;
+}
+
+// Pavio com timerLeve (ajustesMesa.js): o mesmo desenho em três camadas —
+// um SVG parado (borda, trilha, marcas, ficha, com as sombras de sempre,
+// desenhado uma vez), um SVG sem filtro nenhum com o que muda (o traço que
+// encolhe + o halo dele, os segundos) e a brasa numa camada própria que só
+// anda por transform. O brilho do traço é o halo largo translúcido; o
+// pulsar dos últimos segundos é a opacidade do halo e de um brilho
+// vermelho atrás da ficha.
+function PavioRetoLeve({ prazo, largura }) {
+    const id = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+    const raizRef = useRef(null);
+    const restanteRef = useRef(null);
+    const haloRef = useRef(null);
+    const brasaBrilhoRef = useRef(null);
+    const pontaRef = useRef(null);
+    const segundosRef = useRef(null);
+    const meio = TIMER_BARRA_ALTURA_PX / 2;
+    const x0 = TIMER_BARRA_INICIO_X;
+    const comprimento = Math.max(0, largura - TIMER_BARRA_FOLGA_FIM_PX - x0);
+    const idOuro = `pavio-ouro-${id}`;
+    const idFogo = `pavio-fogo-${id}`;
+    const idBrasaOuro = `pavio-brasa-ouro-${id}`;
+    const idBrasaFogo = `pavio-brasa-fogo-${id}`;
+    const marcas = Array.from({ length: ANEL_MARCAS - 1 }, (_, i) => x0 + (comprimento * (i + 1)) / ANEL_MARCAS);
+    const PONTA_MEIA = 14;
+
+    useEffect(() => {
+        if (!prazo) return undefined;
+        let urgente = null;
+        let segundos = null;
+        let quadro;
+        const passo = () => {
+            const restanteMs = Math.max(0, prazo.tempoMs - (Date.now() - prazo.inicio));
+            const fracao = restanteMs / prazo.tempoMs;
+            const largo = String(comprimento * fracao);
+            restanteRef.current.setAttribute('width', largo);
+            haloRef.current.setAttribute('width', String(comprimento * fracao + 6));
+            const visivel = fracao > 0 ? '1' : '0';
+            restanteRef.current.style.opacity = visivel;
+            pontaRef.current.style.opacity = visivel;
+            pontaRef.current.style.transform = `translate3d(${(x0 + comprimento * fracao - PONTA_MEIA).toFixed(1)}px, ${meio - PONTA_MEIA}px, 0)`;
+            const s = Math.ceil(restanteMs / 1000);
+            if (s !== segundos) {
+                segundos = s;
+                segundosRef.current.textContent = String(s);
+            }
+            const agoraUrgente = fracao < ANEL_URGENTE_FRACAO;
+            if (agoraUrgente !== urgente) {
+                urgente = agoraUrgente;
+                raizRef.current.classList.toggle('mesa-exp-anel-urgente', urgente);
+                restanteRef.current.setAttribute('fill', `url(#${urgente ? idFogo : idOuro})`);
+                brasaBrilhoRef.current.setAttribute('fill', `url(#${urgente ? idBrasaFogo : idBrasaOuro})`);
+            }
+            if (restanteMs > 0) quadro = requestAnimationFrame(passo);
+        };
+        passo();
+        return () => cancelAnimationFrame(quadro);
+    }, [prazo, comprimento, x0, meio, idOuro, idFogo, idBrasaOuro, idBrasaFogo]);
+
+    return (
+        <div ref={raizRef} className={`mf1-pavio-leve${prazo ? '' : ' mesa-exp-anel-inativo'}`} style={{ width: largura, height: TIMER_BARRA_ALTURA_PX }}>
+            <svg className="mf1-timer-barra-svg mf1-pavio-camada" width={largura} height={TIMER_BARRA_ALTURA_PX}>
+                <g className="mesa-exp-anel-borda">
+                    <rect x={x0 - 4} y={meio - 9} width={comprimento + 8} height="18" rx="9" />
+                </g>
+                <g className="mesa-exp-anel-trilha">
+                    <rect x={x0 - 2} y={meio - 7} width={comprimento + 4} height="14" rx="7" />
+                </g>
+                {marcas.map((x, i) => (
+                    <circle key={i} className="mesa-exp-anel-marca" cx={x} cy={meio} r="1.8" />
+                ))}
+                <g transform={`translate(${TIMER_BARRA_FICHA_X} ${meio})`}>
+                    <circle className="mesa-exp-anel-ficha-borda" r="13" />
+                    <circle className="mesa-exp-anel-ficha-miolo" r="9" />
+                </g>
+            </svg>
+            <div className="mf1-pavio-ficha-brilho" style={{ left: TIMER_BARRA_FICHA_X - 20, top: meio - 20 }} />
+            <svg className="mf1-pavio-camada mf1-pavio-dinamico" width={largura} height={TIMER_BARRA_ALTURA_PX}>
+                <defs>
+                    <linearGradient id={idOuro} gradientUnits="userSpaceOnUse" x1={x0} y1="0" x2={x0 + comprimento} y2="0">
+                        <stop offset="0%" stopColor="#c8861a" />
+                        <stop offset="55%" stopColor="#ffd75e" />
+                        <stop offset="100%" stopColor="#fff4c2" />
+                    </linearGradient>
+                    <linearGradient id={idFogo} gradientUnits="userSpaceOnUse" x1={x0} y1="0" x2={x0 + comprimento} y2="0">
+                        <stop offset="0%" stopColor="#b3261e" />
+                        <stop offset="60%" stopColor="#ff5a2e" />
+                        <stop offset="100%" stopColor="#ffb347" />
+                    </linearGradient>
+                </defs>
+                <rect ref={haloRef} className="mf1-pavio-halo" x={x0 - 3} y={meio - 7.5} height="15" rx="7.5" width={prazo ? comprimento + 6 : 0} />
+                <rect ref={restanteRef} className="mf1-pavio-restante" x={x0} y={meio - 4.25} height="8.5" rx="4.25" width={prazo ? comprimento : 0} fill={`url(#${idOuro})`} />
+                <text
+                    ref={segundosRef}
+                    className="mesa-exp-anel-ficha-texto"
+                    x={TIMER_BARRA_FICHA_X}
+                    y={meio}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                >
+                    {prazo ? null : '•'}
+                </text>
+            </svg>
+            <div
+                ref={pontaRef}
+                className="mf1-pavio-ponta mesa-exp-anel-ponta"
+                style={{ transform: `translate3d(${x0 + comprimento - PONTA_MEIA}px, ${meio - PONTA_MEIA}px, 0)` }}
+            >
+                <svg width={PONTA_MEIA * 2} height={PONTA_MEIA * 2} viewBox={`${-PONTA_MEIA} ${-PONTA_MEIA} ${PONTA_MEIA * 2} ${PONTA_MEIA * 2}`}>
+                    <defs>
+                        <radialGradient id={idBrasaOuro}>
+                            <stop offset="0%" stopColor="#ffd75e" stopOpacity="0.9" />
+                            <stop offset="45%" stopColor="#ff9a1f" stopOpacity="0.45" />
+                            <stop offset="100%" stopColor="#ff9a1f" stopOpacity="0" />
+                        </radialGradient>
+                        <radialGradient id={idBrasaFogo}>
+                            <stop offset="0%" stopColor="#ff7a3d" stopOpacity="0.95" />
+                            <stop offset="45%" stopColor="#ff3b1f" stopOpacity="0.5" />
+                            <stop offset="100%" stopColor="#ff3b1f" stopOpacity="0" />
+                        </radialGradient>
+                    </defs>
+                    <circle ref={brasaBrilhoRef} r={PONTA_MEIA} fill={`url(#${idBrasaOuro})`} />
+                    {ANEL_FAISCAS.map((f, i) => (
+                        <circle
+                            key={i}
+                            className="mesa-exp-anel-faisca"
+                            r="1.9"
+                            style={{ '--dx': `${f.dx}px`, '--dy': `${f.dy}px`, animationDelay: `${f.atraso}s` }}
+                        />
+                    ))}
+                    <circle className="mesa-exp-anel-brasa mf1-pavio-brasa" r="6.5" />
+                </svg>
+            </div>
+        </div>
+    );
+}
+
+function PavioRetoFiltro({ prazo, largura }) {
     const id = useId().replace(/[^a-zA-Z0-9_-]/g, '');
     const raizRef = useRef(null);
     const restanteRef = useRef(null);

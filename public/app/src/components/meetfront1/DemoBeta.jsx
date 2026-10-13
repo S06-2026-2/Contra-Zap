@@ -6,6 +6,7 @@ import { AJUSTES_ZAP_ORIGINAL, AJUSTES_ZAP_OTIMIZADO, AJUSTES_ZAP_SVG, AJUSTES_Z
 import { prepararFlipbookBorda } from './bordaFlipbook.js';
 import { AJUSTES_COPAS_ORIGINAL, AJUSTES_COPAS_OTIMIZADO, AJUSTES_COPAS_COMPLETA, AJUSTES_COPAS_PADRAO, COPAS_PELADA, AjustesCopasContext } from './ajustesCopas.js';
 import { prepararFlipbookFogo, prepararFlipbookFogoDecodificado } from './fogoFlipbook.js';
+import { AJUSTES_MESA_ORIGINAL, AjustesMesaContext } from './ajustesMesa.js';
 import { prepararBitmapsFogo } from './fogoInteiro.js';
 import { prepararFogoCopasInteiro } from './MesaDanificada.jsx';
 
@@ -321,11 +322,13 @@ const PECAS = [
 // no que a mesa usa de verdade.
 // `zap`: ajustes da manilha de Paus (ver ajustesZap.js) — também começa no
 // que a mesa usa. `copas`: idem, da manilha de Copas (ajustesCopas.js).
-const TUDO_LIGADO = { ...Object.fromEntries(PECAS.map((p) => [p.chave, true])), antigo: FILTRO_ANTIGO_SVG, zap: AJUSTES_ZAP_PADRAO, copas: AJUSTES_COPAS_PADRAO };
+// `mesa`: idem, do resto da mesa (ajustesMesa.js) — null = a do jogo, que
+// segue o switch mobile.
+const TUDO_LIGADO = { ...Object.fromEntries(PECAS.map((p) => [p.chave, true])), antigo: FILTRO_ANTIGO_SVG, zap: AJUSTES_ZAP_PADRAO, copas: AJUSTES_COPAS_PADRAO, mesa: null };
 // O que a partida de verdade usa: tudo do jeito padrão, sem o grão (ver
 // GRAO_NA_PARTIDA em FiltroTela.jsx). A tela de configuração começa nele.
 const COMO_NO_JOGO = { ...TUDO_LIGADO, grao: GRAO_NA_PARTIDA, choqueModo: CHOQUE_MODO };
-const TUDO_DESLIGADO = { ...Object.fromEntries(PECAS.map((p) => [p.chave, false])), antigo: FILTRO_ANTIGO_SVG, zap: AJUSTES_ZAP_PADRAO, copas: AJUSTES_COPAS_PADRAO };
+const TUDO_DESLIGADO = { ...Object.fromEntries(PECAS.map((p) => [p.chave, false])), antigo: FILTRO_ANTIGO_SVG, zap: AJUSTES_ZAP_PADRAO, copas: AJUSTES_COPAS_PADRAO, mesa: null };
 
 // Peças do zap que dá pra ligar/desligar na tela de configuração. A borda
 // gira a cada toque pelos estados de BORDAS (modo + pulo).
@@ -441,6 +444,14 @@ function sobrescritaDe(cfg) {
     return s;
 }
 
+function rotuloMesa(m) {
+    const partes = [];
+    if (m.timerLeve) partes.push('timer leve');
+    if (m.voosTransform) partes.push('voos por transform');
+    if (m.cartasTransform) partes.push('cartas por transform');
+    return partes.length ? `mesa: ${partes.join(', ')}` : 'mesa original';
+}
+
 function rotuloDe(cfg) {
     const ligadas = PECAS.filter((p) => cfg[p.chave]);
     const filtro = ligadas.length ? `${rotuloPecas(cfg, ligadas)} · ${cfg.antigo ? 'filtro antigo' : 'filtro leve'}` : 'tudo desligado';
@@ -450,7 +461,9 @@ function rotuloDe(cfg) {
     const soCopas = cfg.roteiro === 'copas';
     const zap = cfg.zap && !soCopas ? ` · ${rotuloZap(cfg.zap)}` : '';
     const copas = cfg.copas && (soCopas || !mesmoAjuste(cfg.copas, AJUSTES_COPAS_PADRAO)) ? ` · ${rotuloCopas(cfg.copas)}` : '';
-    const rotulo = `${filtro}${zap}${copas}${modoChoque}`;
+    // A mesa só aparece no rótulo quando é um ajuste fixo (null = a do jogo).
+    const mesa = cfg.mesa ? ` · ${rotuloMesa(cfg.mesa)}` : '';
+    const rotulo = `${filtro}${zap}${copas}${mesa}${modoChoque}`;
     if (cfg.nome) return `${cfg.nome} (${rotulo})`;
     if (cfg.roteiro === 'zap') return `só zap · ${rotulo}`;
     return soCopas ? `só copas · ${rotulo}` : rotulo;
@@ -716,12 +729,34 @@ const VOLTA_ZAP_CANVAS = [
     comZapCurto({ ...ZAP_CANVAS, canvasBrilho: false }),
     comZapCurto({ ...ZAP_CANVAS, brilhoFiltro: true }),
 ];
+// Tela de configuração enxuta: só o COMEÇO × AGORA (a VOLTA_ANTES_AGORA,
+// VOLTAS_COMECO_AGORA vezes cada) e uma partida como no jogo. true mostra
+// de novo as ferramentas dos estudos já resolvidos — as peças uma a uma
+// (filtro, zap, Copas) e todos os lotes de baixo.
+const MOSTRAR_FERRAMENTAS_ANTIGAS = false;
+const VOLTAS_COMECO_AGORA = 3;
+// "PENTE FINO": a partida inteira como no jogo, com cada correção do pente
+// fino (ajustesMesa.js) sozinha e as três juntas.
+const VOLTAS_PENTE_FINO = 2;
+const comMesa = (nome, mesa) => ({ ...COMO_NO_JOGO, nome, mesa: { ...AJUSTES_MESA_ORIGINAL, ...mesa } });
+const VOLTA_PENTE_FINO = [
+    comMesa('JOGO', {}),
+    comMesa('TIMER', { timerLeve: true }),
+    comMesa('VOOS', { voosTransform: true }),
+    comMesa('CARTAS', { cartasTransform: true }),
+    comMesa('TODAS', { timerLeve: true, voosTransform: true, cartasTransform: true }),
+];
+// "JOGO × TODAS": a partida inteira como no jogo e com as três correções do
+// pente fino juntas, alternadas, VOLTAS_JOGO_TODAS vezes cada — a
+// confirmação antes de adotar.
+const VOLTAS_JOGO_TODAS = 3;
+const VOLTA_JOGO_TODAS = [VOLTA_PENTE_FINO[0], VOLTA_PENTE_FINO[VOLTA_PENTE_FINO.length - 1]];
 // "ANTES × AGORA": a partida inteira como era antes da otimização (filtro
 // antigo com grão e aberração SVG na tela toda, zap e Copas originais,
 // choque por filtro) e como o jogo está agora (COMO_NO_JOGO). Um de cada
 // por volta, alternados, pra variação do celular cair igual nos dois.
 const VOLTA_ANTES_AGORA = [
-    { ...TUDO_LIGADO, nome: 'ANTES', antigo: true, zap: AJUSTES_ZAP_ORIGINAL, copas: AJUSTES_COPAS_ORIGINAL, choqueModo: 'tela' },
+    { ...TUDO_LIGADO, nome: 'ANTES', antigo: true, zap: AJUSTES_ZAP_ORIGINAL, copas: AJUSTES_COPAS_ORIGINAL, mesa: AJUSTES_MESA_ORIGINAL, choqueModo: 'tela' },
     { ...COMO_NO_JOGO, nome: 'AGORA' },
 ];
 // "COPAS": roteiro curto com a manilha de Copas; a jogada original, cada
@@ -839,9 +874,9 @@ export default function DemoBeta({ onVoltar }) {
         rodar(config);
     }
 
-    async function iniciarLote(volta) {
+    async function iniciarLote(volta, quantasVoltas = voltas) {
         await prepararFlipbooks(volta);
-        const lote = montarLote(volta, voltas);
+        const lote = montarLote(volta, quantasVoltas);
         resultadosLoteRef.current = [];
         repeticoesRef.current = 0;
         setTotalLote(lote.length);
@@ -903,7 +938,9 @@ export default function DemoBeta({ onVoltar }) {
                 <FiltroTela sobrescrita={sobrescritaDe(cfg)} semChoque={!cfg.choque} semGrao={!cfg.grao} antigo={!!cfg.antigo} choqueModo={cfg.choqueModo ?? CHOQUE_MODO}>
                     <AjustesZapContext.Provider value={cfg.zap ?? AJUSTES_ZAP_PADRAO}>
                         <AjustesCopasContext.Provider value={cfg.copas ?? AJUSTES_COPAS_PADRAO}>
-                            <PartidaDemo key={rodada} medidor={medidor} roteiro={cfg.roteiro} onFim={terminar} onSair={cancelar} />
+                            <AjustesMesaContext.Provider value={cfg.mesa ?? null}>
+                                <PartidaDemo key={rodada} medidor={medidor} roteiro={cfg.roteiro} onFim={terminar} onSair={cancelar} />
+                            </AjustesMesaContext.Provider>
                         </AjustesCopasContext.Provider>
                     </AjustesZapContext.Provider>
                 </FiltroTela>
@@ -937,6 +974,42 @@ export default function DemoBeta({ onVoltar }) {
                     Rodada fixa só de bots: K, 7, 4, K (os K melam) e depois 2, 3, A de Copas (manilha), A de Paus (zap).
                     Você só assiste. No fim sai o relatório de quadros.
                 </div>
+                <div className="mf1-demo-nota">
+                    <strong>Começo × agora</strong>: a partida inteira {VOLTAS_COMECO_AGORA} vezes como era no começo (filtro
+                    antigo com grão e aberração SVG na tela toda, zap e Copas originais, choque por filtro) e {VOLTAS_COMECO_AGORA}{' '}
+                    vezes como o jogo está agora, alternadas. No fim manda o resultado pro servidor. Teste em que a página
+                    ficou pausada (tela apagou, app em segundo plano) é refeito sozinho no fim.
+                </div>
+                <button type="button" className="az-b az-px az-btn az-btn-verde az-btn-g" onClick={() => iniciarLote(VOLTA_ANTES_AGORA, VOLTAS_COMECO_AGORA)}>
+                    COMEÇO × AGORA ({VOLTA_ANTES_AGORA.length * VOLTAS_COMECO_AGORA} · ~{Math.round(VOLTA_ANTES_AGORA.length * VOLTAS_COMECO_AGORA * 0.95)} min)
+                </button>
+                <div className="mf1-demo-nota">
+                    <strong>Pente fino</strong>: a partida inteira como no jogo, {VOLTAS_PENTE_FINO} vezes cada — sem mudança
+                    (JOGO), com o timer sem filtro no que muda (TIMER), com as fichas e cartas de dano voando só por transform
+                    (VOOS), com as cartas distribuídas/jogadas deslizando por transform (CARTAS) e as três juntas (TODAS).
+                </div>
+                <div className="mf1-demo-nota">
+                    <strong>Jogo × todas</strong>: a partida inteira {VOLTAS_JOGO_TODAS} vezes como o jogo está e{' '}
+                    {VOLTAS_JOGO_TODAS} vezes com as três correções do pente fino juntas, alternadas.
+                </div>
+                <button type="button" className="az-b az-px az-btn az-btn-verde az-btn-g" onClick={() => iniciarLote(VOLTA_JOGO_TODAS, VOLTAS_JOGO_TODAS)}>
+                    JOGO × TODAS ({VOLTA_JOGO_TODAS.length * VOLTAS_JOGO_TODAS} · ~{Math.round(VOLTA_JOGO_TODAS.length * VOLTAS_JOGO_TODAS * 0.95)} min)
+                </button>
+                <button type="button" className="az-b az-px az-btn az-btn-verde az-btn-g" onClick={() => iniciarLote(VOLTA_PENTE_FINO, VOLTAS_PENTE_FINO)}>
+                    PENTE FINO ({VOLTA_PENTE_FINO.length * VOLTAS_PENTE_FINO} · ~{Math.round(VOLTA_PENTE_FINO.length * VOLTAS_PENTE_FINO * 0.95)} min)
+                </button>
+                <button type="button" className="az-b az-px az-btn az-btn-amarelo az-btn-g" onClick={() => iniciar(COMO_NO_JOGO)}>
+                    UMA PARTIDA COMO NO JOGO
+                </button>
+                {historico.length > 0 && (
+                    <button type="button" className="az-b az-px az-btn az-btn-cinza" onClick={() => { setAtual(historico[0]); setLoteFeito(null); setEtapa('relatorio'); }}>
+                        VER ÚLTIMO RESULTADO
+                    </button>
+                )}
+                <button type="button" className="az-b az-btn-fantasma" onClick={onVoltar}>Voltar</button>
+
+                {MOSTRAR_FERRAMENTAS_ANTIGAS && (
+                <>
                 <div className="az-px mf1-demo-subtitulo">FILTRO DE TELA</div>
                 {PECAS.map((p) => (
                     <button
@@ -1137,13 +1210,8 @@ export default function DemoBeta({ onVoltar }) {
                 <button type="button" className="az-b az-px az-btn az-btn-verde az-btn-g" onClick={() => iniciarLote(VOLTA_ANTES_AGORA)}>
                     ANTES × AGORA ({VOLTA_ANTES_AGORA.length * voltas} · ~{Math.round(VOLTA_ANTES_AGORA.length * voltas * 0.95)} min)
                 </button>
-
-                {historico.length > 0 && (
-                    <button type="button" className="az-b az-px az-btn az-btn-cinza" onClick={() => { setAtual(historico[0]); setLoteFeito(null); setEtapa('relatorio'); }}>
-                        VER ÚLTIMO RESULTADO
-                    </button>
+                </>
                 )}
-                <button type="button" className="az-b az-btn-fantasma" onClick={onVoltar}>Voltar</button>
             </div>
         </div>
     );
