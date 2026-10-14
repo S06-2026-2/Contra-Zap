@@ -1,6 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import PunhalAssembly from './PunhalAssembly.jsx';
 import Carta from './Carta.jsx';
+import { AjustesZapContext, useAjustesZap } from './ajustesZap.js';
+import { MotorZapCanvas } from './zapCanvas.js';
+import { useAjustesCopas } from './ajustesCopas.js';
+import {
+    FOGO_CICLO_MS, FOGO_COLUNAS, FOGO_LINHAS, FOGO_QUADROS, FOGO_LARGURA_EM, FOGO_QUADRO_ALTURA_EM, FOGO_FOLGA_TOPO_EM,
+    prepararFlipbookFogo, urlsFlipbookFogo, prepararFlipbookFogoDecodificado, urlsFlipbookFogoDecodificado,
+} from './fogoFlipbook.js';
+import {
+    INTEIRO_FPS, INTEIRO_COLUNAS, INTEIRO_LINHAS, INTEIRO_QUADROS,
+    caixaDoFogo, desenharFogueiras, prepararBitmapsFogo, bitmapsFogoProntos, prepararFogoInteiro, fogosInteirosProntos,
+} from './fogoInteiro.js';
+import { marcarFase } from './medidorDesempenho.js';
 
 // Sandbox isolada (pedido do Henrique 2026-09-21): a mesma "sala" visual
 // de MesaExperimento.jsx, mas só fundo+mesa — sem fantasminhas, cartas,
@@ -702,7 +714,14 @@ const COPAS_APAGAR_FOGO_MS = 200;
 // próprio (.mesa-exp-fogo-espalhando): nasce na semente, cresce e é lançada
 // até foraX/foraY sumindo no fim, e recomeça — com `duracaoMs`/`atrasoMs`
 // sorteados por fogueira, cada uma sai num ritmo diferente.
-function FogueiraCodepen({ x, y, fonte, particulas, acesa, escalaInicial, escalaFinal, foraX = 0, foraY = 0, duracaoMs, atrasoMs = 0, espalhar = false }) {
+//
+// `sprite` (fogo: 'flipbook', ver ajustesCopas.js): no lugar das bolinhas,
+// o ciclo delas pré-desenhado (fogoFlipbook.js), começando em `faseMs` do
+// ciclo. O blur sai junto — já está no desenho.
+//
+// `pausada` (só com `espalhar`): o loop fica parado no quadro inicial
+// (invisível, na semente) até soltar — ver fogoMontarAntes.
+function FogueiraCodepen({ x, y, fonte, particulas, acesa, escalaInicial, escalaFinal, foraX = 0, foraY = 0, duracaoMs, atrasoMs = 0, espalhar = false, sprite = null, faseMs = 0, pausada = false }) {
     const [atrasos] = useState(() => Array.from({ length: particulas }, () => Math.random()));
     const [pronta, setPronta] = useState(false);
     useEffect(() => {
@@ -718,6 +737,7 @@ function FogueiraCodepen({ x, y, fonte, particulas, acesa, escalaInicial, escala
             '--escala-final': escalaFinal,
             animationDuration: `${duracaoMs}ms`,
             animationDelay: `${atrasoMs}ms`,
+            animationPlayState: pausada ? 'paused' : undefined,
         }
         : {
             transform: `translate(-50%, -100%) translate(${crescida ? foraX : 0}px, ${crescida ? foraY : 0}px) scale(${crescida ? escalaFinal : escalaInicial})`,
@@ -726,9 +746,9 @@ function FogueiraCodepen({ x, y, fonte, particulas, acesa, escalaInicial, escala
     return (
         <div
             className={`mesa-exp-fogo${espalhar ? ' mesa-exp-fogo-espalhando' : ''}`}
-            style={{ left: `${x}%`, top: `${y}%`, fontSize: `${fonte}px`, ...estilo }}
+            style={{ left: `${x}%`, top: `${y}%`, fontSize: `${fonte}px`, ...estilo, ...(sprite ? { filter: 'none' } : null) }}
         >
-            {atrasos.map((atraso, i) => (
+            {sprite ? <FogoFlipbook url={sprite} faseMs={faseMs} /> : atrasos.map((atraso, i) => (
                 <span
                     key={i}
                     className="mesa-exp-fogo-particula"
@@ -738,6 +758,44 @@ function FogueiraCodepen({ x, y, fonte, particulas, acesa, escalaInicial, escala
                     }}
                 />
             ))}
+        </div>
+    );
+}
+
+// Mesmo esquema de BordaFlipbook (Carta.jsx): duas camadas em degraus, a de
+// dentro pelas colunas do sprite e a de fora pelas linhas. Tudo em `em`,
+// então escala com o font-size da fogueira. O atraso negativo igual nas
+// duas mantém as camadas no mesmo quadro.
+function FogoFlipbook({ url, faseMs }) {
+    const quadroMs = FOGO_CICLO_MS / FOGO_QUADROS;
+    const atraso = `-${Math.round(faseMs)}ms`;
+    return (
+        <div
+            className="mf1-fogo-flip"
+            style={{ top: `-${FOGO_FOLGA_TOPO_EM}em`, width: `${FOGO_LARGURA_EM}em`, height: `${FOGO_QUADRO_ALTURA_EM}em` }}
+        >
+            <div
+                className="mf1-borda-flip-linhas"
+                style={{
+                    width: `${FOGO_LARGURA_EM * FOGO_COLUNAS}em`,
+                    height: `${FOGO_QUADRO_ALTURA_EM * FOGO_LINHAS}em`,
+                    animationDuration: `${FOGO_CICLO_MS}ms`,
+                    animationTimingFunction: `steps(${FOGO_LINHAS})`,
+                    animationDelay: atraso,
+                }}
+            >
+                <img
+                    className="mf1-borda-flip-colunas"
+                    src={url}
+                    alt=""
+                    draggable={false}
+                    style={{
+                        animationDuration: `${quadroMs * FOGO_COLUNAS}ms`,
+                        animationTimingFunction: `steps(${FOGO_COLUNAS})`,
+                        animationDelay: atraso,
+                    }}
+                />
+            </div>
         </div>
     );
 }
@@ -783,6 +841,7 @@ function sortearFogueiras(modo) {
             foraY: sen * alcance,
             duracaoMs: 450 + Math.random() * 350,
             atrasoMs: Math.random() * 350,
+            faseMs: Math.random() * FOGO_CICLO_MS,
         };
     });
 }
@@ -790,13 +849,70 @@ function sortearFogueiras(modo) {
 // `transicaoEscala`: a MESMA transição de transform da carta na fase atual,
 // pra o container encolher/crescer junto com ela (ex.: descendo da tela pra
 // mesa) em vez de pular de tamanho.
-function ChamasCopas({ modo, ativo, escala, duracaoFadeMs, transicaoEscala }) {
+//
+// Com fogo: 'flipbook' (ajustesCopas.js), cada fogueira usa uma das
+// variantes do sprite do seu modo. Enquanto o sprite não fica pronto, vai
+// o fogo original. Com fogoDecodificar, usa o conjunto já decodificado.
+//
+// `montarAntes`: monta as fogueiras já (invisíveis, com o loop parado na
+// semente) em vez de esperar acender — quando acende, o loop só começa.
+//
+// Com fogo 'flipbook-unico' ou 'canvas' (fogoInteiro.js), o fogo de trás
+// ('borda') é um elemento só — o sprite inteiro ou o canvas desenhado a
+// cada quadro. O 'cobrindo' já é uma fogueira só e usa o sprite dela. Até
+// o que eles precisam ficar pronto, vai o fogo por fogueira.
+function ChamasCopas({ modo, ativo, escala, duracaoFadeMs, transicaoEscala, montarAntes = false }) {
+    const { fogo, fogoDecodificar } = useAjustesCopas();
     const [fogueiras] = useState(() => sortearFogueiras(modo));
     // Só monta as fogueiras na primeira vez que acende (e não desmonta mais,
     // pra dar tempo do fade de saída) — assim o loop de cada uma começa da
     // semente na hora da pulsada, não no meio do ciclo.
     const [acendeu, setAcendeu] = useState(ativo);
     if (ativo && !acendeu) setAcendeu(true);
+    const usaSprites = fogo !== 'original' && fogo !== 'off';
+    const inteiro = modo === 'borda' && (fogo === 'flipbook-unico' || fogo === 'canvas') ? fogo : null;
+    const pegarUrls = fogoDecodificar ? urlsFlipbookFogoDecodificado : urlsFlipbookFogo;
+    const preparar = fogoDecodificar ? prepararFlipbookFogoDecodificado : prepararFlipbookFogo;
+    const [sprites, setSprites] = useState(pegarUrls);
+    useEffect(() => {
+        if (!usaSprites || sprites) return undefined;
+        let vivo = true;
+        preparar().then((urls) => { if (vivo && urls) setSprites(urls); });
+        return () => { vivo = false; };
+    }, [usaSprites, sprites, preparar]);
+    const [bitmaps, setBitmaps] = useState(bitmapsFogoProntos);
+    useEffect(() => {
+        if (inteiro !== 'canvas' || bitmaps) return undefined;
+        let vivo = true;
+        prepararBitmapsFogo().then((b) => { if (vivo && b) setBitmaps(b); });
+        return () => { vivo = false; };
+    }, [inteiro, bitmaps]);
+    const [inteiros, setInteiros] = useState(fogosInteirosProntos);
+    useEffect(() => {
+        if (inteiro !== 'flipbook-unico' || inteiros) return undefined;
+        let vivo = true;
+        prepararFogoCopasInteiro().then((lista) => { if (vivo && lista) setInteiros(lista); });
+        return () => { vivo = false; };
+    }, [inteiro, inteiros]);
+    const [sorteioInteiro] = useState(() => Math.floor(Math.random() * 1000));
+    if (fogo === 'off') return null;
+    const variantes = usaSprites ? sprites?.[modo] : null;
+    let conteudo = null;
+    if (inteiro === 'canvas' && bitmaps) {
+        if (acendeu) conteudo = <FogoCanvas fogueiras={fogueiras} bitmaps={bitmaps.borda} />;
+    } else if (inteiro === 'flipbook-unico' && inteiros) {
+        if (acendeu) conteudo = <FogoInteiroFlipbook sprite={inteiros[sorteioInteiro % inteiros.length]} />;
+    } else if (acendeu || montarAntes) {
+        conteudo = fogueiras.map((f, i) => (
+            <FogueiraCodepen
+                key={i}
+                acesa={ativo}
+                {...f}
+                sprite={variantes ? variantes[i % variantes.length] : null}
+                pausada={!acendeu}
+            />
+        ));
+    }
     return (
         <div
             className="mesa-exp-copas-chamas"
@@ -806,9 +922,81 @@ function ChamasCopas({ modo, ativo, escala, duracaoFadeMs, transicaoEscala }) {
                 transition: `opacity ${duracaoFadeMs}ms ease-out, transform ${transicaoEscala}`,
             }}
         >
-            {acendeu && fogueiras.map((f, i) => <FogueiraCodepen key={i} acesa={ativo} {...f} />)}
+            {conteudo}
         </div>
     );
+}
+
+// fogo 'canvas': um canvas do tamanho de todo o fogo (caixaDoFogo, em
+// unidades da carta — o container escala junto), redesenhado a cada quadro
+// com o tempo desde que acendeu.
+const FOGO_CANVAS_PX_POR_UNIDADE = 1.5;
+
+function FogoCanvas({ fogueiras, bitmaps }) {
+    const ref = useRef(null);
+    const [caixa] = useState(() => caixaDoFogo(fogueiras));
+    const k = FOGO_CANVAS_PX_POR_UNIDADE;
+    useEffect(() => {
+        const canvas = ref.current;
+        const ctx = canvas?.getContext('2d');
+        if (!ctx) return undefined;
+        const inicio = performance.now();
+        let quadro;
+        const passo = (agora) => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            desenharFogueiras(ctx, fogueiras, bitmaps, agora - inicio, k, caixa);
+            quadro = requestAnimationFrame(passo);
+        };
+        quadro = requestAnimationFrame(passo);
+        return () => cancelAnimationFrame(quadro);
+    }, [fogueiras, bitmaps, caixa, k]);
+    return (
+        <canvas
+            ref={ref}
+            className="mf1-fogo-inteiro"
+            width={Math.ceil(caixa.l * k)}
+            height={Math.ceil(caixa.a * k)}
+            style={{ left: caixa.x, top: caixa.y, width: caixa.l, height: caixa.a }}
+        />
+    );
+}
+
+// fogo 'flipbook-unico': o sprite do fogo inteiro (fogoInteiro.js) numa
+// janela do tamanho da caixa dele, com as mesmas camadas em degraus da
+// borda do zap, começando do primeiro quadro quando acende.
+function FogoInteiroFlipbook({ sprite }) {
+    const { url, caixa } = sprite;
+    const quadroMs = 1000 / INTEIRO_FPS;
+    return (
+        <div className="mf1-fogo-flip" style={{ left: caixa.x, top: caixa.y, width: caixa.l, height: caixa.a }}>
+            <div
+                className="mf1-borda-flip-linhas"
+                style={{
+                    width: caixa.l * INTEIRO_COLUNAS,
+                    height: caixa.a * INTEIRO_LINHAS,
+                    animationDuration: `${quadroMs * INTEIRO_QUADROS}ms`,
+                    animationTimingFunction: `steps(${INTEIRO_LINHAS})`,
+                }}
+            >
+                <img
+                    className="mf1-borda-flip-colunas"
+                    src={url}
+                    alt=""
+                    draggable={false}
+                    style={{
+                        animationDuration: `${quadroMs * INTEIRO_COLUNAS}ms`,
+                        animationTimingFunction: `steps(${INTEIRO_COLUNAS})`,
+                    }}
+                />
+            </div>
+        </div>
+    );
+}
+
+// Gera (uma vez por página) os sprites do fogo inteiro — quem chama é a
+// mesa/demo pra ele estar pronto antes da primeira Copas.
+export function prepararFogoCopasInteiro() {
+    return prepararFogoInteiro(() => sortearFogueiras('borda'));
 }
 
 // Contorno "amorfo" da mancha: pontos em volta de um círculo com raio
@@ -841,7 +1029,49 @@ const MARCA_CORACAO_ESCALA = 1.15;
 
 let proximoIdMarca = 0;
 
+// Contorno do coração em brasa. Com brasaFiltro (ajustesCopas.js) é o traço
+// com drop-shadow esfriando pela cor; sem, a brasa fria fica embaixo e a
+// quente (traço + halo largo translúcido) some por cima dela por opacidade.
+function BrasaCoracao({ transform, filtro }) {
+    if (filtro) return <path className="mesa-exp-carbonizado-brasa" d={MARCA_CORACAO} transform={transform} />;
+    return (
+        <>
+            <path className="mf1-brasa-fria" d={MARCA_CORACAO} transform={transform} />
+            <g className="mf1-brasa-quente">
+                <path className="mf1-brasa-halo" d={MARCA_CORACAO} transform={transform} />
+                <path className="mf1-brasa-traco" d={MARCA_CORACAO} transform={transform} />
+            </g>
+        </>
+    );
+}
+
+// A mancha (sem a brasa) como SVG solto, pra marca: 'imagem' — mesmo
+// desenho e mesmo blur (feGaussianBlur com o desvio do blur(2.5px) do CSS).
+function svgMancha(formas, coracao) {
+    const meio = MARCA_TAMANHO_PX / 2;
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${MARCA_TAMANHO_PX}" height="${MARCA_TAMANHO_PX}" viewBox="${-meio} ${-meio} ${MARCA_TAMANHO_PX} ${MARCA_TAMANHO_PX}">
+<defs>
+<radialGradient id="g">
+<stop offset="0%" stop-color="#050302" stop-opacity="0.97"/>
+<stop offset="55%" stop-color="#120a05" stop-opacity="0.92"/>
+<stop offset="82%" stop-color="#2e1b0c" stop-opacity="0.7"/>
+<stop offset="100%" stop-color="#3d2410" stop-opacity="0.25"/>
+</radialGradient>
+<mask id="m">
+<rect x="${-meio}" y="${-meio}" width="${MARCA_TAMANHO_PX}" height="${MARCA_TAMANHO_PX}" fill="#fff"/>
+<path d="${MARCA_CORACAO}" transform="${coracao}" fill="#000"/>
+</mask>
+<filter id="b" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.5"/></filter>
+</defs>
+<g mask="url(#m)">
+<path d="${formas.externa}" fill="url(#g)" filter="url(#b)"/>
+<path d="${formas.interna}" fill="#040201" opacity="0.8"/>
+</g>
+</svg>`;
+}
+
 function MarcaCarbonizada({ marca }) {
+    const { marca: modoMarca, brasaFiltro } = useAjustesCopas();
     const [ids] = useState(() => {
         const n = ++proximoIdMarca;
         return { grad: `mesa-exp-carbonizado-grad-${n}`, mascara: `mesa-exp-carbonizado-mascara-${n}` };
@@ -852,6 +1082,34 @@ function MarcaCarbonizada({ marca }) {
     }));
     const meio = MARCA_TAMANHO_PX / 2;
     const coracao = `rotate(${marca.rot}) scale(${MARCA_CORACAO_ESCALA})`;
+    const [urlMancha] = useState(() => (
+        modoMarca === 'imagem' ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgMancha(formas, coracao))}` : null
+    ));
+    if (modoMarca === 'off') return null;
+    if (urlMancha) {
+        return (
+            <div
+                className="mesa-exp-carbonizado"
+                style={{
+                    left: `${marca.x}%`,
+                    top: `${marca.y}%`,
+                    width: MARCA_TAMANHO_PX,
+                    height: MARCA_TAMANHO_PX,
+                    '--duracao-carbonizar': `${COPAS_QUEIMANDO_MESA_MS}ms`,
+                }}
+            >
+                <img className="mf1-carbonizado-img" src={urlMancha} alt="" draggable={false} />
+                <svg
+                    className="mf1-carbonizado-brasa-svg"
+                    width={MARCA_TAMANHO_PX}
+                    height={MARCA_TAMANHO_PX}
+                    viewBox={`${-meio} ${-meio} ${MARCA_TAMANHO_PX} ${MARCA_TAMANHO_PX}`}
+                >
+                    <BrasaCoracao transform={coracao} filtro={brasaFiltro} />
+                </svg>
+            </div>
+        );
+    }
     return (
         <svg
             className="mesa-exp-carbonizado"
@@ -883,7 +1141,7 @@ function MarcaCarbonizada({ marca }) {
                 <path className="mesa-exp-carbonizado-borda" d={formas.externa} fill={`url(#${ids.grad})`} />
                 <path d={formas.interna} fill="#040201" opacity="0.8" />
             </g>
-            <path className="mesa-exp-carbonizado-brasa" d={MARCA_CORACAO} transform={coracao} />
+            <BrasaCoracao transform={coracao} filtro={brasaFiltro} />
         </svg>
     );
 }
@@ -903,6 +1161,15 @@ function CartaCopasSimulada({ mesaRef, onCarbonizar, onFim, origem: origemFixa, 
     const [rotSegundoPouso] = useState(() => (Math.random() * 2 - 1) * COPAS_POUSO_ROT_MAX_GRAUS);
     const empurraoRef = useRef({ x: 0, y: 0 });
     const avancoRef = useRef({ x: 0, y: 0 });
+    const copas = useAjustesCopas();
+    // fogoMontarAntes (ajustesCopas.js): o fogo de trás já entra na subida,
+    // invisível e parado, e na pulsada só acende.
+    const montarFogoAntes = copas.fogo === 'flipbook' && copas.fogoMontarAntes;
+
+    // Demo de desempenho: cada etapa da jogada vira uma fase da medição.
+    useEffect(() => {
+        marcarFase(`copas: ${fase === 'jogando' ? 'voando' : fase}`);
+    }, [fase]);
 
     useEffect(() => {
         let cancelado = false;
@@ -1029,10 +1296,11 @@ function CartaCopasSimulada({ mesaRef, onCarbonizar, onFim, origem: origemFixa, 
                     fade de saída) — com a carta pousada pra sempre na mesa,
                     as centenas de partículas em loop com blend mode
                     continuariam rodando invisíveis e acumulando a cada
-                    jogada. */}
-                {(fase === 'pulsando' || fase === 'descendo') && (
+                    jogada. Com montarFogoAntes entra já na subida. */}
+                {(fase === 'pulsando' || fase === 'descendo' || (montarFogoAntes && (fase === 'subindo' || fase === 'segurando'))) && (
                     <ChamasCopas
                         modo="borda"
+                        montarAntes={montarFogoAntes}
                         ativo={chamasBaixo}
                         escala={escala}
                         duracaoFadeMs={chamasBaixo ? 150 : COPAS_DESCIDA_MS}
@@ -1593,12 +1861,15 @@ function sortearRaioDaCarta(comprimento, chanceRamo) {
 // núcleo branco fino em cima). non-scaling-stroke: a espessura fica igual na
 // tela esteja a carta grande (2.2x) ou pousada (0.6x). Se remove sozinho no
 // fim da própria animação CSS.
-function criarGrupoRaio(svg, tracos, classe, duracaoMs) {
+// `halo` (zap sem filtro, ver ajustesZap.js): camada larga translúcida por
+// baixo no lugar do drop-shadow de cada grupo.
+function criarGrupoRaio(svg, tracos, classe, duracaoMs, halo) {
     const g = document.createElementNS(SVG_NS, 'g');
     g.setAttribute('class', classe);
     g.style.animationDuration = `${duracaoMs}ms`;
+    const camadas = halo ? ['mf1-zap-raio-halo', 'mesa-exp-zap-raio-brilho', 'mesa-exp-zap-raio-nucleo'] : ['mesa-exp-zap-raio-brilho', 'mesa-exp-zap-raio-nucleo'];
     for (const pontos of tracos) {
-        for (const camada of ['mesa-exp-zap-raio-brilho', 'mesa-exp-zap-raio-nucleo']) {
+        for (const camada of camadas) {
             const path = document.createElementNS(SVG_NS, 'path');
             path.setAttribute('d', pontosParaD(pontos));
             path.setAttribute('class', camada);
@@ -1611,32 +1882,82 @@ function criarGrupoRaio(svg, tracos, classe, duracaoMs) {
     return g;
 }
 
-function soltarEletricidade(svg, perfil, t) {
+function soltarEletricidade(svg, perfil, t, halo) {
     if (perfil.tipo === 'faisca') {
         // Zigue-zague curtinho nascendo na borda e voando pra fora.
         const { tracos, angulo } = sortearRaioDaCarta(8 + Math.random() * 8, 0);
-        const g = criarGrupoRaio(svg, tracos, 'mesa-exp-zap-faisca', 280 + Math.random() * 120);
+        const g = criarGrupoRaio(svg, tracos, 'mesa-exp-zap-faisca', 280 + Math.random() * 120, halo);
         const voo = 20 + Math.random() * 25;
         g.style.setProperty('--dx', `${Math.cos(angulo) * voo}px`);
         g.style.setProperty('--dy', `${Math.sin(angulo) * voo}px`);
         return;
     }
     const comprimento = sortear(ZAP_RAIO_COMPRIMENTO) * perfil.comprimento(t);
-    criarGrupoRaio(svg, sortearRaioDaCarta(comprimento, perfil.ramo(t)).tracos, 'mesa-exp-zap-raio', 90 + Math.random() * 80);
+    criarGrupoRaio(svg, sortearRaioDaCarta(comprimento, perfil.ramo(t)).tracos, 'mesa-exp-zap-raio', 90 + Math.random() * 80, halo);
     if (perfil.chao && Math.random() < perfil.chao(t)) {
         const { tracos } = sortearRaioDaCarta(sortear(ZAP_CHAO_COMPRIMENTO), 0.5);
-        criarGrupoRaio(svg, tracos, 'mesa-exp-zap-raio', 160 + Math.random() * 100);
+        criarGrupoRaio(svg, tracos, 'mesa-exp-zap-raio', 160 + Math.random() * 100, halo);
     }
+}
+
+// O mesmo sorteio de soltarEletricidade, só os dados — pro zap em canvas
+// (MotorZapCanvas em zapCanvas.js), que desenha e apaga cada um sozinho.
+function sortearEletricidadeFora(perfil, t, agora) {
+    if (perfil.tipo === 'faisca') {
+        const { tracos, angulo } = sortearRaioDaCarta(8 + Math.random() * 8, 0);
+        const voo = 20 + Math.random() * 25;
+        return [{ tipo: 'faisca', tracos, nasceu: agora, dur: 280 + Math.random() * 120, dx: Math.cos(angulo) * voo, dy: Math.sin(angulo) * voo }];
+    }
+    const comprimento = sortear(ZAP_RAIO_COMPRIMENTO) * perfil.comprimento(t);
+    const lista = [{ tipo: 'raio', tracos: sortearRaioDaCarta(comprimento, perfil.ramo(t)).tracos, nasceu: agora, dur: 90 + Math.random() * 80 }];
+    if (perfil.chao && Math.random() < perfil.chao(t)) {
+        lista.push({ tipo: 'raio', tracos: sortearRaioDaCarta(sortear(ZAP_CHAO_COMPRIMENTO), 0.5).tracos, nasceu: agora, dur: 160 + Math.random() * 100 });
+    }
+    return lista;
+}
+
+// Zap em canvas (canvas: true em ajustesZap.js): um canvas só por cima da
+// tela com toda a eletricidade da jogada — dentro da carta, em volta e o
+// raio do céu (ver MotorZapCanvas). `mioloRef` é a carta que ele segue.
+function ZapCanvas({ mioloRef, fase, duracaoModoMs, pausado, taxaDentro, transicaoDentroMs, pontoImpacto, dentro, fora, ceu, brilho }) {
+    const canvasRef = useRef(null);
+    const motorRef = useRef(null);
+    const opcoesRef = useRef(null);
+    opcoesRef.current = { pausado, dentro, fora, brilho };
+
+    useEffect(() => {
+        const motor = new MotorZapCanvas(canvasRef.current, sortearEletricidadeFora);
+        motorRef.current = motor;
+        let quadro;
+        const passo = (agora) => {
+            if (mioloRef.current) motor.quadro(agora, mioloRef.current, opcoesRef.current);
+            quadro = requestAnimationFrame(passo);
+        };
+        quadro = requestAnimationFrame(passo);
+        return () => cancelAnimationFrame(quadro);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- mioloRef é fixo; o resto chega pelos efeitos de baixo e pelo opcoesRef
+    }, []);
+    useEffect(() => {
+        motorRef.current?.definirFase(ZAP_PERFIS[fase], duracaoModoMs, performance.now());
+    }, [fase, duracaoModoMs]);
+    useEffect(() => {
+        motorRef.current?.definirTaxaDentro(taxaDentro, transicaoDentroMs, performance.now());
+    }, [taxaDentro, transicaoDentroMs]);
+    useEffect(() => {
+        if (pontoImpacto && ceu) motorRef.current?.soltarCeu(sortearTracosRaioCeu(pontoImpacto), performance.now());
+    }, [pontoImpacto, ceu]);
+    return <canvas ref={canvasRef} className="mf1-zap-canvas" />;
 }
 
 // Camada de raios presa à carta (dentro do miolo, então escala e gira com
 // ela). Os raios são criados direto no DOM, fora do React: são dezenas por
 // segundo vivendo ~100ms cada, não faz sentido passar isso por estado.
-function RaiosZap({ modo, duracaoModoMs }) {
+// `pausado`: monta o svg mas não solta nada.
+function RaiosZap({ modo, duracaoModoMs, halo = false, pausado = false }) {
     const svgRef = useRef(null);
     useEffect(() => {
         const perfil = ZAP_PERFIS[modo];
-        if (!perfil) return undefined;
+        if (!perfil || pausado) return undefined;
         const inicio = performance.now();
         let anterior = inicio;
         let acumulado = 0;
@@ -1647,13 +1968,13 @@ function RaiosZap({ modo, duracaoModoMs }) {
             anterior = agora;
             while (acumulado >= 1 && svgRef.current) {
                 acumulado -= 1;
-                soltarEletricidade(svgRef.current, perfil, t);
+                soltarEletricidade(svgRef.current, perfil, t, halo);
             }
             quadro = requestAnimationFrame(passo);
         }
         quadro = requestAnimationFrame(passo);
         return () => cancelAnimationFrame(quadro);
-    }, [modo, duracaoModoMs]);
+    }, [modo, duracaoModoMs, halo, pausado]);
     return <svg ref={svgRef} className="mesa-exp-zap-raios" />;
 }
 
@@ -1661,31 +1982,36 @@ function RaiosZap({ modo, duracaoModoMs }) {
 // sorteado acima do topo da tela e termina exatamente na carta, com algumas
 // ramificações descendo pros lados. Mais o clarão da tela inteira, centrado
 // no ponto de impacto.
-function RaioDaQueda({ ponto }) {
-    const [tracos] = useState(() => {
-        const principal = gerarCaminhoRaio(ponto.x + (Math.random() * 2 - 1) * 140, -40, ponto.x, ponto.y, 90, 7);
-        const ramos = Array.from({ length: 3 + Math.floor(Math.random() * 2) }, () => {
-            const [bx, by] = principal[Math.floor(principal.length * (0.2 + Math.random() * 0.6))];
-            const angulo = Math.PI / 2 + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.6);
-            const c = 60 + Math.random() * 110;
-            return gerarCaminhoRaio(bx, by, bx + Math.cos(angulo) * c, by + Math.sin(angulo) * c, c * 0.3, 4);
-        });
-        return [principal, ...ramos];
+// `semRaio`: só o clarão (zap com raioCeu desligado); `leve`: halo como
+// traço largo translúcido em vez do drop-shadow da tela inteira.
+function sortearTracosRaioCeu(ponto) {
+    const principal = gerarCaminhoRaio(ponto.x + (Math.random() * 2 - 1) * 140, -40, ponto.x, ponto.y, 90, 7);
+    const ramos = Array.from({ length: 3 + Math.floor(Math.random() * 2) }, () => {
+        const [bx, by] = principal[Math.floor(principal.length * (0.2 + Math.random() * 0.6))];
+        const angulo = Math.PI / 2 + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.6);
+        const c = 60 + Math.random() * 110;
+        return gerarCaminhoRaio(bx, by, bx + Math.cos(angulo) * c, by + Math.sin(angulo) * c, c * 0.3, 4);
     });
+    return [principal, ...ramos];
+}
+
+function RaioDaQueda({ ponto, semRaio = false, leve = false }) {
+    const [tracos] = useState(() => sortearTracosRaioCeu(ponto));
     return (
         <>
             <div
                 className="mesa-exp-zap-clarao"
                 style={{ '--cx': `${ponto.x}px`, '--cy': `${ponto.y}px` }}
             />
-            <svg className="mesa-exp-zap-queda" style={{ animationDuration: `${ZAP_RAIO_QUEDA_MS}ms` }}>
+            {!semRaio && <svg className={`mesa-exp-zap-queda${leve ? ' mf1-zap-queda-leve' : ''}`} style={{ animationDuration: `${ZAP_RAIO_QUEDA_MS}ms` }}>
                 {tracos.map((pontos, i) => (
                     <g key={i}>
+                        {leve && <path className="mf1-zap-queda-halo" d={pontosParaD(pontos)} />}
                         <path className="mesa-exp-zap-raio-brilho" d={pontosParaD(pontos)} />
                         <path className="mesa-exp-zap-raio-nucleo" d={pontosParaD(pontos)} />
                     </g>
                 ))}
-            </svg>
+            </svg>}
         </>
     );
 }
@@ -1749,6 +2075,7 @@ function CrateraRaio({ cratera }) {
 }
 
 function CartaPausSimulada({ mesaRef, onImpacto, onFim, origem: origemFixa, pouso, rank = '4' }) {
+    const zap = useAjustesZap();
     const [fase, setFase] = useState('jogando');
     const [partiu, setPartiu] = useState(false);
     const [origem] = useState(() => origemFixa ?? sortearOrigemJogador());
@@ -1760,6 +2087,12 @@ function CartaPausSimulada({ mesaRef, onImpacto, onFim, origem: origemFixa, pous
     const [pontoImpacto, setPontoImpacto] = useState(null);
     const empurraoRef = useRef({ x: 0, y: 0 });
     const wrapperRef = useRef(null);
+    const mioloRef = useRef(null);
+
+    // Demo de desempenho: cada etapa da jogada vira uma fase da medição.
+    useEffect(() => {
+        marcarFase(`zap: ${fase === 'jogando' ? 'voando' : fase}`);
+    }, [fase]);
 
     useEffect(() => {
         let cancelado = false;
@@ -1839,13 +2172,27 @@ function CartaPausSimulada({ mesaRef, onImpacto, onFim, origem: origemFixa, pous
         : fase === 'dissipando' ? { taxaRaios: 0, taxaRaiosTransicaoMs: ZAP_DISSIPAR_MS }
         : {};
     const duracaoModo = { subindo: SIM_CRESCIDA_DURACAO_MS, segurando: ZAP_SEGURAR_MS, caindo: ZAP_QUEDA_MS, dissipando: ZAP_DISSIPAR_MS }[fase] ?? 1;
-    const classeCarga = fase === 'dissipando' ? ' mesa-exp-zap-descarga'
-        : fase === 'segurando' || fase === 'caindo' ? ' mesa-exp-zap-eletrizada'
+    // Sem filtro (ver ajustesZap.js): halo de box-shadow parado e clarão de
+    // opacidade, cada um na própria camada, no lugar dos drop-shadow/
+    // brightness no container da carta.
+    const sufixoBrilho = zap.brilhoFiltro ? '' : '-leve';
+    const raiosPausados = (zap.semRaiosNaSubida && fase === 'subindo') || (!zap.raiosNoImpacto && fase === 'dissipando');
+    // cartaGrande (ver ajustesZap.js): o miolo é desenhado já no tamanho da
+    // crescida e a escala vira relativa a ele; a perspectiva acompanha.
+    const zoomMiolo = zap.cartaGrande ? SIM_CRESCIDA_ESCALA : 1;
+    const classeCarga = fase === 'dissipando' ? ` mesa-exp-zap-descarga${sufixoBrilho}`
+        : fase === 'segurando' || fase === 'caindo' ? ` mesa-exp-zap-eletrizada${sufixoBrilho}`
         : '';
+    // Zap em canvas (ver ZapCanvas): os raios de dentro da carta, de fora e
+    // o do céu saem do canvas — a carta da jogada não desenha os dela, e o
+    // RaioDaQueda fica só com o clarão. Pousada, o canvas sai e a carta
+    // volta a ter os raios calmos de sempre.
+    const comCanvas = zap.canvas && fase !== 'pousada';
+    const zapDaCarta = comCanvas ? { ...zap, raiosDentro: false } : zap;
     return (
         <>
             <div
-                className={`mesa-exp-vaza-overlay${escurecendo ? ' mesa-exp-vaza-overlay-escuro' : ''}`}
+                className={`mesa-exp-vaza-overlay${escurecendo ? ' mesa-exp-vaza-overlay-escuro' : ''}${zap.escuroOpacidade ? ' mf1-overlay-opaco' : ''}`}
                 style={{ pointerEvents: escurecendo ? 'auto' : 'none' }}
             />
             <div
@@ -1857,26 +2204,49 @@ function CartaPausSimulada({ mesaRef, onImpacto, onFim, origem: origemFixa, pous
                     transition: `left ${duracaoPos}ms ${easing}, top ${duracaoPos}ms ${easing}, transform ${duracaoPos}ms ${easing}`,
                     transform: `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px)`,
                     zIndex: fase === 'pousada' ? Z_CARTA_SIMULADA_POUSADA : undefined,
+                    perspective: zap.cartaGrande ? `${700 * zoomMiolo}px` : undefined,
                 }}
             >
                 <div
-                    className="mesa-exp-paus-miolo"
+                    ref={mioloRef}
+                    className={`mesa-exp-paus-miolo${zap.brilhoFiltro ? '' : ' mf1-zap-sem-filtro'}`}
                     style={{
                         transition: `transform ${duracaoPos}ms ${easing}`,
-                        transform: `scale(${escala}) rotateX(${pitch}deg) rotateZ(${rotZ}deg)`,
+                        transform: `scale(${escala / zoomMiolo}) rotateX(${pitch}deg) rotateZ(${rotZ}deg)`,
+                        zoom: zap.cartaGrande ? zoomMiolo : undefined,
+                        willChange: zap.cartaGrande ? 'transform' : undefined,
                     }}
                 >
                     <div className={`mesa-exp-zap-carga${classeCarga}`}>
-                        <Carta rank={rank} naipe="Paus" efeitoManilha {...raiosDentro} />
+                        <AjustesZapContext.Provider value={zapDaCarta}>
+                            <Carta rank={rank} naipe="Paus" efeitoManilha {...raiosDentro} raiosPausados={raiosPausados} />
+                        </AjustesZapContext.Provider>
                     </div>
                     {/* Só monta enquanto tem eletricidade — pousada de vez,
-                        o loop de rAF não fica rodando à toa. */}
-                    {fase !== 'jogando' && fase !== 'pousada' && (
-                        <RaiosZap modo={fase} duracaoModoMs={duracaoModo} />
+                        o loop de rAF não fica rodando à toa. Com
+                        raiosForaAntes já monta no voo (sem perfil, não solta
+                        nada). */}
+                    {zap.raiosFora && !comCanvas && fase !== 'pousada' && (fase !== 'jogando' || zap.raiosForaAntes) && (
+                        <RaiosZap modo={fase} duracaoModoMs={duracaoModo} halo={!zap.brilhoFiltro} pausado={raiosPausados} />
                     )}
                 </div>
             </div>
-            {pontoImpacto && fase === 'dissipando' && <RaioDaQueda ponto={pontoImpacto} />}
+            {pontoImpacto && fase === 'dissipando' && <RaioDaQueda ponto={pontoImpacto} semRaio={!zap.raioCeu || comCanvas} leve={!zap.brilhoFiltro} />}
+            {comCanvas && (
+                <ZapCanvas
+                    mioloRef={mioloRef}
+                    fase={fase}
+                    duracaoModoMs={duracaoModo}
+                    pausado={raiosPausados}
+                    taxaDentro={raiosDentro.taxaRaios ?? 0}
+                    transicaoDentroMs={raiosDentro.taxaRaiosTransicaoMs ?? 0}
+                    pontoImpacto={fase === 'dissipando' ? pontoImpacto : null}
+                    dentro={zap.raiosDentro}
+                    fora={zap.raiosFora}
+                    ceu={zap.raioCeu}
+                    brilho={zap.canvasBrilho}
+                />
+            )}
         </>
     );
 }

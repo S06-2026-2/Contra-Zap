@@ -496,6 +496,101 @@
     overflow: visible;
 }
 
+/* Pavio leve (timerLeve em ajustesMesa.js, ver PavioRetoLeve): as camadas
+   empilhadas na mesma caixa. A de baixo (parada) leva as sombras de
+   sempre e é desenhada uma vez; a dinâmica e a ponta ficam cada uma na
+   própria camada (will-change), pra o que muda a cada quadro não fazer o
+   navegador redesenhar as sombras da de baixo junto. */
+.mf1-pavio-leve {
+    position: relative;
+}
+.mf1-pavio-camada {
+    position: absolute;
+    left: 0;
+    top: 0;
+    overflow: visible;
+}
+.mf1-pavio-dinamico {
+    will-change: transform;
+}
+.mf1-pavio-halo {
+    fill: #ffb02e;
+    opacity: .35;
+}
+.mf1-pavio-leve.mesa-exp-anel-urgente .mf1-pavio-halo {
+    fill: #ff4a24;
+    animation: mf1-pavio-pulsar .5s ease-in-out infinite alternate;
+}
+@keyframes mf1-pavio-pulsar {
+    from { opacity: .35; }
+    to { opacity: .8; }
+}
+.mf1-pavio-ponta {
+    position: absolute;
+    left: 0;
+    top: 0;
+    will-change: transform;
+}
+.mf1-pavio-ponta svg {
+    display: block;
+    overflow: visible;
+}
+.mf1-pavio-leve .mf1-pavio-brasa,
+.mf1-pavio-leve.mesa-exp-anel-urgente .mf1-pavio-brasa {
+    filter: none;
+}
+/* O "bater" da ficha nos últimos segundos: um brilho vermelho atrás dela
+   que só pulsa a opacidade (no original é drop-shadow animado). */
+.mf1-pavio-ficha-brilho {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 60, 30, .85) 35%, rgba(255, 60, 30, 0) 70%);
+    opacity: 0;
+    will-change: opacity;
+    pointer-events: none;
+}
+.mf1-pavio-leve.mesa-exp-anel-urgente .mf1-pavio-ficha-brilho {
+    animation: mf1-pavio-ficha-bater .5s ease-in-out infinite alternate;
+}
+@keyframes mf1-pavio-ficha-bater {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+.mf1-pavio-leve.mesa-exp-anel-inativo .mf1-pavio-restante,
+.mf1-pavio-leve.mesa-exp-anel-inativo .mf1-pavio-halo {
+    display: none;
+}
+
+/* Disco do timer dos outros sem drop-shadow (timerLeve): a sombra vira o
+   círculo escuro parado .mf1-timer-nome-sombra dentro do próprio SVG. */
+.mf1-timer-nome-leve {
+    filter: none;
+}
+.mf1-timer-nome-sombra {
+    fill: rgba(0, 0, 0, .35);
+}
+
+/* Cartas voando por transform (cartasTransform, ver CartaVoando): o trilho
+   cobre a mesa e anda em % dela; a carta fica no canto dele. Os dois em
+   camada própria — o trilho não pinta nada, então não ocupa memória. */
+.mf1-voo-trilho {
+    position: absolute;
+    inset: 0;
+    z-index: 17;
+    pointer-events: none;
+    transition-property: transform;
+    transition-timing-function: ease;
+    will-change: transform;
+}
+.mf1-voo-trilho > .mf1-voo-carta {
+    left: 0;
+    top: 0;
+    transition-property: transform;
+    will-change: transform;
+}
+
 /* Seu fantasminha no mobile: na caixinha igual à dos outros (ver
    CaixaFantasma), em tamanho normal (a escala da caixa já reduz), colada
    no canto de baixo à direita, logo acima do timer (que termina a 84px da
@@ -707,6 +802,10 @@
    cartas saem dela com o mesmo deslocamento da mesa (deslocamentoMelada).
    Arrastar qualquer uma move o canto inteiro. A faixa de baixo marca o
    timer + fichas + vida do mobile (até 84px da base). */
+.mf1 .mf1-lab-assento {
+    touch-action: none;
+    cursor: move;
+}
 .mf1 .mf1-lab-melada {
     position: absolute;
     width: 0;
@@ -918,4 +1017,429 @@
 }
 .mf1.mf1-mobile .mesa-exp-assento-vida .mesa-exp-coracao {
     font-size: 14px;
+}
+
+/* Partida beta / demo de desempenho (ver DemoBeta.jsx). Telas de config e
+   relatório no idioma do arcade (ardósia + Silkscreen); o mostrador ao
+   vivo fica fora da camada filtrada, no topo, por cima de tudo. */
+.mf1-demo-tela {
+    position: fixed;
+    inset: 0;
+    overflow-y: auto;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 48px 16px;
+    background: #0d0e13;
+    color: #d8dbe6;
+}
+.mf1-demo-painel {
+    width: 100%;
+    max-width: 440px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 24px;
+    border: 1px solid #262935;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #1a1c25, #14161d);
+}
+.mf1-demo-painel-largo {
+    max-width: 760px;
+}
+.mf1-demo-titulo {
+    font-size: 18px;
+    color: #f5c451;
+}
+.mf1-demo-subtitulo {
+    margin-top: 8px;
+    font-size: 11px;
+    color: #8a8fa3;
+}
+.mf1-demo-nota {
+    font-size: 13px;
+    line-height: 1.5;
+    color: #a3a8ba;
+}
+.mf1-demo-nota strong {
+    color: #f1e6d2;
+}
+.mf1-demo-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    background: none;
+    border: 0;
+    color: #d8dbe6;
+    text-align: left;
+    cursor: pointer;
+}
+.mf1-demo-marca {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    background: #22252f;
+    border: 1px solid #353948;
+}
+.mf1-demo-marca-ligada {
+    background: #7fd6a5;
+}
+.mf1-demo-botoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.mf1-demo-botoes .az-btn {
+    flex: 1 1 160px;
+}
+.mf1-demo-numeros {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+}
+.mf1-demo-numeros > div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px;
+    border-radius: 10px;
+    background: #101218;
+    font-size: 12px;
+    color: #8a8fa3;
+}
+.mf1-demo-numeros .az-px {
+    font-size: 20px;
+    color: #f1e6d2;
+}
+.mf1-demo-tabela {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.mf1-demo-tabela th,
+.mf1-demo-tabela td {
+    padding: 5px 8px;
+    border-bottom: 1px solid #262935;
+    text-align: right;
+    white-space: nowrap;
+}
+.mf1-demo-tabela th:first-child,
+.mf1-demo-tabela td:first-child {
+    text-align: left;
+    white-space: normal;
+}
+.mf1-demo-tabela th {
+    color: #8a8fa3;
+    font-weight: normal;
+}
+.mf1-demo-atual td {
+    color: #f5c451;
+}
+.mf1-demo-hud {
+    position: fixed;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10000;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #7fd6a5;
+    font-size: 11px;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+/* Grão leve (ver GraoLeve em FiltroTela.jsx): ladrilho de ruído repetido,
+   em soft-light. Sobra GRAO_LADRILHO_PX (256) à direita e embaixo pra
+   camada poder pular de posição sem mostrar borda. Abaixo das scanlines. */
+.mf1-grao-leve {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: -256px;
+    bottom: -256px;
+    z-index: 74;
+    pointer-events: none;
+    background-repeat: repeat;
+    background-size: 256px 256px;
+    image-rendering: pixelated;
+    mix-blend-mode: soft-light;
+    will-change: transform;
+}
+
+/* Zap otimizado (ver ajustesZap.js). A ideia geral: nada de `filter` em
+   cima de conteúdo que muda a cada quadro, e o que muda a cada quadro
+   (raios) fica na própria camada (will-change), pra não obrigar a repintar
+   a carta inteira — com os desfoques parados dela — junto. */
+
+/* Borda elétrica leve: o ruído é calculado uma vez; a camada só treme. */
+.carta-exp-zap-borda-leve .carta-exp-zap-borda-svg {
+    will-change: transform;
+    animation: mf1-borda-tremor .42s steps(1) infinite;
+}
+@keyframes mf1-borda-tremor {
+    0% { transform: translate(0, 0); }
+    25% { transform: translate(.7px, -.5px); }
+    50% { transform: translate(-.6px, .6px); }
+    75% { transform: translate(.5px, .7px); }
+}
+
+/* Fundo escurecendo por opacidade (escuroOpacidade em ajustesZap.js): a
+   cor fica fixa e só a opacidade anima — a GPU faz sozinha, sem repintar a
+   tela inteira a cada quadro como a transição de background. */
+.mesa-exp-vaza-overlay.mf1-overlay-opaco {
+    background: rgba(0, 0, 0, .7);
+    opacity: 0;
+    transition: opacity .35s ease;
+    animation: none;
+    will-change: opacity;
+}
+.mesa-exp-vaza-overlay.mf1-overlay-opaco.mesa-exp-vaza-overlay-escuro {
+    opacity: 1;
+}
+
+/* Choque em glitch (CHOQUE_MODO 'glitch' em FiltroTela.jsx): sprite de
+   quadros em baixa resolução esticado na tela (pixel grande), em mistura
+   screen; a camada de dentro passa pelos quadros em degraus e a de fora
+   apaga. Fica parada (opacidade 0) depois de acabar, até o próximo choque
+   remontar. */
+.mf1-choque-glitch {
+    position: fixed;
+    inset: 0;
+    z-index: 75;
+    overflow: hidden;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    opacity: 0;
+    animation-name: mf1-choque-glitch-apagar;
+    animation-timing-function: ease-out;
+    will-change: opacity;
+}
+.mf1-choque-glitch-quadros {
+    width: 100%;
+    background-size: 100% 100%;
+    image-rendering: pixelated;
+    animation-name: mf1-choque-glitch-passar;
+    animation-iteration-count: 2;
+    will-change: transform;
+}
+@keyframes mf1-choque-glitch-apagar {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+}
+@keyframes mf1-choque-glitch-passar {
+    to { transform: translateY(-100%); }
+}
+
+/* Choque em franjas (CHOQUE_MODO 'franjas' em FiltroTela.jsx): durante o
+   choque, cartas e assentos ganham um drop-shadow vermelho de um lado e
+   ciano do outro, sem desfoque, tremendo e voltando a zero. Duas
+   animações iguais com nomes diferentes (-1/-2) pra um choque logo atrás
+   do outro recomeçar do pico. */
+.mf1-choque-franjas-1 .carta-exp,
+.mf1-choque-franjas-1 .mesa-exp-assento {
+    animation: mf1-franjas-1 var(--franjas-ms) ease-out both;
+}
+.mf1-choque-franjas-2 .carta-exp,
+.mf1-choque-franjas-2 .mesa-exp-assento {
+    animation: mf1-franjas-2 var(--franjas-ms) ease-out both;
+}
+@keyframes mf1-franjas-1 {
+    0%   { filter: drop-shadow(7px 0 0 rgba(255, 30, 70, .75)) drop-shadow(-7px 0 0 rgba(30, 220, 255, .75)); }
+    12%  { filter: drop-shadow(-4px 1px 0 rgba(255, 30, 70, .7)) drop-shadow(5px -1px 0 rgba(30, 220, 255, .7)); }
+    25%  { filter: drop-shadow(5px 0 0 rgba(255, 30, 70, .6)) drop-shadow(-4px 0 0 rgba(30, 220, 255, .6)); }
+    45%  { filter: drop-shadow(-2px 0 0 rgba(255, 30, 70, .45)) drop-shadow(3px 0 0 rgba(30, 220, 255, .45)); }
+    70%  { filter: drop-shadow(1px 0 0 rgba(255, 30, 70, .25)) drop-shadow(-1px 0 0 rgba(30, 220, 255, .25)); }
+    100% { filter: drop-shadow(0 0 0 rgba(255, 30, 70, 0)) drop-shadow(0 0 0 rgba(30, 220, 255, 0)); }
+}
+@keyframes mf1-franjas-2 {
+    0%   { filter: drop-shadow(7px 0 0 rgba(255, 30, 70, .75)) drop-shadow(-7px 0 0 rgba(30, 220, 255, .75)); }
+    12%  { filter: drop-shadow(-4px 1px 0 rgba(255, 30, 70, .7)) drop-shadow(5px -1px 0 rgba(30, 220, 255, .7)); }
+    25%  { filter: drop-shadow(5px 0 0 rgba(255, 30, 70, .6)) drop-shadow(-4px 0 0 rgba(30, 220, 255, .6)); }
+    45%  { filter: drop-shadow(-2px 0 0 rgba(255, 30, 70, .45)) drop-shadow(3px 0 0 rgba(30, 220, 255, .45)); }
+    70%  { filter: drop-shadow(1px 0 0 rgba(255, 30, 70, .25)) drop-shadow(-1px 0 0 rgba(30, 220, 255, .25)); }
+    100% { filter: drop-shadow(0 0 0 rgba(255, 30, 70, 0)) drop-shadow(0 0 0 rgba(30, 220, 255, 0)); }
+}
+
+/* Borda elétrica em flipbook (ver bordaFlipbook.js): uma janela do tamanho
+   de um quadro; dentro, o sprite anda em degraus — linhas por fora,
+   colunas por dentro. Tamanho e ritmo vêm por style, das constantes do JS. */
+.mf1-borda-flip {
+    position: absolute;
+    overflow: hidden;
+    pointer-events: none;
+}
+.mf1-borda-flip-linhas {
+    animation-name: mf1-flip-linhas;
+    animation-iteration-count: infinite;
+    will-change: transform;
+}
+.mf1-borda-flip-colunas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    animation-name: mf1-flip-colunas;
+    animation-iteration-count: infinite;
+    will-change: transform;
+}
+@keyframes mf1-flip-linhas {
+    to { transform: translateY(-100%); }
+}
+@keyframes mf1-flip-colunas {
+    to { transform: translateX(-100%); }
+}
+
+/* Fogo de Copas em flipbook (ver fogoFlipbook.js e FogoFlipbook em
+   MesaDanificada.jsx): a janela de um quadro dentro da fogueira, um pouco
+   mais alta que ela em cima. Usa as mesmas camadas em degraus da borda. */
+.mf1-fogo-flip {
+    position: absolute;
+    left: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+/* Fogo de Copas desenhado num canvas só (fogo: 'canvas', ver FogoCanvas em
+   MesaDanificada.jsx) — posição e tamanho vêm por style. */
+.mf1-fogo-inteiro {
+    position: absolute;
+    pointer-events: none;
+}
+
+/* Marca carbonizada como imagem (marca: 'imagem' em ajustesCopas.js): a
+   mancha já borrada numa <img> e a brasa num SVG por cima, os dois na
+   caixa da .mesa-exp-carbonizado. */
+.mf1-carbonizado-img,
+.mf1-carbonizado-brasa-svg {
+    position: absolute;
+    left: 0;
+    top: 0;
+    overflow: visible;
+    pointer-events: none;
+}
+
+/* Brasa sem filtro (brasaFiltro: false): a fria parada embaixo; a quente
+   (traço claro + halo largo translúcido no lugar do drop-shadow) some por
+   opacidade no mesmo tempo do esfriar original. */
+.mf1-brasa-fria,
+.mf1-brasa-halo,
+.mf1-brasa-traco {
+    fill: none;
+}
+.mf1-brasa-fria {
+    stroke: #5a2208;
+    stroke-width: 1.4;
+    opacity: .35;
+}
+.mf1-brasa-halo {
+    stroke: #ff5a00;
+    stroke-width: 5;
+    stroke-linejoin: round;
+    opacity: .35;
+}
+.mf1-brasa-traco {
+    stroke: #ffb347;
+    stroke-width: 1.4;
+}
+.mf1-brasa-quente {
+    animation: mf1-brasa-apagar 4s ease-out forwards;
+}
+@keyframes mf1-brasa-apagar {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+/* Raios por dentro sem drop-shadow: o halo vira a camada .mf1-raio-halo
+   (traço largo translúcido, ver RaiosNaCarta.jsx). */
+.carta-exp-brilho-leve .carta-exp-raio {
+    filter: none;
+    will-change: transform;
+}
+.mf1-raio-halo {
+    fill: none;
+    stroke: #2fb4ff;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    opacity: .28;
+}
+
+/* Raios em volta da carta (RaiosZap) sem drop-shadow por grupo. */
+.mf1-zap-sem-filtro .mesa-exp-zap-raios {
+    will-change: transform;
+}
+.mf1-zap-sem-filtro .mesa-exp-zap-raio,
+.mf1-zap-sem-filtro .mesa-exp-zap-faisca {
+    filter: none;
+}
+.mf1-zap-raio-halo {
+    fill: none;
+    stroke: #5fd0ff;
+    stroke-width: 9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: .25;
+}
+
+/* Carga e descarga do container sem filtro: halo de box-shadow parado
+   (::before) e clarão branco por opacidade (::after), cada um na própria
+   camada — no original são drop-shadow + brightness animados na carta. */
+.mesa-exp-zap-eletrizada-leve,
+.mesa-exp-zap-descarga-leve {
+    position: relative;
+}
+.mesa-exp-zap-eletrizada-leve::before,
+.mesa-exp-zap-descarga-leve::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+    box-shadow: 0 0 22px 6px rgba(110, 200, 255, .75);
+    pointer-events: none;
+    will-change: opacity;
+}
+.mesa-exp-zap-descarga-leve::before {
+    animation: mf1-zap-apagar 1.1s ease-out forwards;
+}
+.mesa-exp-zap-descarga-leve::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+    background: rgba(225, 246, 255, .85);
+    pointer-events: none;
+    will-change: opacity;
+    animation: mf1-zap-apagar .55s ease-out forwards;
+}
+@keyframes mf1-zap-apagar {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+/* Zap em canvas (ver ZapCanvas em MesaDanificada.jsx e zapCanvas.js): a
+   tela inteira, por cima da carta da jogada, mesmo andar do raio do céu. */
+.mf1-zap-canvas {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 49;
+    pointer-events: none;
+}
+
+/* Raio do céu sem drop-shadow da tela inteira: halo largo por baixo. */
+.mesa-exp-zap-queda.mf1-zap-queda-leve {
+    filter: none;
+}
+.mf1-zap-queda-halo {
+    fill: none;
+    stroke: #2a8cff;
+    stroke-width: 30;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: .22;
 }

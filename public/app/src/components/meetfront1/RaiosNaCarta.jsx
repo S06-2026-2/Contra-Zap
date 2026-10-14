@@ -97,7 +97,9 @@ function gerarRamos(x0, y0, x1, y1, profundidade, inicio, duracao, lista) {
     }
 }
 
-function criarRaio(svg, agora, tempestade) {
+// `halo`: uma terceira camada larga e translúcida por baixo, no lugar do
+// drop-shadow do SVG (ver .carta-exp-brilho-leve em meetfront1.css).
+function sortearRamosDoRaio() {
     const origem = pontoNaCarta();
     let destino = pontoNaCarta();
     for (let i = 0; i < 6 && Math.hypot(destino[0] - origem[0], destino[1] - origem[1]) < DISTANCIA_MIN; i++) {
@@ -105,13 +107,31 @@ function criarRaio(svg, agora, tempestade) {
     }
     const ramos = [];
     gerarRamos(origem[0], origem[1], destino[0], destino[1], 0, 0, PROPAGACAO, ramos);
+    return ramos;
+}
+
+// Mesmo raio, só os dados (sem DOM) — pro zap em canvas (zapCanvas.js), que
+// desenha ele a cada quadro com a mesma conta de atualizarRaio.
+export function sortearRaioDentro(agora, tempestade) {
+    const [vMin, vMax] = tempestade ? VIDA_TEMPESTADE_MS : VIDA_CALMA_MS;
+    return { ramos: sortearRamosDoRaio(), nasceu: agora, vida: sortear(vMin, vMax) };
+}
+
+export {
+    LARGURA as RAIO_DENTRO_LARGURA, ALTURA as RAIO_DENTRO_ALTURA, INTERVALO_CALMO_MS, MAX_RAIOS_VIVOS, INICIO_SUMIR, LARGURA_CAMADA,
+    taxaDaRampa, sortear as sortearEntre,
+};
+
+function criarRaio(svg, agora, tempestade, halo) {
+    const ramos = sortearRamosDoRaio();
     const g = document.createElementNS(SVG_NS, 'g');
     for (const ramo of ramos) {
         const espessura = 0.62 ** ramo.profundidade;
-        ramo.camadas = ['carta-exp-raio-brilho', 'carta-exp-raio-nucleo'].map((classe) => {
+        const classes = halo ? ['mf1-raio-halo', 'carta-exp-raio-brilho', 'carta-exp-raio-nucleo'] : ['carta-exp-raio-brilho', 'carta-exp-raio-nucleo'];
+        ramo.camadas = classes.map((classe) => {
             const path = document.createElementNS(SVG_NS, 'path');
             path.setAttribute('class', classe);
-            path.style.strokeWidth = String((classe === 'carta-exp-raio-brilho' ? 3.4 : 1.2) * espessura);
+            path.style.strokeWidth = String(LARGURA_CAMADA[classe] * espessura);
             g.appendChild(path);
             return path;
         });
@@ -120,6 +140,8 @@ function criarRaio(svg, agora, tempestade) {
     const [vMin, vMax] = tempestade ? VIDA_TEMPESTADE_MS : VIDA_CALMA_MS;
     return { g, ramos, nasceu: agora, vida: sortear(vMin, vMax) };
 }
+
+const LARGURA_CAMADA = { 'mf1-raio-halo': 7.5, 'carta-exp-raio-brilho': 3.4, 'carta-exp-raio-nucleo': 1.2 };
 
 function atualizarRaio(raio, agora) {
     const p = (agora - raio.nasceu) / raio.vida;
@@ -171,8 +193,11 @@ function taxaDaRampa({ de, para, inicio, duracao }, agora) {
     return de + (para - de) * curva;
 }
 
-export default function RaiosNaCarta({ taxa = 0, transicaoMs = 0 }) {
+// `pausado`: não nasce raio novo (os que já estão no ar terminam).
+export default function RaiosNaCarta({ taxa = 0, transicaoMs = 0, halo = false, pausado = false }) {
     const svgRef = useRef(null);
+    const pausadoRef = useRef(pausado);
+    pausadoRef.current = pausado;
     const rampaRef = useRef({ de: 0, para: 0, inicio: 0, duracao: 0 });
 
     useEffect(() => {
@@ -188,15 +213,19 @@ export default function RaiosNaCarta({ taxa = 0, transicaoMs = 0 }) {
         let quadro;
         function passo(agora) {
             const svg = svgRef.current;
+            if (svg && pausadoRef.current) {
+                acumulado = 0;
+                proximoCalmo = Math.max(proximoCalmo, agora);
+            }
             if (svg) {
-                if (agora >= proximoCalmo) {
-                    vivos.push(criarRaio(svg, agora, false));
+                if (agora >= proximoCalmo && !pausadoRef.current) {
+                    vivos.push(criarRaio(svg, agora, false, halo));
                     proximoCalmo = agora + sortear(...INTERVALO_CALMO_MS);
                 }
                 acumulado += (taxaDaRampa(rampaRef.current, agora) * (agora - anterior)) / 1000;
                 while (acumulado >= 1) {
                     acumulado -= 1;
-                    if (vivos.length < MAX_RAIOS_VIVOS) vivos.push(criarRaio(svg, agora, true));
+                    if (vivos.length < MAX_RAIOS_VIVOS) vivos.push(criarRaio(svg, agora, true, halo));
                 }
                 for (let i = vivos.length - 1; i >= 0; i--) {
                     if (!atualizarRaio(vivos[i], agora)) vivos.splice(i, 1);
@@ -210,7 +239,7 @@ export default function RaiosNaCarta({ taxa = 0, transicaoMs = 0 }) {
             cancelAnimationFrame(quadro);
             vivos.forEach((raio) => raio.g.remove());
         };
-    }, []);
+    }, [halo]);
 
     return <svg ref={svgRef} className="carta-exp-raio" viewBox={`0 0 ${LARGURA} ${ALTURA}`} preserveAspectRatio="none" />;
 }

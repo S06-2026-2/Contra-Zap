@@ -6,6 +6,7 @@ import { tocarSom } from './somArcade.js';
 import VitrineFantasminha from '../novo/VitrineFantasminha.jsx';
 import LabPouso from '../meetfront1/LabPouso.jsx';
 import LabMao from '../meetfront1/LabMao.jsx';
+import DemoBeta from '../meetfront1/DemoBeta.jsx';
 
 // Botão "👻 FANTASMINHA" no topo, que abre a vitrine de estudo do
 // fantasminha (novo/VitrineFantasminha.jsx). Escondido por padrão; true
@@ -13,10 +14,13 @@ import LabMao from '../meetfront1/LabMao.jsx';
 const MOSTRAR_VITRINE_FANTASMINHA = false;
 // Botão "🃏 POUSO" no topo, que abre o lab das zonas de pouso das cartas no
 // mobile do meetfront1 (meetfront1/LabPouso.jsx). false esconde.
-const MOSTRAR_LAB_POUSO = true;
+const MOSTRAR_LAB_POUSO = false;
 // Botão "🂠 MÃO" no topo, que abre o lab do leque da sua mão no mobile do
 // meetfront1 (meetfront1/LabMao.jsx). false esconde.
-const MOSTRAR_LAB_MAO = true;
+const MOSTRAR_LAB_MAO = false;
+// Botão "🎬 DEMO" no topo, que abre a partida beta só de bots com medidor
+// de quadros do meetfront1 (meetfront1/DemoBeta.jsx). false esconde.
+const MOSTRAR_DEMO_BETA = false;
 
 const ETAPA = {
     NOME: 'nome',
@@ -39,6 +43,7 @@ export default function Login({ onAutenticado, onTrocarFrente, conectado }) {
     const [vitrineFantasminha, setVitrineFantasminha] = useState(false);
     const [labPouso, setLabPouso] = useState(false);
     const [labMao, setLabMao] = useState(false);
+    const [demoBeta, setDemoBeta] = useState(false);
 
     function irPara(proxima) {
         setEtapa(proxima);
@@ -215,6 +220,10 @@ export default function Login({ onAutenticado, onTrocarFrente, conectado }) {
         return <LabMao onVoltar={() => setLabMao(false)} />;
     }
 
+    if (demoBeta) {
+        return <DemoBeta onVoltar={() => setDemoBeta(false)} />;
+    }
+
     // Mesmo botão da Lobby — como a arcade é a frente padrão, é por aqui que
     // dá pra trocar de front antes mesmo de entrar.
     const cabecaDireita = (
@@ -250,6 +259,17 @@ export default function Login({ onAutenticado, onTrocarFrente, conectado }) {
                     title="Ajustar o leque da sua mão no mobile"
                 >
                     🂠<span className="az-rotulo-largo"> MÃO</span>
+                </button>
+            )}
+            {MOSTRAR_DEMO_BETA && (
+                <button
+                    type="button"
+                    data-som="aba"
+                    className="az-b az-px az-topo-btn"
+                    onClick={() => setDemoBeta(true)}
+                    title="Partida beta só de bots, com medidor de desempenho"
+                >
+                    🎬<span className="az-rotulo-largo"> DEMO</span>
                 </button>
             )}
             {onTrocarFrente && (

@@ -62,7 +62,11 @@ export const MAPA_CURV_Y = mapaCurvatura('y');
 
 // `chave`/`padrao`: outra frente pode ter o próprio filtro, lembrado à
 // parte e com outro ponto de partida (ver meetfront1/FiltroTela.jsx).
-export function useFiltros(chave = CHAVE_FILTRO, padrao = FILTRO_PADRAO) {
+// `sobrescrita`: campos aplicados por cima do ajuste salvo sem gravar nada
+// (a demo de desempenho do meetfront1 desliga peças do filtro por ela).
+// `animarSemente: false` desliga o re-semear do grão (o grão leve do
+// meetfront1 anima por conta própria, ver GraoLeve em FiltroTela.jsx).
+export function useFiltros(chave = CHAVE_FILTRO, padrao = FILTRO_PADRAO, sobrescrita = null, { animarSemente = true } = {}) {
     const [estado, setEstado] = useState(() => lerFiltroSalvo(chave, padrao));
     const [graoSeed, setGraoSeed] = useState(1);
 
@@ -74,12 +78,13 @@ export function useFiltros(chave = CHAVE_FILTRO, padrao = FILTRO_PADRAO) {
         }
     }, [chave, estado]);
 
-    const { efeito, pixel, grao, graoColorido, graoAnimado, curvatura, scanlines, scanlinePasso, aberracao } = estado;
+    const efetivo = sobrescrita ? { ...estado, ...sobrescrita } : estado;
+    const { efeito, pixel, grao, graoColorido, graoAnimado, curvatura, scanlines, scanlinePasso, aberracao } = efetivo;
 
     // "Ferve" o grão re-semeando o feTurbulence a ~15fps (mesmo capado baixo
     // de propósito do novo/Partida.jsx — feTurbulence é caro).
     useEffect(() => {
-        if (grao <= 0 || !graoAnimado) return;
+        if (!animarSemente || grao <= 0 || !graoAnimado) return;
         let raf;
         let ultimo = 0;
         const passo = (t) => {
@@ -90,7 +95,7 @@ export function useFiltros(chave = CHAVE_FILTRO, padrao = FILTRO_PADRAO) {
         };
         raf = requestAnimationFrame(passo);
         return () => cancelAnimationFrame(raf);
-    }, [grao, graoAnimado]);
+    }, [grao, graoAnimado, animarSemente]);
 
     // Um <filter> por tamanho de pixel (id carrega o tamanho): a Chrome não
     // reavalia feTile/feFlood quando só o atributo muda. Grão e CRT usam id
@@ -110,7 +115,7 @@ export function useFiltros(chave = CHAVE_FILTRO, padrao = FILTRO_PADRAO) {
     ].filter(Boolean);
 
     return {
-        ...estado,
+        ...efetivo,
         graoSeed,
         grId,
         filtroCss,

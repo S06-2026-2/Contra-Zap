@@ -20,15 +20,15 @@ export const ZONAS_POUSO_MOBILE = {
         { x: 50.4, y: 28.7, largura: 31.3, altura: 12 },
     ],
     3: [
-        { x: 50, y: 64.1, largura: 38.3, altura: 16.8 },
+        { x: 61.6, y: 63.5, largura: 38.3, altura: 16.8 },
         { x: 25, y: 37.9, largura: 32.2, altura: 17.4 },
         { x: 75.1, y: 38.4, largura: 32.2, altura: 17.2 },
     ],
     4: [
-        { x: 50.2, y: 64.7, largura: 36.5, altura: 15.9 },
-        { x: 19.4, y: 47.1, largura: 32.5, altura: 15.7 },
-        { x: 49.5, y: 29.4, largura: 25.9, altura: 18.5 },
-        { x: 79.8, y: 47.1, largura: 32.3, altura: 15.5 },
+        { x: 49.7, y: 63.2, largura: 31.8, altura: 12.9 },
+        { x: 17.7, y: 47.5, largura: 25.4, altura: 12.1 },
+        { x: 49.5, y: 33.9, largura: 31.2, altura: 12.2 },
+        { x: 81.1, y: 47, largura: 24.9, altura: 12.3 },
     ],
     5: [
         { x: 50.5, y: 62.1, largura: 29.4, altura: 19.5 },
@@ -52,6 +52,13 @@ export const ZONAS_POUSO_MOBILE = {
 // primeiro grupo; os grupos seguintes vão pra direita dela.
 export const MELADA_POUSO_MOBILE = { x: 11.2, y: 67.8 };
 
+// Posição dos fantasminhas dos outros no mobile, por quantidade de
+// jogadores: centro de cada assento (caixinha + bandeja + nome) em % da
+// tela, na ordem dos assentos sem você (o primeiro é o assento 2).
+// Quantidade sem tabela aqui fica no triângulo calculado
+// (calcularAssentosMobile em MesaExperimento.jsx).
+export const ASSENTOS_MOBILE = {};
+
 // Ponto sorteado dentro da zona, em % da tela.
 export function sortearPontoNaZona(zona) {
     return {
@@ -60,9 +67,9 @@ export function sortearPontoNaZona(zona) {
     };
 }
 
-// Bloco de código com as zonas, a escala e o canto das meladas, no
-// formato deste arquivo (é o que o lab mostra pra copiar).
-export function gerarCodigoZonas(zonas, escala, melada) {
+// Bloco de código com as zonas, a escala, o canto das meladas e os
+// assentos, no formato deste arquivo (é o que o lab mostra pra copiar).
+export function gerarCodigoZonas(zonas, escala, melada, assentos) {
     const arred = (v) => Math.round(v * 10) / 10;
     const linhas = [`export const ESCALA_CARTA_JOGADA_MOBILE = ${Math.round(escala * 100) / 100};`, '', 'export const ZONAS_POUSO_MOBILE = {'];
     for (const quantidade of Object.keys(zonas).sort((a, b) => a - b)) {
