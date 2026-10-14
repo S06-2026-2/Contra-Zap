@@ -802,6 +802,10 @@
    cartas saem dela com o mesmo deslocamento da mesa (deslocamentoMelada).
    Arrastar qualquer uma move o canto inteiro. A faixa de baixo marca o
    timer + fichas + vida do mobile (até 84px da base). */
+.mf1 .mf1-lab-assento {
+    touch-action: none;
+    cursor: move;
+}
 .mf1 .mf1-lab-melada {
     position: absolute;
     width: 0;

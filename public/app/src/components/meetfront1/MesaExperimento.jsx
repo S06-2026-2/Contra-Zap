@@ -17,7 +17,7 @@ import { useAjustesCopas } from './ajustesCopas.js';
 import { useAjustesMesa } from './ajustesMesa.js';
 import { prepararFlipbookFogo, prepararFlipbookFogoDecodificado } from './fogoFlipbook.js';
 import { useModoMobile } from './modoMobile.js';
-import { ESCALA_CARTA_JOGADA_MOBILE, MELADA_POUSO_MOBILE, ZONAS_POUSO_MOBILE, sortearPontoNaZona } from './zonasPouso.js';
+import { ASSENTOS_MOBILE, ESCALA_CARTA_JOGADA_MOBILE, MELADA_POUSO_MOBILE, ZONAS_POUSO_MOBILE, sortearPontoNaZona } from './zonasPouso.js';
 import './meetfront1.css';
 
 // Mesa de Partida "de verdade" — era um sandbox 100% desligado do socket
@@ -356,12 +356,20 @@ function calcularAssentos(quantidade) {
 // na borda da tela sem sair dela. Calculado em px de tela (a partir da
 // caixa medida da mesa, `mesa`) e devolvido em % da mesa como o resto, pra
 // cartas/fichas/jogadas continuarem saindo do assento certo. "Você" fica
-// onde sempre esteve.
+// onde sempre esteve. Com `posicoes` (ASSENTOS_MOBILE de zonasPouso.js, em
+// % da tela, ajustado no lab de pouso), os outros vão pra lá em vez do
+// triângulo.
 const ASSENTO_MOBILE_CAIXA = { largura: 266 * 0.45 + 4, altura: 185 * 0.45 + 4 }; // ver .mf1-caixa-fantasma
 const ASSENTO_MOBILE_MARGEM_PX = 4;      // da caixa até a borda da tela
 // Negativo: a caixa do meio desce um pouco além do topo da mesa.
 const ASSENTO_MOBILE_FOLGA_MESA_PX = -12; // da caixa do meio até o topo da mesa
 const ASSENTO_MOBILE_DESCIDA_PX = 70;    // quanto as pontas descem em relação ao meio
+// Quanto o triângulo inteiro sobe a mais, por quantidade de jogadores
+// (contando você); quantidade fora daqui não sobe.
+const ASSENTO_MOBILE_SUBIDA_PX = { 3: 24, 4: 24 };
+// Quanto só o fantasminha do meio desce, por quantidade de jogadores: abre
+// espaço em cima dele pro balão da aposta e o aviso de vez.
+const ASSENTO_MOBILE_MEIO_DESCIDA_PX = { 4: 12 };
 // O assento é a caixa + a bandeja de fichas + o nome embaixo (ver
 // .mf1-mobile .mesa-exp-assento): o centro da caixa fica acima do centro do
 // assento.
@@ -397,21 +405,33 @@ export function medirMesa(el) {
     return { left: rect.left + el.clientLeft, top: rect.top + el.clientTop, width: el.clientWidth, height: el.clientHeight, topoBorda: rect.top };
 }
 
-export function calcularAssentosMobile(quantidade, mesa) {
+export function calcularAssentosMobile(quantidade, mesa, posicoes = ASSENTOS_MOBILE[quantidade]) {
     const desktop = calcularAssentos(quantidade);
     const outros = quantidade - 1;
     if (!mesa || outros <= 0) return desktop;
+    if (posicoes?.length === outros) {
+        return desktop.map((assento, i) => {
+            if (assento.eVoce) return assento;
+            const p = posicoes[i - 1];
+            return {
+                eVoce: false,
+                x: ((p.x / 100) * window.innerWidth - mesa.left) / mesa.width * 100,
+                y: ((p.y / 100) * window.innerHeight - mesa.top) / mesa.height * 100,
+            };
+        });
+    }
     const larguraTela = window.innerWidth;
     const meiaCaixa = ASSENTO_MOBILE_CAIXA.largura / 2;
     const xMin = ASSENTO_MOBILE_MARGEM_PX + meiaCaixa;
     const xMax = larguraTela - ASSENTO_MOBILE_MARGEM_PX - meiaCaixa;
-    const yMeio = mesa.topoBorda - ASSENTO_MOBILE_FOLGA_MESA_PX - ASSENTO_MOBILE_CAIXA.altura / 2;
+    const yMeio = mesa.topoBorda - ASSENTO_MOBILE_FOLGA_MESA_PX - ASSENTO_MOBILE_CAIXA.altura / 2 - (ASSENTO_MOBILE_SUBIDA_PX[quantidade] ?? 0);
     return desktop.map((assento, i) => {
         if (assento.eVoce) return assento;
         const f = outros === 1 ? 0.5 : (i - 1) / (outros - 1);
         const t = f * 2 - 1;
         const x = xMin + (xMax - xMin) * f;
-        const y = yMeio + t * t * ASSENTO_MOBILE_DESCIDA_PX + ASSENTO_MOBILE_ABAIXO_CAIXA_PX;
+        const descidaMeio = t === 0 ? ASSENTO_MOBILE_MEIO_DESCIDA_PX[quantidade] ?? 0 : 0;
+        const y = yMeio + t * t * ASSENTO_MOBILE_DESCIDA_PX + descidaMeio + ASSENTO_MOBILE_ABAIXO_CAIXA_PX;
         return {
             eVoce: false,
             x: ((x - mesa.left) / mesa.width) * 100,

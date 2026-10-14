@@ -3,7 +3,7 @@ import Fantasminha from './Fantasminha.jsx';
 import Carta from './Carta.jsx';
 import { CaixaFantasma, calcularAssentosMobile, deslocamentoMelada, medirMesa } from './MesaExperimento.jsx';
 import { useModoMobile } from './modoMobile.js';
-import { ESCALA_CARTA_JOGADA_MOBILE, MELADA_POUSO_MOBILE, ZONAS_POUSO_MOBILE, gerarCodigoZonas, sortearPontoNaZona } from './zonasPouso.js';
+import { ASSENTOS_MOBILE, ESCALA_CARTA_JOGADA_MOBILE, MELADA_POUSO_MOBILE, ZONAS_POUSO_MOBILE, gerarCodigoZonas, sortearPontoNaZona } from './zonasPouso.js';
 import './meetfront1.css';
 
 // Lab das zonas de pouso do mobile (aberto pelo botão do Login): a mesa
@@ -12,7 +12,9 @@ import './meetfront1.css';
 // canto de baixo à direita pra redimensionar. "Tacar" joga cartas sorteadas
 // dentro das zonas pra ver se dá pra ler quem jogou o quê. As meladas de
 // exemplo (dois grupos de duas) também arrastam: é o canto onde elas se
-// juntam. O ajuste fica
+// juntam. Os fantasminhas dos outros também arrastam: o primeiro arraste
+// numa quantidade tira ela do triângulo calculado e passa a valer a posição
+// à mão de todos daquela quantidade. O ajuste fica
 // salvo neste navegador e sai como código pronto no painel, no formato de
 // zonasPouso.js. Abrir com a janela estreita (modo mobile), senão a
 // geometria não é a do celular.
@@ -54,10 +56,16 @@ function carregarSalvo() {
                 zonas: salvo.zonas,
                 escala: Number(salvo.escala) || ESCALA_CARTA_JOGADA_MOBILE,
                 melada: salvo.melada ?? { ...MELADA_POUSO_MOBILE },
+                assentos: salvo.assentos ?? copiarTabela(ASSENTOS_MOBILE),
             };
         }
     } catch { /* sem armazenamento: começa do arquivo */ }
-    return { zonas: copiarTabela(ZONAS_POUSO_MOBILE), escala: ESCALA_CARTA_JOGADA_MOBILE, melada: { ...MELADA_POUSO_MOBILE } };
+    return {
+        zonas: copiarTabela(ZONAS_POUSO_MOBILE),
+        escala: ESCALA_CARTA_JOGADA_MOBILE,
+        melada: { ...MELADA_POUSO_MOBILE },
+        assentos: copiarTabela(ASSENTOS_MOBILE),
+    };
 }
 
 function hueDoAssento(indice, quantidade) {
@@ -81,6 +89,7 @@ export default function LabPouso({ onVoltar }) {
     const [zonas, setZonas] = useState(inicial.zonas);
     const [escala, setEscala] = useState(inicial.escala);
     const [melada, setMelada] = useState(inicial.melada);
+    const [assentosMao, setAssentosMao] = useState(inicial.assentos);
     const [quantidade, setQuantidade] = useState(6);
     const [cartas, setCartas] = useState([]);
     const [mostrarZonas, setMostrarZonas] = useState(true);
@@ -113,9 +122,9 @@ export default function LabPouso({ onVoltar }) {
 
     useEffect(() => {
         try {
-            localStorage.setItem(CHAVE_SALVO, JSON.stringify({ zonas, escala, melada }));
+            localStorage.setItem(CHAVE_SALVO, JSON.stringify({ zonas, escala, melada, assentos: assentosMao }));
         } catch { /* sem armazenamento: o código do painel continua valendo */ }
-    }, [zonas, escala, melada]);
+    }, [zonas, escala, melada, assentosMao]);
 
     useEffect(() => () => timersRef.current.forEach(clearTimeout), []);
 
@@ -129,6 +138,11 @@ export default function LabPouso({ onVoltar }) {
             const dy = ((e.clientY - a.y0) / window.innerHeight) * 100;
             if (a.modo === 'melada') {
                 setMelada({ x: a.zona.x + dx, y: a.zona.y + dy });
+                return;
+            }
+            if (a.modo === 'assento') {
+                const novas = a.zona.map((p, i) => (i === a.indice - 1 ? { x: p.x + dx, y: p.y + dy } : p));
+                setAssentosMao((atual) => ({ ...atual, [a.quantidade]: novas }));
                 return;
             }
             const z0 = a.zona;
@@ -161,8 +175,37 @@ export default function LabPouso({ onVoltar }) {
     function comecarArraste(e, indice, modo) {
         e.preventDefault();
         e.stopPropagation();
-        const zona = modo === 'melada' ? melada : zonas[quantidade][indice];
+        let zona;
+        if (modo === 'melada') zona = melada;
+        else if (modo === 'assento') zona = posicoesAssentosNaTela();
+        else zona = zonas[quantidade][indice];
         arrasteRef.current = { indice, modo, quantidade, x0: e.clientX, y0: e.clientY, zona };
+    }
+
+    // Assentos dos outros desta quantidade em % da tela, como estão agora
+    // (à mão ou do triângulo): é o ponto de partida do arraste.
+    function posicoesAssentosNaTela() {
+        return assentos.slice(1).map((a) => ({
+            x: ((mesa.left + (a.x / 100) * mesa.width) / window.innerWidth) * 100,
+            y: ((mesa.top + (a.y / 100) * mesa.height) / window.innerHeight) * 100,
+        }));
+    }
+
+    function restaurarAssentos() {
+        setAssentosMao((atual) => {
+            const resto = { ...atual };
+            if (ASSENTOS_MOBILE[quantidade]) resto[quantidade] = ASSENTOS_MOBILE[quantidade].map((p) => ({ ...p }));
+            else delete resto[quantidade];
+            return resto;
+        });
+    }
+
+    function voltarAoTriangulo() {
+        setAssentosMao((atual) => {
+            const resto = { ...atual };
+            delete resto[quantidade];
+            return resto;
+        });
     }
 
     function limparTimers() {
@@ -211,7 +254,7 @@ export default function LabPouso({ onVoltar }) {
         setMelada({ ...MELADA_POUSO_MOBILE });
     }
 
-    const codigo = gerarCodigoZonas(zonas, escala, melada);
+    const codigo = gerarCodigoZonas(zonas, escala, melada, assentosMao);
 
     async function copiar() {
         try {
@@ -224,14 +267,20 @@ export default function LabPouso({ onVoltar }) {
         timersRef.current.push(setTimeout(() => setCopiado(false), 1500));
     }
 
-    const assentos = calcularAssentosMobile(quantidade, mesa);
+    const assentos = calcularAssentosMobile(quantidade, mesa, assentosMao[quantidade] ?? null);
+    const assentosAMao = Boolean(assentosMao[quantidade]);
     const zonasAtuais = zonas[quantidade];
 
     return (
         <div className="mesa-exp-tela mf1 mf1-mobile mf1-lab-pouso">
             <div className="mesa-exp-mesa" ref={mesaRef}>
                 {mesa && assentos.map((assento, i) => (assento.eVoce ? null : (
-                    <div key={i} className="mesa-exp-assento" style={{ left: `${assento.x}%`, top: `${assento.y}%` }}>
+                    <div
+                        key={i}
+                        className="mesa-exp-assento mf1-lab-assento"
+                        style={{ left: `${assento.x}%`, top: `${assento.y}%` }}
+                        onPointerDown={(e) => comecarArraste(e, i, 'assento')}
+                    >
                         <CaixaFantasma ativa>
                             <Fantasminha hue={hueDoAssento(i, quantidade)} />
                         </CaixaFantasma>
@@ -346,6 +395,13 @@ export default function LabPouso({ onVoltar }) {
                         <span className="mf1-lab-rotulo">Meladas</span>
                         <span className="mf1-lab-valor">x {melada.x.toFixed(1)} · y {melada.y.toFixed(1)}</span>
                         <span className="mf1-lab-nota">arraste as cartas pretas</span>
+                    </div>
+                    <div className="mf1-lab-linha">
+                        <span className="mf1-lab-rotulo">Fantasminhas</span>
+                        <span className="mf1-lab-valor">{assentosAMao ? 'à mão' : 'triângulo'}</span>
+                        <button type="button" className="mf1-lab-btn" onClick={restaurarAssentos}>Restaurar</button>
+                        <button type="button" className="mf1-lab-btn" onClick={voltarAoTriangulo}>Triângulo</button>
+                        <span className="mf1-lab-nota">arraste os fantasminhas</span>
                     </div>
                     {!mobile && <div className="mf1-lab-aviso">Janela larga: estreite pra ≤639px pra ver como no celular.</div>}
                     <textarea ref={textoRef} className="mf1-lab-codigo" readOnly value={codigo} onFocus={(e) => e.target.select()} />

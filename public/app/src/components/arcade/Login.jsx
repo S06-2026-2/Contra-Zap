@@ -14,13 +14,13 @@ import DemoBeta from '../meetfront1/DemoBeta.jsx';
 const MOSTRAR_VITRINE_FANTASMINHA = false;
 // Botão "🃏 POUSO" no topo, que abre o lab das zonas de pouso das cartas no
 // mobile do meetfront1 (meetfront1/LabPouso.jsx). false esconde.
-const MOSTRAR_LAB_POUSO = true;
+const MOSTRAR_LAB_POUSO = false;
 // Botão "🂠 MÃO" no topo, que abre o lab do leque da sua mão no mobile do
 // meetfront1 (meetfront1/LabMao.jsx). false esconde.
-const MOSTRAR_LAB_MAO = true;
+const MOSTRAR_LAB_MAO = false;
 // Botão "🎬 DEMO" no topo, que abre a partida beta só de bots com medidor
 // de quadros do meetfront1 (meetfront1/DemoBeta.jsx). false esconde.
-const MOSTRAR_DEMO_BETA = true;
+const MOSTRAR_DEMO_BETA = false;
 
 const ETAPA = {
     NOME: 'nome',
