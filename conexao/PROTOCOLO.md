@@ -896,11 +896,6 @@ de conexão, não do jogo), então chega igual na sala de espera e na partida.
   entrar noutra sala). Nos dois o assento **continua** em
   `controller.jogadores`; `desistir` só o mata e o marca como não-reclamável,
   em vez de tirar da lista.
-- Persistência de sessão no `Main2.js`: o harness de CLI não guarda o token
-  entre execuções — a cada `node Main2.js` é preciso logar de novo. Ele já
-  oferece `reconectar` logo após o login (checa `minhaSalaAtiva`) e tem um
-  comando `sair` durante a partida (`sairSala`/`sairDaPartida`); o que falta
-  é só não pedir nome/senha toda vez.
 
 ### Segurar pelas animações (`seq` / `animacoesConcluidas`)
 Todo evento de partida com payload de objeto sai com um `seq` a mais — um

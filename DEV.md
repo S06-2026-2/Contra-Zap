@@ -26,8 +26,23 @@ O código do front fica todo em `public/app/src`:
 - `socket.js` — conexão com o back-end via socket.io-client.
 - `sessao.js` — persistência da sessão (sessionStorage) e retomada depois de
   reconexão/F5.
-- `components/Login.jsx`, `Lobby.jsx`, `Partida.jsx` — as três telas
-  principais (login/cadastro, sala de espera, partida em si).
+- `components/SeletorFrente.jsx` — botão 🔄 FRONT: escolhe entre as frentes
+  (salvo no `localStorage`, padrão `arcade`). Todas falam com o mesmo
+  `socket.js`/`sessao.js`:
+  - `components/arcade/` — Login, Lobby e Partida arcade. Login e Lobby
+    são usados por todas as frentes menos a debugging.
+  - `components/novo/` — mesa com fantasminhas (`MesaExperimento.jsx`).
+  - `components/meetfront1/` — cópia da mesa do novo com as mudanças do
+    encontro com o grupo e o layout de celular. CSS próprio em
+    `meetfront1.css`, escopado em `.mf1`.
+  - `components/Login.jsx`, `Lobby.jsx`, `Partida.jsx` — a frente
+    debugging (HTML cru, mostra tudo).
+- Labs e demos (pouso, mão, demo de desempenho, vitrine do fantasminha)
+  abrem por botões no `arcade/Login.jsx`, escondidos pelas flags
+  `MOSTRAR_*` no topo do arquivo.
+
+Pra testar sozinho, crie uma sala com o resto dos assentos em bot (ex.:
+`numberPlayers: 2, botNumber: 1`) — a partida roda inteira só com você.
 
 **Antes de mexer no protocolo de eventos (o que o cliente manda/recebe do
 servidor), leia `conexao/PROTOCOLO.md`** — é a fonte de verdade de todos os
@@ -47,26 +62,12 @@ build de novo.
 
 ## CI/CD
 
-Todo push/PR contra a `main` roda automaticamente testes (`npm test`) e o
-build da imagem Docker via GitHub Actions — ver `.github/workflows/ci.yml`.
-
----
-
-## Ferramentas de debug (linha de comando)
-
-- `node Main.js` — simula uma partida inteira com 4 jogadores fixos, sem
-  rede nenhuma, jogadas automáticas. Bom pra testar regras do `game/`
-  isoladas.
-- `node Main2.js` — conecta num `Server.js` já rodando como um jogador de
-  verdade (login + criar/entrar em sala) via terminal. Rode até 4 instâncias
-  em terminais separados pra simular uma mesa completa. Use nomes de
-  `banco.json` (ex.: `henrique`/`123`).
-- Com bots preenchendo assento, dá pra criar uma sala 100% automática
-  (`numberPlayers: 2, botNumber: 1` com só você) — bom caso de teste pra
-  validar o motor inteiro sem precisar de mais gente.
-- `criarSala` aceita `seed` (inteiro): fixa o embaralhamento, então a mesma
-  seed reproduz a partida carta por carta — e o resultado bate com o motor
-  Python de `training/`. Ausente = aleatório de sempre.
+Todo push/PR contra a `main` roda no GitHub Actions
+(`.github/workflows/ci.yml`): build da imagem Docker, `npm test`, validação
+do OpenAPI/AsyncAPI + coleção do Postman (Newman) contra o servidor de pé, e
+o E2E do Playwright contra o container. O `npm test` só pega
+`tests/**/*.test.js` — os testes de `game/` e `conexao/` ficam de fora (ver
+"Testes" em "O que falta fazer").
 
 ---
 
@@ -111,23 +112,73 @@ mesma `seed`, os dois distribuem a partida idêntica — `game/seed.test.js` e
 `training/python/test_seed.py` pinam a mesma referência (`seed 999`); se um
 lado divergir, o teste do lado que mudou quebra.
 
+A `seed` (inteiro) também entra pelo `criarSala`: fixa o embaralhamento,
+então a mesma seed reproduz a partida carta por carta. Ausente = aleatório
+de sempre.
+
 ---
 
 ## O que falta fazer
 
-Gaps estruturais de verdade — o motor/protocolo tem um buraco real, não é só
-polimento.
+Legenda: 🔴 atrapalha jogar / bug · 🟡 falta informação, robustez · 🟢 polimento.
 
-- **Rede de RL só treinou com 4 assentos** (`bots/BotBrain.js`, `training/`)
-  — hoje ela joga em qualquer sala de 2 a 6 via `ajustarParaModelo()`
-  (encaixe/corte de assento, ver comentário lá), o que cobre 2–3 bem mas
-  deixa 5–6 fora da distribuição de treino (jogada coerente, mas fraca).
-  Falta treinar com nº de assentos variável ou uma rede dedicada a 5–6.
-- Subir o servidor num ambiente de verdade, com sockets web funcionando fora
-  da rede local (hoje só foi testado em `localhost`).
-- **Banco de testes em produção**
-- animações contra manilha
-partidaas longas a destruição buga
+### Mobile (meetfront1)
+
+- [ ] 🟡 **Compor a tela com 5 e 6 jogadores** — hoje está mal resolvida no
+      celular (fantasminhas, zonas de pouso e meladas brigando por espaço).
+      Posições em `calcularAssentosMobile` (`meetfront1/MesaExperimento.jsx`)
+      e zonas em `meetfront1/zonasPouso.js`; o lab de pouso (escondido por
+      `MOSTRAR_LAB_POUSO` no `arcade/Login.jsx`) arrasta os dois.
+- [ ] 🟢 **Polir o coração do mobile** (vida).
+- [ ] 🟡 Animações contra manilha.
+- [ ] 🔴 Em partidas longas a destruição da mesa buga.
+
+### Desempenho
+
+- [ ] 🟢 **Perfil de qualidade por aparelho** — medir o aparelho do usuário e
+      ligar as animações pesadas só se ele aguentar. Tudo que saiu do padrão
+      ficou atrás de flag pra isso (`ajustesZap.js`, `ajustesCopas.js`,
+      `ajustesMesa.js`, `FILTRO_ANTIGO_SVG`/`GRAO_NA_PARTIDA`/`CHOQUE_MODO` no
+      `FiltroTela.jsx`).
+- [ ] 🟢 Impacto do zap ainda trava ~115 ms mesmo sem efeitos (clarão,
+      cratera, tremor, empurrão) — nunca medidos separados.
+
+### Motor, bots e produção
+
+- [ ] 🟡 **Rede de RL só treinou com 4 assentos** (`bots/BotBrain.js`,
+      `training/`) — joga em salas de 2 a 6 via `ajustarParaModelo()`
+      (encaixe/corte de assento), o que cobre 2–3 bem mas deixa 5–6 fora da
+      distribuição de treino (jogada coerente, mas fraca). Falta treinar com
+      nº de assentos variável ou uma rede dedicada a 5–6.
+- [ ] 🟡 Subir o servidor num ambiente de verdade, com sockets web
+      funcionando fora da rede local (hoje só foi testado em `localhost`).
+- [ ] 🟡 Banco de testes em produção.
+- [ ] 🟡 **Paridade de regra JS × Python** — `game/seed.test.js` e
+      `training/python/test_seed.py` só pinam a distribuição (mesma seed,
+      mesmas cartas). Nada pega se a REGRA (manilha, soma das apostas,
+      desempate, rodada cega) mudar num lado e não no outro.
+
+### Testes
+
+- [ ] 🔴 **Testes unitários fora do `npm test`** — o script roda só
+      `tests/**/*.test.js`, então `game/*.test.js` e `conexao/*.test.js`
+      não rodam no CI. Rodar na mão:
+      `node --test game/*.test.js conexao/*.test.js`.
+- [ ] 🔴 **`game/loopPartida.test.js` falhando** (3 testes estouram o tempo:
+      a partida para na rodada 4) — desde a espera das animações do front
+      (`_esperarDistribuicao`/`game/animacoesFront.js`). Provável que o teste
+      precise fixar `duracaoDistribuicaoMs`, mas não foi investigado.
+
+### Código
+
+- [ ] 🟡 **Quatro frentes duplicadas** — debugging, arcade, novo e
+      meetfront1 somam ~12 mil linhas só de Partida/MesaExperimento, e o
+      meetfront1 é cópia do novo. Decidir quais frentes ficam antes de a
+      cópia divergir mais.
+- [ ] 🟢 Labs e demo (pouso, mão, demo de desempenho, vitrine) vão dentro do
+      bundle de produção, só escondidos por flag — o build já avisa chunk
+      acima de 500 kB. Carregar sob demanda (`import()`) ou tirar do build.
+
 ### PIN — só mexer se alguém reclamar
 
 Fica pra depois de propósito: pro escopo e tipo de sistema, o custo de fazer
@@ -162,20 +213,14 @@ não parece compensar o ganho agora.
 
 ---
 
-## Front provisório — o que falta na Partida
+## Front da mesa (novo + meetfront1) — o que falta na Partida
 
-Comparação da tela de partida do front **novo/provisório**
-(`components/novo/Partida.jsx` + `MesaExperimento.jsx`) com o **debugging**
-(`components/Partida.jsx`) e o **arcade** (`components/arcade/Partida.jsx`).
-Só entra aqui o que um dos dois outros mostra e o provisório não. Login e
-Lobby ficam de fora (o "novo" já usa os da arcade).
+Comparação da tela de partida do **novo** e do **meetfront1** (que é cópia
+dele — o que vale pra um vale pro outro) com o **arcade**
+(`components/arcade/Partida.jsx`). Só entra aqui o que o arcade mostra e a
+mesa não.
 
 Legenda: 🔴 falta e atrapalha jogar · 🟡 falta informação/feedback · 🟢 extra/polimento.
-
-
-
-
----
 
 ### Já coberto (não precisa mexer)
 
@@ -188,89 +233,49 @@ dano/eliminação dos fantasminhas, timer do turno (anel + pizza no nome),
 banner de vez, indicador de bot/automático, chat (prontas, livre, balão,
 histórico), cabeçalho (sala, senha, rodada, nome, sair), tela de vitória
 com "Jogar de novo" (só adm) e convite de revanche, ressincronizar depois
-de queda de rede, banner global de conexão perdida.
-
----
-
-### Espera (antes de iniciar)
-
-- [x] 🔴 **Contagem regressiva parada** — `segundosParaIniciar` é mostrado
-      como veio do evento e nunca desce; o arcade tem `contagem` com
-      `setTimeout` de 1s (e tique de som nos últimos 5s).
-- [x] 🔴 **"Forçar início" aparece pra todo mundo** — o servidor só aceita
-      do adm (`NAO_AUTORIZADO`) e o erro não aparece em lugar nenhum (ver
-      "Erros" abaixo). Arcade só mostra pro dono e explica o porquê na nota.
-- [x] 🟡 Vagas: "x/total" e vagas livres ("aguardando / VAGA LIVRE") — o
-      arcade usa `infoSala.numberPlayers` (`lerInfoSala` do `salasInfo.js`).
-- [x] 🟡 Quem é o dono da sala (👑/"DONO DA SALA") e quem é bot na lista —
-      `jogadores[].adm` já chega (e o `novoAdm` já atualiza), só não é
-      desenhado.
-- [x] 🟢 Chips de regra da sala: cartas na 1ª rodada, corações, chat
-      aberto/frases, nº de bots, modelo do bot (tudo do `infoSala`).
-- [x] 🟢 Estética: o cartão de espera ainda é o HTML cru do debugging —
-      passar pro visual ardósia/Silkscreen do resto.
+de queda de rede, banner global de conexão perdida. Tela de espera inteira
+(contagem regressiva, forçar início só pro dono, vagas, dono/bots, chips de
+regra, visual ardósia). Layout de celular no meetfront1 (`modoMobile.js`).
 
 ### Durante a partida
 
-- [ ] 🔴 **Erros de ação invisíveis** — `erro` do `novo/Partida.jsx`
-      (falha no `jogarCarta`, no `forcarInicio`, no `jogarDeNovo`, no
-      aceitar revanche) é preenchido mas nunca vai pro `MesaExperimento`.
-      Precisa de um aviso na tela (toast/faixa no estilo arcade).
-- [ ] 🔴 **Partida abortada** (`partidaAbortada`) — hoje só vira `erro`,
-      que não aparece: a mesa trava sem explicação. Arcade tem tela
-      "PARTIDA INTERROMPIDA" com o motivo + "Voltar às salas".
-- [ ] 🟡 **Você eliminado / assistindo** — não há nenhum sinal de que você
-      está fora (arcade troca a dica por "VOCÊ ESTÁ FORA — ASSISTINDO").
-      Seu lado da mesa (medalhão, barra de fichas, mão vazia) continua
-      igual a quem ainda está vivo.
+- [ ] 🔴 **Erros de ação invisíveis** — o `erro` da Partida (falha no
+      `jogarCarta`, no `jogarDeNovo`, no aceitar revanche) só aparece na tela
+      de espera; durante a partida e no fim ninguém vê. Precisa de um aviso
+      na tela (toast/faixa no estilo arcade).
+- [ ] 🔴 **Partida abortada** (`partidaAbortada`) — só vira `erro`, que não
+      aparece: a mesa trava sem explicação. Arcade tem tela "PARTIDA
+      INTERROMPIDA" com o motivo + "Voltar às salas".
+- [ ] 🟡 **Você eliminado / assistindo** — nenhum sinal de que você está
+      fora (arcade troca a dica por "VOCÊ ESTÁ FORA — ASSISTINDO").
 - [ ] 🟡 **Vazas feitas x aposta legível de relance** — as cartas pousadas
-      em cima das fichas mostram isso, mas não tem número. Arcade mostra
-      "APOSTA n · FEZ n" por jogador; no provisório a aposta dos outros só
-      aparece no hover do assento. Pensar num contador discreto (ex.:
-      "2/3" no hover ou sempre visível).
-- [ ] 🟡 **Manilha fixa no cabeçalho** — arcade tem a pílula "MANILHA [rank]"
-      sempre visível; aqui só no hover da vira.
-- [ ] 🟡 **Cooldown do chat** — os botões ficam travados sem dizer por
-      quanto tempo ("aguarde Ns pra mandar de novo" nos outros dois). As
-      mensagens prontas nem aparecem desabilitadas no cooldown — o clique só
-      é ignorado em silêncio (só o campo livre usa `chatEmCooldown`).
-- [ ] 🟡 **Expulso por inatividade** — hoje manda direto pra Lobby
-      (`onSairDaPartida`). Arcade abre modal "VOCÊ SAIU DA MESA" com
-      RECONECTAR ali mesmo (sem passar pela lista de salas).
-- [ ] 🟡 **Jogada automática por timeout** (`jogadaAutomatica`) — nenhum
-      aviso visual de que a carta/aposta foi feita pelo servidor.
-- [ ] 🟢 **Dica do bot** (arcade: botão "DICA DO BOT: ON/OFF", contorno
-      vermelho na carta ou no número que o bot escolheria, via
-      `sugestaoBot` + `dicaBot.js`). No provisório entraria como contorno
-      na carta da mão e destaque no número do popup de aposta.
-- [ ] 🟢 **Sons** — arcade toca `somArcade.js` em carta, sua vez, aposta,
-      vaza, eliminado, vitória, erro, chat e tique da contagem. Provisório
-      é mudo.
-- [ ] 🟢 Layout estreito/celular — arcade tem modo `ESTREITO_PX` (640px);
-      a mesa do provisório não foi pensada pra tela pequena.
+      em cima das fichas mostram isso, mas sem número. Arcade mostra
+      "APOSTA n · FEZ n" por jogador.
+- [ ] 🟡 **Manilha fixa no cabeçalho** — arcade tem a pílula "MANILHA
+      [rank]" sempre visível; aqui só no hover da vira.
+- [ ] 🟡 **Cooldown do chat** — os botões travam sem dizer por quanto tempo,
+      e as mensagens prontas nem aparecem desabilitadas (o clique só é
+      ignorado; só o campo livre usa `chatEmCooldown`).
+- [ ] 🟡 **Expulso por inatividade** — manda direto pra Lobby. Arcade abre
+      modal "VOCÊ SAIU DA MESA" com RECONECTAR ali mesmo.
+- [ ] 🟡 **Jogada automática por timeout** (`jogadaAutomatica`) — só vai pro
+      histórico; nenhum aviso na mesa.
+- [ ] 🟢 **Dica do bot** — arcade tem (`sugestaoBot` + `dicaBot.js`); aqui
+      entraria como contorno na carta da mão e no número do popup de aposta.
+- [ ] 🟢 **Sons** — só o tique da contagem toca; arcade toca `somArcade.js`
+      em carta, sua vez, aposta, vaza, eliminado, vitória, erro e chat.
 
 ### Fim de partida
 
--  🔴 **Sem "Voltar às salas" na tela de vitória** — só existe "Jogar de
-      novo" (adm) e "Não" do convite; quem não é adm e não recebeu convite
-      só sai pelo "Sair da partida" do cabeçalho (que ainda diz "partida").
--  🟡 "Jogar de novo" sem estado de carregando (`criandoRevanche` existe
-      no `novo/Partida.jsx` mas não é passado) — dá pra clicar duas vezes.
--  🟢 "Agora não" no convite: arcade só fecha o convite e continua na
+- [ ] 🔴 **Sem "Voltar às salas" na tela de vitória** — só "Jogar de novo"
+      (adm) e "Não" do convite; quem não é adm e não recebeu convite só sai
+      pelo "Sair" do cabeçalho.
+- [ ] 🟡 "Jogar de novo" sem estado de carregando (`criandoRevanche` existe
+      na Partida mas não chega na mesa) — dá pra clicar duas vezes.
+- [ ] 🟢 "Agora não" no convite: arcade só fecha o convite e continua na
       tela; aqui "Não" já sai da sala.
 
-
 ---
-
-## Backlog técnico — auditoria de backend
-
-Legenda: 🔴 bug/segurança · 🟡 robustez/produção · 🟢 limpeza/doc.
-
-### 5. QA / Validação de comportamento
-19. 🟡 Falta Testes Para confirmar paridade de regra JS × motor Python em treinamento
-
-### 6. Documentação vs código
-20. 🟡 README seção Docker: o passo `touch banco.sqlite jwt.secret` ficou sem efeito (volumes do compose comentados). Depende de decidir sobre os volumes (item 49). `README.md`
 
 ## Backlog de operação / produção (DevOps) — em aberto
  
@@ -286,8 +291,9 @@ Numeração mantida pra rastreabilidade com discussões/commits anteriores.
 - [ ] 🟢 **56** — `GameStart.js` roda `npm install` toda vez sem checar
   `node_modules`, e não repassa `SIGINT` pro processo filho (causa direta
   da porta 3000 ficando presa depois de um Ctrl+C mal-sucedido).
-**Priorizados para as próximas sprints**: 46 (observabilidade básica) e 47
-(healthcheck checar o banco de verdade) são os mais baratos de resolver a
-seguir. 48 é decisão de arquitetura maior, fica documentado como débito
-técnico consciente.
+- [ ] 🔴 **57** - groke atualiza o read me minha filha 
+
+46 (observabilidade básica) é o mais barato de resolver a seguir. 48 é
+decisão de arquitetura maior, fica documentado como débito técnico
+consciente.
  

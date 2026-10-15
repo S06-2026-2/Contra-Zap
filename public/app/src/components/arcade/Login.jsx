@@ -29,9 +29,8 @@ const ETAPA = {
     NOVA_SENHA: 'novaSenha',
 };
 
-// Mesmo fluxo em etapas do novo/Login.jsx (nome decide o resto: senha pra
-// nome registrado; oferta de cadastro ou convidado pra nome livre) — só a
-// casca visual é arcade.
+// Login em etapas: o nome decide o resto (senha pra nome registrado; oferta
+// de cadastro ou convidado pra nome livre).
 export default function Login({ onAutenticado, onTrocarFrente, conectado }) {
     const [etapa, setEtapa] = useState(ETAPA.NOME);
     const [nome, setNome] = useState('');
