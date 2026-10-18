@@ -327,6 +327,9 @@ function calcularEstadoVira(fase) {
 
 const VIRA_LEGENDA_ANGULO_ENTRE_CARTAS = 12;
 const VIRA_HOVER_FOLGA_MS = 80;
+// Quanto o popup da vira precisa ficar aberto pra animação da ordem de
+// força contar como vista na rodada (um hover de passagem não conta).
+const VIRA_ORDEM_VISTA_MS = 2000;
 const VIRA_LEGENDA_DESLOCAMENTO_ENTRE_CARTAS = 20;
 
 // "Você" sempre no ângulo de baixo — ver ordemAssentos mais abaixo pra como
@@ -2293,10 +2296,17 @@ export default function MesaExperimento({ estado, acoes }) {
     // Baralho e vira abrem o mesmo popup; a saída espera um tiquinho
     // (VIRA_HOVER_FOLGA_MS) pra passar de um pro outro sem piscar.
     // `ordemForcaVistaRef` guarda o id da vira (um por rodada) cuja ordem de
-    // força já foi animada — só o primeiro hover da rodada anima.
+    // força já foi vista: a animação toca em todo hover até o popup ficar
+    // aberto VIRA_ORDEM_VISTA_MS seguidos uma vez na rodada.
     const sairHoverViraTimerRef = useRef(null);
     const ordemForcaVistaRef = useRef(null);
     const [animarOrdemForca, setAnimarOrdemForca] = useState(false);
+    const viraIdAtual = vira?.id;
+    useEffect(() => {
+        if (!viraEmHover || viraIdAtual == null) return undefined;
+        const id = setTimeout(() => { ordemForcaVistaRef.current = viraIdAtual; }, VIRA_ORDEM_VISTA_MS);
+        return () => clearTimeout(id);
+    }, [viraEmHover, viraIdAtual]);
     // Guarda de ordem entre a vira e a revelação de vaza (ver
     // tentarIniciarRevelacaoVaza): a vaza não pode revelar o vencedor
     // enquanto a vira ainda estiver animando, senão tocam por cima uma da
@@ -2914,9 +2924,7 @@ export default function MesaExperimento({ estado, acoes }) {
         if (!vira) return;
         clearTimeout(sairHoverViraTimerRef.current);
         if (viraEmHover) return;
-        const primeiraVez = ordemForcaVistaRef.current !== vira.id;
-        ordemForcaVistaRef.current = vira.id;
-        setAnimarOrdemForca(primeiraVez);
+        setAnimarOrdemForca(ordemForcaVistaRef.current !== vira.id);
         setViraEmHover(true);
     }
 
