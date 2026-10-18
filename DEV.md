@@ -26,15 +26,25 @@ O código do front fica todo em `public/app/src`:
 - `socket.js` — conexão com o back-end via socket.io-client.
 - `sessao.js` — persistência da sessão (sessionStorage) e retomada depois de
   reconexão/F5.
-- `components/SeletorFrente.jsx` — botão 🔄 FRONT: escolhe entre as frentes
-  (salvo no `localStorage`, padrão `arcade`). Todas falam com o mesmo
-  `socket.js`/`sessao.js`:
+- `components/SeletorFrente.jsx` — escolhe entre as frentes. Não tem mais
+  botão no jogo: abre só pela rota **`/front`** (ver `ROTA_FRENTE` no
+  `App.jsx`). Escolhendo (ou voltando), a URL volta pra `/` e segue pro
+  Login ou pras salas, conforme já havia sessão. A escolha fica no
+  `localStorage` (chave `contrazap-frente-v2`), padrão **`meetfront2`**.
+  Todas falam com o mesmo `socket.js`/`sessao.js`:
   - `components/arcade/` — Login, Lobby e Partida arcade. Login e Lobby
     são usados por todas as frentes menos a debugging.
   - `components/novo/` — mesa com fantasminhas (`MesaExperimento.jsx`).
   - `components/meetfront1/` — cópia da mesa do novo com as mudanças do
     encontro com o grupo e o layout de celular. CSS próprio em
     `meetfront1.css`, escopado em `.mf1`.
+  - `components/meetfront2/` — a frente padrão, com as mudanças do segundo
+    encontro (só no computador; o celular é o do meetfront1). Usa a
+    Partida do meetfront1 com a própria cópia do `MesaExperimento.jsx`
+    (prop `Mesa`), que importa o resto de `meetfront1/`. CSS próprio em
+    `meetfront2.css`, escopado em `.mf2`.
+  - `components/mescla/` — arcade com a mesa oval e os fantasminhas;
+    serve de referência visual pro meetfront2.
   - `components/Login.jsx`, `Lobby.jsx`, `Partida.jsx` — a frente
     debugging (HTML cru, mostra tudo).
 - Labs e demos (pouso, mão, demo de desempenho, vitrine do fantasminha)
@@ -171,10 +181,10 @@ Legenda: 🔴 atrapalha jogar / bug · 🟡 falta informação, robustez · 🟢
 
 ### Código
 
-- [ ] 🟡 **Quatro frentes duplicadas** — debugging, arcade, novo e
-      meetfront1 somam ~12 mil linhas só de Partida/MesaExperimento, e o
-      meetfront1 é cópia do novo. Decidir quais frentes ficam antes de a
-      cópia divergir mais.
+- [ ] 🟡 **Frentes duplicadas** — debugging, arcade, novo, meetfront1,
+      meetfront2 e mescla; o meetfront1 é cópia do novo e a mesa do
+      meetfront2 é cópia da do meetfront1. Com o meetfront2 de padrão,
+      decidir quais frentes ficam antes de as cópias divergirem mais.
 - [ ] 🟢 Labs e demo (pouso, mão, demo de desempenho, vitrine) vão dentro do
       bundle de produção, só escondidos por flag — o build já avisa chunk
       acima de 500 kB. Carregar sob demanda (`import()`) ou tirar do build.
