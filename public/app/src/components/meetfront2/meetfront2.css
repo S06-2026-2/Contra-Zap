@@ -1,0 +1,337 @@
+/* Meetfront2 — as mudanças do segundo encontro com o grupo, por cima da
+   mesa do meetfront1. Tudo debaixo de .mf2 (wrapper em Partida.jsx), pra
+   nunca vazar pro meetfront1. O que é só do computador vai debaixo de
+   .mf1:not(.mf1-mobile): o mobile continua igual ao do meetfront1. */
+.mf2 {
+    display: contents;
+    /* Margem invisível dos dois lados no computador: tudo o que encosta na
+       borda da tela (topo, chat aberto, cabeçalho da direita, sua caixa) é
+       empurrado pra dentro por ela, e a mesa estreita junto. */
+    --mf2-margem-lado: 120px;
+    /* Altura do seu fantasminha na SuaCaixa (top dele em relação à coluna;
+       mais negativo = sai mais por cima). */
+    --mf2-sua-fantasma-top: -35px;
+}
+.mf2 .mf1:not(.mf1-mobile) .mf1-topo,
+.mf2 .mf1:not(.mf1-mobile) .mf1-chat-aberto {
+    left: calc(20px + var(--mf2-margem-lado));
+}
+.mf2 .mf1:not(.mf1-mobile) .mesa-exp-cabecalho-direita {
+    right: calc(16px + var(--mf2-margem-lado));
+}
+/* Mesa 10% maior que no meetfront1, crescendo só pra cima: a altura extra
+   (10% de --altura-mesa; a borda não muda) dividiria meio pra cada lado
+   no centro da tela, então o translate sobe essa metade e a borda de baixo
+   fica onde estava. */
+.mf2 .mf1:not(.mf1-mobile) .mesa-exp-mesa {
+    --altura-mesa: calc(min(34vw, 400px) * 1.1);
+    width: calc(min(86vw - 2 * var(--mf2-margem-lado), 1080px) * 1.1);
+    translate: 0 calc(min(34vw, 400px) * -0.05);
+}
+
+/* Banner de vez no amarelo do arcade, que se destaca mais no miolo
+   escuro do que o azul claro. */
+.mf2 .mesa-exp-turno-banner {
+    color: #f5c451;
+    text-shadow: 0 0 8px rgba(245, 196, 81, .35);
+}
+
+/* ---------- Assento dos outros no computador ---------- */
+
+/* Fantasminha + barra empilhados, sem o vão do meetfront1. */
+.mf2 .mf1:not(.mf1-mobile) .mesa-exp-assento:not(.mesa-exp-assento-voce) {
+    height: 210px;
+    gap: 2px;
+}
+
+/* Fantasminha reduzido (ver EscalaFantasma em MesaExperimento.jsx): a
+   caixa tem o tamanho final e o de 180px é escalado dentro dela, a partir
+   do topo. */
+.mf2 .mf2-fantasma {
+    --escala-fantasma: .72;
+    position: relative;
+    flex: none;
+    width: calc(180px * var(--escala-fantasma));
+    height: calc(180px * var(--escala-fantasma));
+}
+.mf2 .mf2-fantasma-miolo {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 180px;
+    height: 180px;
+    transform: translateX(-50%) scale(var(--escala-fantasma));
+    transform-origin: top center;
+}
+
+/* Barra do jogador, no visual da placa da mescla: ardósia, faixa de cima
+   na cor do fantasminha. Largura = BANDEJA_DESKTOP.largura em
+   MesaExperimento.jsx (a fila de fichas é calculada a partir dela). */
+.mf2 .mf2-barra {
+    position: relative;
+    z-index: 2;
+    box-sizing: border-box;
+    width: 196px;
+    flex: none;
+    /* Sobe por cima da parte de baixo do fantasminha. */
+    margin-top: -14px;
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    border: 2px solid #2e313d;
+    border-top: 4px solid hsl(var(--hue-barra) 70% 72%);
+    background: linear-gradient(180deg, #1a1c25, #14161d);
+    box-shadow: 0 4px 0 #0a0b0e;
+    transition: border-color .2s;
+}
+.mf2 .mf2-barra-topo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    min-height: 28px;
+    padding: 3px 9px 0;
+}
+.mf2 .mf2-barra .mesa-exp-assento-legenda {
+    min-width: 0;
+    font: 400 12px/1.2 Silkscreen, monospace;
+}
+.mf2 .mf2-barra .mesa-exp-timer-nome-vaga-aberta {
+    margin-right: 5px;
+}
+.mf2 .mf2-nome-texto {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mf2 .mf2-barra .mesa-exp-assento-bot-tag {
+    flex: none;
+    white-space: pre;
+    font-size: 10px;
+}
+
+/* Corações dentro da barra: só no hover e no fim de rodada (ver
+   vidaVisivel), entram com um "pop". */
+.mf2 .mf2-barra-vida {
+    flex: none;
+    animation: mf2-barra-vida-entrada .3s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+.mf2 .mf2-barra-vida .mesa-exp-coracoes {
+    gap: 2px;
+}
+.mf2 .mf2-barra-vida .mesa-exp-coracao {
+    font-size: 16px;
+}
+@keyframes mf2-barra-vida-entrada {
+    from { opacity: 0; transform: scale(.5); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+/* Fila de fichas e cartas de vaza: as fichas pousam no meio da altura,
+   em vagas lado a lado (ver posicaoFichaBandeja). */
+.mf2 .mf2-barra-bandeja {
+    box-sizing: border-box;
+    height: 44px;
+    margin: 4px 6px 6px;
+    background: rgba(8, 9, 12, .88);
+    border: 2px solid #23252f;
+    border-radius: 6px;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, .8);
+}
+
+/* Escalas = ESCALA_FICHA_BANDEJA_DESKTOP e ESCALA_VAZA_BANDEJA_DESKTOP. */
+.mf2 .mf1:not(.mf1-mobile) .mf1-ficha-bandeja {
+    transform: translate(-50%, -50%) scale(.42);
+}
+.mf2 .mf1:not(.mf1-mobile) .mf1-vaza-bandeja {
+    transform: translate(-50%, -50%) scale(.26);
+}
+
+/* Na vez: borda amarela pulsando, o mesmo amarelo do banner de vez. */
+.mf2 .mf2-barra-vez {
+    border-color: #f5c451;
+    border-top-color: #f5c451;
+    animation: mf2-barra-vez-pulso 1.4s ease-in-out infinite;
+}
+@keyframes mf2-barra-vez-pulso {
+    0%, 100% { box-shadow: 0 4px 0 #0a0b0e, 0 0 0 0 rgba(245, 196, 81, .55); }
+    50%      { box-shadow: 0 4px 0 #0a0b0e, 0 0 0 8px rgba(245, 196, 81, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .mf2 .mf2-barra-vez { animation: none; }
+}
+
+/* Popups de aposta e "Vez de" em cima da parte de baixo do fantasminha,
+   logo acima da barra. */
+.mf2 .mf1:not(.mf1-mobile) .mesa-exp-assento:not(.mesa-exp-assento-voce) .mesa-exp-assento-aposta-legenda {
+    top: 100px;
+}
+
+/* Mão revelada dos outros (primeira rodada, cega): maior, pra dar pra ler
+   as cartas no fantasminha reduzido (o do computador e o da caixinha do
+   mobile). `scale` separado do transform do leque, que é dele
+   (centralização e o tranco do dano). O scale cresce a partir do topo do
+   leque, então o translate sobe o tanto que a carta cresceu pra baixo
+   (base dela, ~105px abaixo do topo, x 0.35): a base fica onde estava, sem
+   descer pra trás da barra. */
+.mf2 .mf2-fantasma .mf2-leque-revelado,
+.mf2 .mf1-caixa-fantasma .mf2-leque-revelado {
+    scale: 1.35;
+    translate: 0 -37px;
+}
+
+/* ---------- A sua caixa no computador (ver SuaCaixa) ---------- */
+
+/* Canto inferior esquerdo, com uma folga da borda da tela. Mesmo visual
+   da barra dos outros (.mf2-barra), maior. z-index abaixo das fichas
+   pousadas (40) e das cartas de vaza (39), que ficam por cima da fila. */
+.mf2 .mf2-sua-caixa {
+    position: fixed;
+    left: calc(16px + var(--mf2-margem-lado));
+    bottom: 16px;
+    z-index: 38;
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    padding: 10px 8px 12px 12px;
+    border-radius: 14px;
+    border: 2px solid #2e313d;
+    border-top: 4px solid hsl(var(--hue-barra) 70% 72%);
+    background: linear-gradient(180deg, #1a1c25, #14161d);
+    box-shadow: 0 4px 0 #0a0b0e, 0 8px 20px rgba(0, 0, 0, .45);
+    transition: border-color .2s;
+}
+.mf2 .mf2-sua-coluna {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.mf2 .mf2-sua-nome {
+    font: 400 15px/1.2 Silkscreen, monospace;
+    color: #f1e6d2;
+    letter-spacing: .04em;
+}
+.mf2 .mf2-sua-vida {
+    align-self: flex-start;
+    transform-origin: left center;
+}
+.mf2 .mf2-sua-vida .mesa-exp-coracao {
+    font-size: 26px;
+}
+/* Fila das suas fichas e cartas de vaza (largura/altura = SUAS_FICHAS). */
+.mf2 .mf2-sua-fichas {
+    box-sizing: border-box;
+    flex: none;
+    background: rgba(8, 9, 12, .88);
+    border: 2px solid #23252f;
+    border-radius: 8px;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, .8);
+}
+/* O seu fantasminha à direita, "saindo" da caixa: maior que a coluna dele
+   e subido, com ~1/4 da altura passando por cima da borda de cima. A
+   coluna só recorta embaixo — a carta que ele joga cai e some na base da
+   caixa, e o resto (chapéu, corpo saindo) passa livre por cima. */
+.mf2 .mf2-sua-fantasma {
+    position: relative;
+    flex: none;
+    align-self: stretch;
+    width: 140px;
+    clip-path: inset(-300px -80px 0 -80px);
+}
+.mf2 .mf2-sua-fantasma .mf2-fantasma {
+    --escala-fantasma: .9;
+    position: absolute;
+    left: 50%;
+    top: var(--mf2-sua-fantasma-top);
+    translate: -50% 0;
+}
+.mf2 .mf2-sua-fantasma .mf1-seu-fantasminha {
+    position: static;
+    scale: none;
+}
+.mf2 .mf2-sua-fantasma .mf1-seu-fantasminha-nome {
+    display: none;
+}
+/* "Aposta: N · Fez: M" em cima da caixa: no hover e no popup temporário
+   (a animação do popup vem de .mf1-fichas-barra-info no meetfront1.css). */
+.mf2 .mf2-sua-caixa .mesa-exp-fichas-legenda {
+    bottom: calc(100% + 10px);
+}
+.mf2 .mf2-sua-caixa:hover .mesa-exp-fichas-legenda {
+    opacity: 1;
+    translate: 0 0;
+}
+
+/* ---------- O seu timer na borda da mesa (ver TimerBordaMesa) ---------- */
+
+/* Cobre a mesa inteira, borda de madeira inclusive (18px), por cima do
+   feltro e embaixo dos assentos. */
+.mf2 .mf2-pavio-borda {
+    position: absolute;
+    inset: -18px;
+    z-index: 5;
+    pointer-events: none;
+}
+.mf2 .mf2-pavio .mf1-pavio-camada {
+    overflow: visible;
+}
+/* Sulco escavado na madeira, com o fio dourado nas bordas (o fio é o
+   traço de baixo, um pouco mais largo). */
+.mf2 .mf2-pavio-fio {
+    fill: none;
+    stroke: rgba(255, 215, 94, .35);
+    stroke-width: 16;
+    stroke-linecap: round;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .5));
+}
+.mf2 .mf2-pavio-sulco {
+    fill: none;
+    stroke: #1c120a;
+    stroke-width: 14;
+    stroke-linecap: round;
+}
+.mf2 .mf2-pavio-halo {
+    fill: none;
+    stroke: #ffb02e;
+    stroke-width: 15;
+    stroke-linecap: round;
+    opacity: .35;
+}
+.mf2 .mf2-pavio-restante {
+    fill: none;
+    stroke-width: 8.5;
+    stroke-linecap: round;
+}
+.mf2 .mf2-pavio.mesa-exp-anel-urgente .mf2-pavio-halo {
+    stroke: #ff4a24;
+    animation: mf1-pavio-pulsar .5s ease-in-out infinite alternate;
+}
+/* Fora da sua vez: apagado, sem traço nem brasa, a ficha sem número. */
+.mf2 .mf2-pavio.mesa-exp-anel-inativo .mf2-pavio-fio {
+    stroke: rgba(255, 255, 255, .07);
+}
+.mf2 .mf2-pavio.mesa-exp-anel-inativo .mf2-pavio-sulco {
+    stroke: #0e0a07;
+}
+.mf2 .mf2-pavio.mesa-exp-anel-inativo .mf2-pavio-halo,
+.mf2 .mf2-pavio.mesa-exp-anel-inativo .mf2-pavio-restante {
+    display: none;
+}
+
+/* Sua mão na sua vez (jogar ou apostar): avança 12px a menos que no
+   meetfront1 (-36px), ~5% da altura da carta na mão, pra não passar por
+   cima do pavio na borda da mesa. */
+.mf2 .mf1:not(.mf1-mobile) .mesa-exp-sua-mao-vez,
+.mf2 .mf1:not(.mf1-mobile) .mesa-exp-sua-mao-apostando {
+    translate: 0 -24px;
+}
+
+/* Brasa do pavio da borda: 20% maior que a do meetfront1 (r 7.8 no JSX)
+   e com o brilho mais largo, pra ler de longe na madeira. */
+.mf2 .mf2-pavio .mesa-exp-anel-brasa {
+    filter: drop-shadow(0 0 4px #ffd75e) drop-shadow(0 0 12px #ff9a1f) drop-shadow(0 0 22px rgba(255, 140, 30, .6));
+}
+.mf2 .mf2-pavio.mesa-exp-anel-urgente .mesa-exp-anel-brasa {
+    filter: drop-shadow(0 0 5px #ff7a3d) drop-shadow(0 0 14px #ff3b1f) drop-shadow(0 0 24px rgba(255, 50, 20, .6));
+}

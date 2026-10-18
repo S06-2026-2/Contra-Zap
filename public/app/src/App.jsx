@@ -4,9 +4,11 @@ import Lobby from './components/Lobby.jsx';
 import Partida from './components/Partida.jsx';
 import PartidaNovo from './components/novo/Partida.jsx';
 import PartidaMeetfront1 from './components/meetfront1/Partida.jsx';
+import PartidaMeetfront2 from './components/meetfront2/Partida.jsx';
 import LoginArcade from './components/arcade/Login.jsx';
 import LobbyArcade from './components/arcade/Lobby.jsx';
 import PartidaArcade from './components/arcade/Partida.jsx';
+import PartidaMescla from './components/mescla/Partida.jsx';
 import Casca from './components/arcade/Casca.jsx';
 import SeletorFrente, { lerFrenteSalva } from './components/SeletorFrente.jsx';
 import { assinarConexao, chamar, obterConexao, socket } from './socket.js';
@@ -23,14 +25,22 @@ import { avisarSessaoRetomada, lerSessaoSalva, limparSessaoSalva, salvarSessao }
 // "meetfront1" é igual ao "novo", com a Partida de components/meetfront1/
 // (cópia da mesa do novo onde entram as mudanças do encontro com o grupo).
 //
+// "meetfront2" é a frente das mudanças do segundo encontro, com a Partida
+// de components/meetfront2/ (por enquanto a mesma do meetfront1).
+//
 // "arcade" é a casca de components/arcade/ (ver
 // design_handoff_frente_arcade/README.md) — mesmas props das outras, mais
 // `conectado`: ela desenha a própria faixa de conexão perdida, então o
 // banner global some nas telas dela.
+//
+// "mescla" é a arcade inteira com a mesa trocada por components/mescla/ —
+// o oval e os fantasminhas do "novo" com a interface da arcade.
 const FRENTES = {
     novo: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaNovo },
     meetfront1: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaMeetfront1 },
+    meetfront2: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaMeetfront2 },
     arcade: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaArcade },
+    mescla: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaMescla },
     debugging: { Login, Lobby, Partida },
 };
 
@@ -51,7 +61,7 @@ export default function App() {
     // filtro de tela também no Login/Lobby, que são as telas da arcade
     // (ver .mf1-frente em meetfront1/meetfront1.css).
     useEffect(() => {
-        document.body.classList.toggle('mf1-frente', frente === 'meetfront1');
+        document.body.classList.toggle('mf1-frente', frente === 'meetfront1' || frente === 'meetfront2');
     }, [frente]);
     const [player, setPlayer] = useState(null); // { nome, token }
     const [sala, setSala] = useState(null); // { salaId, jogadoresIniciais } ou { salaId, reconexao }
@@ -195,7 +205,7 @@ export default function App() {
     }
 
     if (restaurandoSessao) {
-        if (frente === 'arcade' || frente === 'novo' || frente === 'meetfront1') {
+        if (frente !== 'debugging') {
             return (
                 <Casca conectado={conectado}>
                     <div className="az-tela az-tela-login">
@@ -214,8 +224,10 @@ export default function App() {
     const { Login: TelaLogin, Lobby: TelaLobby, Partida: TelaPartida } = FRENTES[frente];
     const ehArcade = frente === 'arcade';
     // Tela desenhada pela casca da arcade (que tem a própria faixa de
-    // conexão perdida): tudo na arcade, e Login/Lobby no "novo"/"meetfront1".
-    const telaArcade = ehArcade || ((frente === 'novo' || frente === 'meetfront1') && !sala);
+    // conexão perdida): tudo na arcade e na mescla, e Login/Lobby no "novo",
+    // no "meetfront1" e no "meetfront2".
+    const telaArcade = ehArcade || frente === 'mescla'
+        || ((frente === 'novo' || frente === 'meetfront1' || frente === 'meetfront2') && !sala);
     const propsConexao = telaArcade ? { conectado } : {};
 
     let tela;
@@ -266,7 +278,7 @@ export default function App() {
     return (
         <>
             <div className="badge-frente">
-                {frente === 'novo' ? '✨ Novo' : frente === 'meetfront1' ? '🤝 Meetfront1' : ehArcade ? '👾 Arcade' : '🐞 Debugging'}
+                {frente === 'novo' ? '✨ Novo' : frente === 'meetfront1' ? '🤝 Meetfront1' : frente === 'meetfront2' ? '🧭 Meetfront2' : ehArcade ? '👾 Arcade' : frente === 'mescla' ? '🃏 Mescla' : '🐞 Debugging'}
             </div>
             {/* Independe da tela atual — some sozinho quando 'connect' disparar de novo (ver socket.js) */}
             {!conectado && !telaArcade && (
