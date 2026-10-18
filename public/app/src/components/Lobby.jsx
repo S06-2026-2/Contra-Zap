@@ -174,9 +174,11 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
         <div className="cartao">
             <div className="linha" style={{ justifyContent: 'space-between' }}>
                 <h1>Olá, {meuNome}</h1>
-                <button type="button" className="secundario" onClick={onTrocarFrente}>
-                    🔄 Trocar front
-                </button>
+                {onTrocarFrente && (
+                    <button type="button" className="secundario" onClick={onTrocarFrente}>
+                        🔄 Trocar front
+                    </button>
+                )}
             </div>
 
             {salaParaReconectar && (

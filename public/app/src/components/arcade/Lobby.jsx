@@ -171,15 +171,17 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
     const cabecaDireita = (
         <>
             <span className="az-px az-topo-nome" title="Você">{meuNome}</span>
-            <button
-                type="button"
-                data-som="aba"
-                className="az-b az-px az-topo-btn"
-                onClick={onTrocarFrente}
-                title="Trocar de frente visual"
-            >
-                🔄<span className="az-rotulo-largo"> FRONT</span>
-            </button>
+            {onTrocarFrente && (
+                <button
+                    type="button"
+                    data-som="aba"
+                    className="az-b az-px az-topo-btn"
+                    onClick={onTrocarFrente}
+                    title="Trocar de frente visual"
+                >
+                    🔄<span className="az-rotulo-largo"> FRONT</span>
+                </button>
+            )}
         </>
     );
 
