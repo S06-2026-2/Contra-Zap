@@ -14,8 +14,10 @@ import SeletorFrente, { lerFrenteSalva } from './components/SeletorFrente.jsx';
 import { assinarConexao, chamar, obterConexao, socket } from './socket.js';
 import { avisarSessaoRetomada, lerSessaoSalva, limparSessaoSalva, salvarSessao } from './sessao.js';
 
-// Única "rota" de verdade do app (o resto — frente, login, lobby, sala —
-// é tudo estado em memória/localStorage, nunca a URL).
+// Única rota de verdade do app: /front abre o seletor de frente (ver
+// ROTA_FRENTE); o resto — frente, login, lobby, sala — é tudo estado em
+// memória/localStorage, nunca a URL.
+const ROTA_FRENTE = '/front';
 
 // "novo" usa o Login e o Lobby da arcade e a Partida própria, que é sempre
 // o front provisório (components/novo/MesaExperimento.jsx, alimentado pelo
@@ -50,13 +52,13 @@ const FRENTES = {
 // compartilhado entre abas (localStorage) nem entre sessões do navegador
 // (cookie persistente).
 export default function App() {
-    // Lembrada por navegador via localStorage; sem nada salvo, abre na
-    // arcade (ver SeletorFrente.jsx).
+    // Lembrada por navegador via localStorage; sem nada salvo, abre no
+    // meetfront2 (ver SeletorFrente.jsx).
     const [frente, setFrente] = useState(lerFrenteSalva);
-    // true enquanto o SeletorFrente estiver aberto por cima de tudo (ver
-    // trocarFrente) — `frente` continua valendo pra marcar a atual e pra
-    // voltar sem escolher nada.
-    const [escolhendoFrente, setEscolhendoFrente] = useState(false);
+    // true quando a página abriu em /front: o seletor aparece no lugar de
+    // tudo. Escolher (ou voltar) troca a URL pra / sem recarregar e segue
+    // pro Login ou pras salas, conforme já havia sessão ou não.
+    const [escolhendoFrente, setEscolhendoFrente] = useState(() => window.location.pathname === ROTA_FRENTE);
     // Marca o body na frente meetfront1: o CSS dela esconde o painel de
     // filtro de tela também no Login/Lobby, que são as telas da arcade
     // (ver .mf1-frente em meetfront1/meetfront1.css).
@@ -183,11 +185,12 @@ export default function App() {
         setSala({ salaId, jogadoresIniciais, segundosParaIniciar, chatAberto, senha });
     }
 
-    // Trocar de front (botão "🔄" na Lobby, e no Login da arcade) não mexe
-    // em player/sala — só qual casca visual monta a partir daqui, a sessão e
-    // a vaga continuam as mesmas.
-    function trocarFrente() {
-        setEscolhendoFrente(true);
+    // Sair do /front: a URL volta pra / (replaceState, sem recarregar —
+    // a sessão retomada lá em cima continua valendo) e o fluxo normal
+    // decide entre Login e salas. Trocar de frente não mexe em player/sala.
+    function sairDoSeletor() {
+        window.history.replaceState(null, '', '/');
+        setEscolhendoFrente(false);
     }
 
     if (escolhendoFrente) {
@@ -196,9 +199,9 @@ export default function App() {
                 atual={frente}
                 onEscolher={(escolhida) => {
                     setFrente(escolhida);
-                    setEscolhendoFrente(false);
+                    sairDoSeletor();
                 }}
-                onVoltar={() => setEscolhendoFrente(false)}
+                onVoltar={sairDoSeletor}
                 conectado={conectado}
             />
         );
@@ -232,7 +235,7 @@ export default function App() {
 
     let tela;
     if (!player) {
-        tela = <TelaLogin onAutenticado={autenticar} onTrocarFrente={trocarFrente} {...propsConexao} />;
+        tela = <TelaLogin onAutenticado={autenticar} {...propsConexao} />;
     } else if (!sala) {
         tela = (
             <TelaLobby
@@ -243,7 +246,6 @@ export default function App() {
                     setSalaParaReconectar(null);
                     setSala({ salaId, reconexao });
                 }}
-                onTrocarFrente={trocarFrente}
                 {...propsConexao}
             />
         );

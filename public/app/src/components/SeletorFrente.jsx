@@ -1,6 +1,8 @@
 import Casca from './arcade/Casca.jsx';
 
-const CHAVE_FRENTE = 'contrazap-frente';
+// Chave nova desde que o meetfront2 virou o padrão: escolhas salvas antes
+// (na chave antiga) não valem mais, todo mundo começa no padrão.
+const CHAVE_FRENTE = 'contrazap-frente-v2';
 
 // Escolha fica no localStorage (por navegador/aba, não pelo servidor) —
 // cada pessoa escolhe o front que quiser sem afetar quem mais está
@@ -9,9 +11,9 @@ const CHAVE_FRENTE = 'contrazap-frente';
 // "mescla" e no "debugging" jogam na mesma sala normalmente.
 const FRENTES_VALIDAS = ['novo', 'meetfront1', 'meetfront2', 'arcade', 'mescla', 'debugging'];
 
-// Sem escolha salva (primeira visita, aba privada) abre direto na arcade —
-// o seletor só aparece quando alguém pede pelo botão 🔄 FRONT.
-export const FRENTE_PADRAO = 'arcade';
+// Sem escolha salva (primeira visita, aba privada) abre direto no
+// meetfront2 — o seletor só aparece abrindo /front (ver App.jsx).
+export const FRENTE_PADRAO = 'meetfront2';
 
 export function lerFrenteSalva() {
     try {
@@ -87,8 +89,8 @@ const OPCOES = [
     },
 ];
 
-// Tela de trocar de front, sempre na casca arcade (é a frente padrão).
-// Não mexe em sessão nem sala — ver trocarFrente no App.jsx.
+// Tela de trocar de front (rota /front), sempre na casca arcade.
+// Não mexe em sessão nem sala — ver ROTA_FRENTE/sairDoSeletor no App.jsx.
 export default function SeletorFrente({ atual, onEscolher, onVoltar, conectado }) {
     function escolher(frente) {
         salvarFrente(frente);
