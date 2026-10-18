@@ -30,11 +30,12 @@ export class Jogador {
     static async entrar(browser, nome = nomeUnico()) {
         const context = await browser.newContext();
         // Contexto novo do Playwright não tem localStorage nenhum — sem isto,
-        // abriria na frente padrão (arcade, ver SeletorFrente.jsx). Fixa
+        // abriria na frente padrão (meetfront2, ver SeletorFrente.jsx — a
+        // chave tem que ser a mesma CHAVE_FRENTE de lá). Fixa
         // "debugging" pra o E2E continuar testando a interface de sempre,
         // igual a um usuário de verdade que já escolheu isso antes.
         await context.addInitScript(() => {
-            try { localStorage.setItem('contrazap-frente', 'debugging'); } catch {}
+            try { localStorage.setItem('contrazap-frente-v2', 'debugging'); } catch {}
         });
         const page = await context.newPage();
         const jogador = new Jogador(context, page, nome);
@@ -123,7 +124,7 @@ export const test = base.extend({
     // direto (ex.: login.spec.js) em vez de passar por Jogador.entrar.
     context: async ({ context }, use) => {
         await context.addInitScript(() => {
-            try { localStorage.setItem('contrazap-frente', 'debugging'); } catch {}
+            try { localStorage.setItem('contrazap-frente-v2', 'debugging'); } catch {}
         });
         await use(context);
     },
