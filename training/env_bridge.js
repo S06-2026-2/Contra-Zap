@@ -1,10 +1,10 @@
 // env_bridge.js
 // Ambiente de treino por self-play: sobe um GameController headless (sem
-// socket, sem Server.js — mesmo espírito do Main.js) e conversa com o
+// socket, sem Server.js) e conversa com o
 // processo Python via stdin/stdout, uma linha JSON por mensagem. O motor de
 // regras (GameController -> Game -> RodadaGame -> Mesa -> Baralho) é o
-// mesmo de produção — nada é reimplementado aqui, só a "cola" que troca
-// "decide pela última carta" (Main.js) por "pergunta pro Python".
+// mesmo de produção — nada é reimplementado aqui, só a "cola" que, na vez
+// de cada jogador, pergunta pro Python o que fazer.
 //
 // Rodar sozinho não faz sentido — quem fala com isto é
 // training/python/env_client.py, via subprocess (Python é quem dá spawn

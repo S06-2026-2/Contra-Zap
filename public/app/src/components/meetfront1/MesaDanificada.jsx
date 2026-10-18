@@ -230,8 +230,8 @@ const FACA_LEVANTAR_MS = 380;
 // ponta — sempre um plunge rápido, não importa quão longo é o deslize.
 const FACA_AFUNDAR_MS = 150;
 // Topo/base do conjunto INTEIRO (lâmina+carta+guarda+cabo) relativo à
-// origem do .carta-giro3d-miolo — mesma conta de CartaGiratoria.jsx
-// (lâmina 220 pra cima, carta 154, guarda 16, cabo 77 pra baixo).
+// origem do .carta-giro3d-miolo (lâmina 220 pra cima, carta 154, guarda 16,
+// cabo 77 pra baixo — ver os tamanhos em index.css).
 const FACA_ASSEMBLY_TOPO_PX = -220;
 // Quanto da ponta "afunda"/some (medido a partir do topo) — só a
 // pontinha da lâmina, não a lâmina inteira. Fica assim o deslize INTEIRO
@@ -400,8 +400,7 @@ function FacaCaindo({ faca, onImpacto, onFim }) {
 //      de baixo dela.
 // A única coisa literalmente NOVA é o meio de campo: a carta jogada vira o
 // punhal crescendo (revela lâmina/guarda/cabo com a transição suave de
-// PunhalAssembly/.carta-giro3d-extra-oculta, em vez do toggle seco que só
-// CartaGiratoria tinha), segura firme um instante grande e escuro, desce pro
+// PunhalAssembly/.carta-giro3d-extra-oculta), segura firme um instante grande e escuro, desce pro
 // mesmo pouso/ângulo que FacaCaindo usaria e, depois de cortar, faz o
 // INVERSO de FacaCaindo (que só some): sobe, RECOLHE a espada de volta pra
 // carta e pousa de novo na mesa — fica ali pra sempre, mesma lógica dos

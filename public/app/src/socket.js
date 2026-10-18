@@ -50,8 +50,8 @@ export function obterConexao() {
 }
 
 // Chama um evento do protocolo (ver conexao/PROTOCOLO.md) e devolve o ack;
-// lança se o servidor respondeu { ok: false, ... }. Mesmo padrão do
-// Main2.js (conexao/PROTOCOLO.md é o contrato, isso aqui só fala com ele).
+// lança se o servidor respondeu { ok: false, ... } (conexao/PROTOCOLO.md é
+// o contrato, isso aqui só fala com ele).
 // O Error lançado carrega `.codigo` (um CodigosErro) e `.resposta` (o ack
 // cru, com qualquer campo extra — ex.: JA_EM_PARTIDA manda `.resposta.salaId`),
 // além da `.message` já formatada, pra quem precisa reagir a um código

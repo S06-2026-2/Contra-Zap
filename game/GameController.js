@@ -3,9 +3,9 @@
 // orquestra a partida inteira (Game -> Rodada -> Mesa) quando ela
 // começa, expondo o andamento como eventos em vez de console.log espalhado.
 //
-// Isso serve dois consumidores ao mesmo tempo, sem duplicar a lógica de regras:
-//  - Main.js: assina os eventos e imprime no console (harness de teste local)
-//  - Server.js (futuro): assina os eventos e faz io.emit(...) para os clientes via socket.io
+// Quem consome os eventos não duplica a lógica de regras: o servidor
+// (conexao/socketServer.js) repassa pros clientes via socket.io, e o treino
+// (training/env_bridge.js) roda o mesmo controller sem rede.
 import { EventEmitter } from 'node:events';
 import { Game, MAX_DECK_SEM_LIMITE } from './Game.js';
 import { PlayerGame } from './PlayerGame.js';
@@ -342,8 +342,8 @@ export class GameController extends EventEmitter {
     // for chamado com sucesso pra esse jogador específico — é a pausa real
     // que faltava. Guardar { jogadorId, resolver } ANTES de emitir
     // turnoJogador (chamado por quem usa isto) é o que permite um listener
-    // síncrono (ex.: o auto-play do Main.js) responder na hora, dentro do
-    // próprio emit, sem cair numa corrida onde a espera ainda nem existe.
+    // síncrono responder na hora, dentro do próprio emit, sem cair numa
+    // corrida onde a espera ainda nem existe.
     _aguardarJogada(jogador) {
         return new Promise((resolve) => {
             this._jogadaEsperada = { jogadorId: jogador.id, resolver: resolve };

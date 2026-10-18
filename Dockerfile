@@ -38,7 +38,7 @@ COPY --from=backend-deps /app/node_modules ./node_modules
 
 # Código do backend (lista explícita, não "COPY . ." — evita levar
 # public/app/node_modules, training/, ou outro lixo de dev pra imagem final)
-COPY package.json Server.js GameStart.js index.js banco.json ./
+COPY package.json Server.js GameStart.js banco.json ./
 COPY conexao ./conexao
 COPY game ./game
 COPY bots ./bots

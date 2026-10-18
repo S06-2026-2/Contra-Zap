@@ -1,7 +1,6 @@
 {
   "name": "untitled",
   "version": "1.0.0",
-  "main": "index.js",
   "type": "module",
   "scripts": {
     "start": "node Server.js",

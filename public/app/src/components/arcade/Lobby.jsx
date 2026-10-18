@@ -14,8 +14,7 @@ const OPCOES_CARTAS = [1, 2, 3, 4, 5];
 
 // Lista de salas + criar sala (duas "vistas" da mesma tela) + reconexão
 // numa partida em andamento. A lógica de entrada (JA_EM_PARTIDA, sala
-// privada com senha, reconectar/desistir) é a mesma do novo/Lobby.jsx —
-// só a casca visual é arcade.
+// privada com senha, reconectar/desistir) segue o conexao/PROTOCOLO.md.
 export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onReconectou, onTrocarFrente, conectado }) {
     const [vista, setVista] = useState('salas'); // 'salas' | 'criar'
     const [salas, setSalas] = useState(null); // null = ainda não buscou
@@ -30,7 +29,7 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
     const [erro, setErro] = useState(null);
     // Sala privada clicada: popup pedindo a senha antes do entrarSala.
     const [salaPedindoSenha, setSalaPedindoSenha] = useState(null); // { salaId, numberPlayers, senha, erro }
-    // JA_EM_PARTIDA: { salaAtivaId, retomar } — ver novo/Lobby.jsx.
+    // JA_EM_PARTIDA: { salaAtivaId, retomar } — ver conexao/PROTOCOLO.md.
     const [colisaoPartida, setColisaoPartida] = useState(null);
 
     function mostrarErro(mensagem) {
@@ -157,7 +156,7 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
     }
 
     // A sala em andamento nunca aparece em listarSalas — só dá pra voltar
-    // pelo salaId guardado no App (ver novo/Lobby.jsx).
+    // pelo salaId guardado no App.
     async function reconectar() {
         setErro(null);
         setReconectando(true);
