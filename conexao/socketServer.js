@@ -12,6 +12,7 @@ import { ErroChat } from './chat/chat.js';
 import { EventosCliente, EventosServidor, CodigosErro } from './eventos.js';
 import { criarLimitadorDeTaxa } from './rateLimiter.js';
 import { NOME_MAX } from './limites.js';
+import { registrarJogadorConectado, registrarJogadorDesconectado } from '../observabilidade/metricas.js';
 
 class ErroProtocolo extends Error {
     constructor(codigo, mensagem) {
@@ -108,7 +109,14 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
     // sem varrer jogadorPorSocket inteiro.
     const socketPorJogador = new Map();
 
-    io.on('connection', (socket) => {
+        io.on('connection', (socket) => {
+        // Conta conexão de socket, não "login bem-sucedido" — autenticarSocket
+        // pode ser chamado mais de uma vez no MESMO socket (reautenticar como a
+        // mesma conta, ver exigirMesmaIdentidadeOuNenhuma), o que contaria
+        // duas vezes se instrumentássemos lá. Conexão/desconexão de socket.io
+        // acontece exatamente uma vez cada por natureza.
+        registrarJogadorConectado();
+
         const exigirJogador = () => {
             const player = jogadorPorSocket.get(socket.id);
             if (!player) {
@@ -513,6 +521,7 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
         });
 
         socket.on('disconnect', () => {
+            registrarJogadorDesconectado();
             const player = jogadorPorSocket.get(socket.id);
             const salaId = salaPorSocket.get(socket.id);
             jogadorPorSocket.delete(socket.id);

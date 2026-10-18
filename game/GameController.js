@@ -9,6 +9,7 @@
 import { EventEmitter } from 'node:events';
 import { Game, MAX_DECK_SEM_LIMITE } from './Game.js';
 import { PlayerGame } from './PlayerGame.js';
+import { registrarPartidaIniciada, registrarPartidaFinalizada } from '../observabilidade/metricas.js';
 import { escolherCarta, escolherAposta } from '../bots/BotBrain.js';
 import {
     duracaoApostaFeita, duracaoCartaJogada, duracaoVazaFinalizada, duracaoRodadaFinalizada,
@@ -250,6 +251,7 @@ export class GameController extends EventEmitter {
             jogadores: [...this.jogadores],
         });
         this.game.setstartsequence();
+        registrarPartidaIniciada();
 
         // O relógio de inatividade só passa a valer a partir daqui — tempo
         // parado na sala de espera não deve contar contra ninguém.
@@ -289,6 +291,7 @@ export class GameController extends EventEmitter {
         // Mesmo efeito de jogoFinalizado pra quem olha de fora (SalaManager,
         // "jogar de novo"): a partida não está mais "em andamento".
         this._finalizada = true;
+        registrarPartidaFinalizada();
         this.emit('partidaAbortada', { motivo: 'erro_interno', erro: erro?.message ?? String(erro) });
     }
 
@@ -313,10 +316,17 @@ export class GameController extends EventEmitter {
     // controller não emite mais nada e o loop, se estiver no ar, desenrola no
     // próximo ponto de re-entrada (ver o guard de _encerrado em
     // _rodarPartida/_jogarUmaRodada).
-    destruir() {
+     destruir() {
+        // Cobre o caso de a sala ser removida (SalaManager) com uma partida
+        // ainda em andamento, sem ter passado por jogoFinalizado nem
+        // partidaAbortada — sem isso, "partidas ativas" ficaria superestimado
+        // pra sempre nesse cenário. O guard evita decrementar de novo se a
+        // partida já tinha terminado normalmente antes disso.
+        if (this.game && !this._finalizada) {
+            registrarPartidaFinalizada();
+        }
         this._encerrado = true;
         this._limparTimers();
-
         // Desbloqueia o loop se ele estiver parado num await esperando jogada
         // ou aposta real — resolve com null; o guard de _encerrado logo depois
         // do await faz o loop retornar sem tocar nesse valor.
@@ -1139,6 +1149,7 @@ export class GameController extends EventEmitter {
         if (vivos.length === 1) {
             this._finalizada = true;
             this._vencedor = vivos[0].nome;
+            registrarPartidaFinalizada();
             this.emit('jogoFinalizado', { vencedor: this._vencedor });
             return true;
         }
@@ -1153,6 +1164,7 @@ export class GameController extends EventEmitter {
             }
             this._finalizada = true;
             this._vencedor = vencedor.nome;
+             registrarPartidaFinalizada();
             this.emit('jogoFinalizado', { vencedor: this._vencedor });
             return true;
         }

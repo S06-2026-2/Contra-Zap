@@ -34,6 +34,7 @@
 // sempre pelo heuristico, inclusive na rodada 1.
 import { RedeAtorCritico, argmaxMascarado } from './nn.js';
 import { MODELOS_BOT, MODELO_BOT_PADRAO, modeloBotPorId } from './modelosBot.js';
+import { cronometrarDecisaoBot } from '../observabilidade/metricas.js';
 
 const MAX_HAND = 12;      // teto de cartas na observacao / espaco de aposta (== MAX_HAND do treino)
 const MAX_APOSTA = MAX_HAND;
@@ -226,6 +227,15 @@ function maskCarta(tamanhoMao) {
 
 // Indice (0-based) da carta escolhida na mao do jogador.
 export function escolherCarta(jogador, controller) {
+    const pararCronometro = cronometrarDecisaoBot();
+    try {
+        return _escolherCartaInterno(jogador, controller);
+    } finally {
+        pararCronometro();
+    }
+}
+
+function _escolherCartaInterno(jogador, controller) {
     const heuristico = () => jogador.mao.length - 1;
     const rede = redeNoiteDaSala(controller);
     if (!rede || !controller?.rodada) return heuristico();
@@ -247,6 +257,15 @@ export function escolherCarta(jogador, controller) {
 // false quando apostar 1 fecharia a soma da rodada no numero de cartas (regra
 // do ultimo a apostar). Devolve o valor apostado (== indice da acao).
 export function escolherAposta(jogador, { permiteAposta1, controller } = {}) {
+    const pararCronometro = cronometrarDecisaoBot();
+    try {
+        return _escolherApostaInterno(jogador, { permiteAposta1, controller });
+    } finally {
+        pararCronometro();
+    }
+}
+
+function _escolherApostaInterno(jogador, { permiteAposta1, controller } = {}) {
     const heuristico = () => (permiteAposta1 ? 1 : 0);
     if (!controller?.rodada) return heuristico();
 

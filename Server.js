@@ -7,6 +7,7 @@ import { realpathSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { registrarSocketServer } from './conexao/socketServer.js';
 import { db } from './conexao/db.js';
+import { registro } from './observabilidade/metricas.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -39,6 +40,15 @@ export function criarServidor({ salaManager, limitesDeTaxa } = {}) {
     const io = new Server(server, {
         pingInterval: 10_000,
         pingTimeout: 15_000,
+    });
+
+    // Endpoint de métricas Prometheus — Grafana/Prometheus fazem scrape
+    // daqui periodicamente. Sem autenticação de propósito: é prática comum
+    // (o Prometheus do próprio projeto já não expõe isso publicamente,
+    // fica só na rede interna do Railway — ver configuração de infra).
+    app.get('/metrics', async (req, res) => {
+        res.set('Content-Type', registro.contentType);
+        res.end(await registro.metrics());
     });
 
     const manager = registrarSocketServer(io, salaManager, limitesDeTaxa);
@@ -100,13 +110,17 @@ export function criarServidor({ salaManager, limitesDeTaxa } = {}) {
     // de novo em vez de cair em 404 do Express. Só chega aqui o que
     // nem express.static nem /health responderam antes. Express 5 (path-to-
     // regexp v8) não aceita mais '*' sozinho como wildcard, exige nome.
-    app.get('/*splat', (req, res) => {
+    //
+    // Só responde navegação de browser (Accept: text/html). Qualquer outra
+    // requisição (fetch/API/curl) a um caminho inexistente segue pro 404
+    // padrão do Express, o que mantém tests/api/health.test.js verdadeiro.
+    app.get('/*splat', (req, res, next) => {
+        if (!req.headers.accept?.includes('text/html')) return next();
         res.sendFile(path.join(__dirname, 'public/dist/index.html'));
     });
 
     return { app, server, io, salaManager: manager };
 }
-
 // --- Encerramento gracioso -------------------------------------------------
 //
 // Sem isso, um `docker compose down` (ou qualquer redeploy) manda SIGTERM e
