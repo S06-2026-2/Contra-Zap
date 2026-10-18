@@ -1,0 +1,218 @@
+/* Lab do cérebro (rota /lab, ver LabCerebro.jsx). Tela inteira no fundo
+   da arcade; o cérebro ocupa tudo e a mesinha fica pequena no canto de
+   baixo à direita. */
+.lab-tela {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: radial-gradient(120% 90% at 50% 0%, #1b1d26 0%, #0c0d11 65%);
+    color: #f1e6d2;
+    font-family: Archivo, system-ui, sans-serif;
+}
+
+.lab-topo {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 5;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 20px;
+    pointer-events: none;
+}
+.lab-titulo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    pointer-events: auto;
+}
+.lab-marca {
+    font: 400 11px Silkscreen, monospace;
+    letter-spacing: .08em;
+    color: #8d93a6;
+}
+.lab-titulo strong {
+    font: 400 20px Silkscreen, monospace;
+    color: #f5c451;
+}
+.lab-detalhe {
+    font-size: 14px;
+    color: #c9cbd6;
+}
+.lab-controles {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    pointer-events: auto;
+}
+.lab-controles button {
+    font: 400 11px Silkscreen, monospace;
+    color: #f1e6d2;
+    background: #1a1c25;
+    border: 2px solid #2e313d;
+    border-radius: 8px;
+    padding: 7px 10px;
+    cursor: pointer;
+}
+.lab-controles button:hover:not(:disabled) {
+    border-color: #f5c451;
+}
+.lab-controles button:disabled {
+    opacity: .4;
+    cursor: default;
+}
+.lab-velocidades {
+    display: flex;
+    gap: 2px;
+}
+.lab-velocidades .lab-ativo {
+    border-color: #f5c451;
+    color: #f5c451;
+}
+
+.lab-rede {
+    position: absolute;
+    inset: 60px 0 0 0;
+}
+.lab-rede canvas {
+    display: block;
+}
+.lab-rede-vazia {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #8d93a6;
+}
+.lab-dica {
+    position: absolute;
+    z-index: 6;
+    pointer-events: none;
+    padding: 5px 9px;
+    border-radius: 6px;
+    background: rgba(8, 9, 12, .92);
+    border: 1px solid #2e313d;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.lab-legenda {
+    position: absolute;
+    left: 20px;
+    bottom: 12px;
+    z-index: 5;
+    display: flex;
+    gap: 18px;
+    font-size: 12px;
+    color: #8d93a6;
+}
+.lab-legenda i {
+    display: inline-block;
+    width: 18px;
+    height: 3px;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+.lab-cor-quente { background: #f5c451; }
+.lab-cor-fria { background: #7dd3fc; }
+
+.lab-erro {
+    position: absolute;
+    top: 80px;
+    left: 20px;
+    z-index: 6;
+    color: #ff4b3e;
+}
+
+/* ---------- Mesinha no canto ---------- */
+
+.lab-mesa-canto {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 5;
+    width: 300px;
+    padding: 10px;
+    border-radius: 14px;
+    border: 2px solid #2e313d;
+    background: rgba(20, 22, 29, .9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+.lab-mesa {
+    position: relative;
+    width: 280px;
+    height: 170px;
+}
+.lab-mesa::before {
+    content: '';
+    position: absolute;
+    inset: 34px 40px;
+    border-radius: 60px;
+    background: radial-gradient(ellipse at center, #1d6b47 0%, #14502f 70%, #0f3d24 100%);
+    border: 6px solid #6b4326;
+    box-shadow: 0 0 0 2px #4a2e18, 0 8px 20px rgba(0, 0, 0, .5);
+}
+.lab-assento {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transform: translate(-50%, -50%);
+}
+.lab-assento-0 { left: 50%; top: 88%; }
+.lab-assento-1 { left: 10%; top: 50%; }
+.lab-assento-2 { left: 50%; top: 13%; }
+.lab-assento-3 { left: 90%; top: 50%; }
+.lab-assento-fora { opacity: .25; }
+.lab-fantasma {
+    position: relative;
+    width: 50px;
+    height: 50px;
+}
+.lab-fantasma-escala {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 180px;
+    height: 180px;
+    transform: scale(calc(50 / 180));
+    transform-origin: 0 0;
+}
+.lab-assento-nome {
+    font: 400 8px Silkscreen, monospace;
+    color: #c9cbd6;
+    white-space: nowrap;
+}
+/* Carta jogada: do lado do fantasminha virado pro meio da mesa. */
+.lab-jogada {
+    position: absolute;
+}
+.lab-assento-0 .lab-jogada { bottom: 100%; margin-bottom: 4px; }
+.lab-assento-1 .lab-jogada { left: 100%; margin-left: 4px; }
+.lab-assento-2 .lab-jogada { top: 100%; margin-top: 2px; }
+.lab-assento-3 .lab-jogada { right: 100%; margin-right: 4px; }
+
+.lab-carta {
+    position: relative;
+    flex: none;
+}
+.lab-carta-escala {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 110px;
+    height: 154px;
+    transform-origin: 0 0;
+}
+.lab-sua-mao {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 3px;
+    min-height: 56px;
+}
