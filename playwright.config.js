@@ -75,14 +75,21 @@ export default defineConfig({
     webServer: USAR_SERVIDOR_EXTERNO
         ? undefined
         : {
-              command: 'npm --prefix public/app run build && node Server.js',
+              // Três passos: preparar, buildar, subir. O `preparar.js`
+              // instala public/app/node_modules quando falta — sem ele, um
+              // clone limpo (máquina nova, runner do CI) morre aqui com
+              // `sh: 1: vite: not found`, antes do primeiro teste. Ele é o
+              // primeiro passo do COMANDO e não um globalSetup porque o
+              // Playwright sobe o webServer ANTES do globalSetup.
+              command: 'node tests/e2e/preparar.js && npm --prefix public/app run build && node Server.js',
               url: `http://localhost:${PORTA}/health`,
               // Se já houver algo na porta é de OUTRA execução com OUTRO
               // banco — reusar daria testes conversando com estado que não
               // é deles.
               reuseExistingServer: false,
-              // Inclui o build do Vite, não só o boot do servidor.
-              timeout: 120_000,
+              // Inclui a instalação do front (só na primeira vez) e o build
+              // do Vite, não só o boot do servidor.
+              timeout: 180_000,
               env: {
                   PORT: String(PORTA),
                   DB_PATH: path.join(DIRETORIO_TEMPORARIO, 'banco.sqlite'),
