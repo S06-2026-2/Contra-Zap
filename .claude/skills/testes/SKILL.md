@@ -40,6 +40,10 @@ tests/
     chat.test.js         -> mensagem pronta, texto livre, cooldown, linhas de sistema
     limites.test.js      -> tetos de nome/senha, rate limit por IP, JA_AUTENTICADO,
                             JA_EM_PARTIDA, desistir x sairDaPartida, teto de salas
+  bots/
+    modelosBot.test.js   -> catálogo de bots x arquivos em bots/models/
+  docs/
+    asyncapi.test.js     -> a spec cobre o protocolo inteiro (sem servidor, sem socket)
   e2e/                     (Playwright — navegador de verdade; fora do `npm test`)
     fixtures.js          -> Jogador: contexto isolado + login + criarSala/apostar/jogar pela UI
     login.spec.js        -> fluxo em etapas, cadastro, senha errada
@@ -48,7 +52,7 @@ tests/
     reconexao.spec.js    -> F5 volta pro jogo; banner de rede
 playwright.config.js -> sobe o Server.js na 3100 com banco temporário
 postman/           -> coleção do /health + guia de exploração manual do socket.io
-docs/              -> openapi.yaml (2 rotas HTTP) + asyncapi.yaml (39 eventos)
+docs/              -> openapi.yaml (2 rotas HTTP) + asyncapi.yaml (51 eventos)
                       + playground que dispara eventos com ack (`npm run docs`)
 ```
 
@@ -191,8 +195,10 @@ Mudou/adicionou evento em `conexao/`? Na mesma mudança:
    os erros possíveis.
 3. `tests/api/` — o caminho feliz e cada código de erro novo.
 4. `docs/asyncapi.yaml` — o canal, a operação e o schema do payload. O CI
-   valida este arquivo, então um erro de forma quebra o build; um evento
-   *faltando* ele não pega — isso é com você.
+   valida a *forma*; a *cobertura* é travada por
+   `tests/docs/asyncapi.test.js`, que compara os nomes de `eventos.js` com
+   os canais da spec nos dois sentidos. Esqueceu o canal? `npm test` acusa,
+   apontando o evento pelo nome.
 5. `postman/README.md` e o catálogo `EVENTOS` em `docs/index.html` — a linha
    na tabela de payloads, se for evento de cliente.
 

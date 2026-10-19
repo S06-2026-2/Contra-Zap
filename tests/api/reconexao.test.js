@@ -342,4 +342,35 @@ test('expulsão por inatividade e vaga expirada', async (t) => {
         const resposta = await ausente.ok(EventosCliente.MINHA_SALA_ATIVA, {});
         assert.notEqual(resposta.salaId, salaId);
     });
+
+    // `comUmAusente` deixa o adm (sempre quem criou a sala, ver
+    // helpers/protocolo.js:salaCheia) como o jogador ATIVO — e nessa
+    // configuração `novoAdm` nunca dispara, que é por que ele passou tanto
+    // tempo sem teste nenhum. Aqui é o contrário: quem some é o adm.
+    await t.test('novoAdm passa o posto quando a vaga do adm expira', async (t2) => {
+        const { salaId, adm, clientes } = await partidaEmAndamento(servidor, { humanos: 2 });
+        const testemunha = clientes.find(cliente => cliente !== adm);
+        const parar = jogarSozinho(testemunha, salaId);
+        t2.after(() => parar());
+
+        const posto = await testemunha.esperar(EventosServidor.NOVO_ADM, { timeoutMs: 20_000 });
+
+        assert.equal(posto.salaId, salaId);
+        assert.equal(posto.jogador, testemunha.nome, 'o posto tem que cair em quem continua na sala');
+        assert.ok(posto.id, 'o id do novo adm vem junto — é por ele que o front se reconhece');
+    });
+
+    // O posto só pode cair em gente de verdade: bot nasceu bot (`eraBot`) e
+    // quem já teve a vaga expirada está fora. Numa mesa de 1 humano + 1 bot,
+    // some o humano e não sobra candidato — ninguém vira adm, e a sala é
+    // descartada logo depois (GameController._transferirAdm).
+    await t.test('bot não herda o posto de adm', async () => {
+        const { adm } = await partidaEmAndamento(servidor, { humanos: 1, botNumber: 1 });
+
+        // O adm é o único humano. Ele some, a vaga expira, e o bot segue bot.
+        await adm.esperar(EventosServidor.JOGADOR_EXPULSO_POR_INATIVIDADE, { timeoutMs: 15_000 });
+
+        assert.deepEqual(adm.recebidos(EventosServidor.NOVO_ADM), [],
+            'não existe candidato humano, então novoAdm não pode sair');
+    });
 });

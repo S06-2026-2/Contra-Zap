@@ -66,7 +66,7 @@ Saúde do servidor: `curl http://localhost:3000/health`.
 ## Testes
 
 ```
-npm test              # API — 222 testes, ~25s
+npm test              # API, bots e contrato — ~270 testes, ~30s
 npm run test:e2e      # E2E no navegador — 19 testes, ~40s
 npm run test:watch    # re-roda a cada arquivo salvo
 ```
@@ -97,17 +97,22 @@ npm run docs
 
 Abre em [localhost:3001](http://localhost:3001) (suba o jogo em outro
 terminal). Tem um **playground** que conecta no servidor e dispara qualquer
-um dos 19 eventos de cliente com *ack*, Swagger UI das rotas HTTP, e
+um dos 25 eventos de cliente com *ack*, Swagger UI das rotas HTTP, e
 download da coleção do Postman.
 
 | Arquivo | Cobre | Padrão |
 |---|---|---|
 | `docs/openapi.yaml` | as 2 rotas HTTP | OpenAPI 3.1 |
-| `docs/asyncapi.yaml` | os 42 eventos socket.io e 32 códigos de erro | AsyncAPI 3.1 |
+| `docs/asyncapi.yaml` | os 51 eventos socket.io e 36 códigos de erro | AsyncAPI 3.1 |
 
 São duas specs porque OpenAPI não descreve request/response por ack — o
 contrato de verdade está no AsyncAPI. As duas são validadas no CI, junto com
 a execução da coleção do Postman contra um servidor de verdade.
+
+A validação do CI só olha a **forma** do arquivo. A **cobertura** — todo
+evento de `conexao/eventos.js` ter canal, e nenhum canal sobrar sem evento —
+quem trava é `tests/docs/asyncapi.test.js`, junto com os números do resumo
+no cabeçalho da spec.
 
 ## Estrutura
 
