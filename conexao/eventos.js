@@ -23,15 +23,18 @@ export const EventosCliente = {
     FORCAR_INICIO: 'forcarInicio', // { salaId } -> ack: { ok } — só o adm da sala, só com a sala cheia
     SAIR_SALA: 'sairSala',       // { salaId } -> ack: { ok } — só antes da partida começar
     SAIR_DA_PARTIDA: 'sairDaPartida', // { salaId } -> ack: { ok } — abandono voluntário de partida JÁ em andamento; o assento vira bot na hora (reaproveita o caminho da expulsão por inatividade), MAS a vaga continua reservada pra reconectar
-    DESISTIR: 'desistir',       // { salaId } -> ack: { ok } — desistência DEFINITIVA de uma partida em andamento: perde na hora (hp zerado -> eliminado na virada de rodada) e a vaga expira já (não dá mais pra reconectar), liberando o jogador pra entrar em outra sala. Usado pelo fluxo "desistir e entrar" quando JA_EM_PARTIDA barra a entrada numa segunda sala
+    DESISTIR: 'desistir',       // { salaId } -> ack: { ok, fichasGanhas, saldo } — fichasGanhas pela desistência (ver recompensaDesistencia em conexao/loja.js; 0 pra convidado), saldo null quando não creditou — desistência DEFINITIVA de uma partida em andamento: perde na hora (hp zerado -> eliminado na virada de rodada) e a vaga expira já (não dá mais pra reconectar), liberando o jogador pra entrar em outra sala. Usado pelo fluxo "desistir e entrar" quando JA_EM_PARTIDA barra a entrada numa segunda sala
     JOGAR_DE_NOVO: 'jogarDeNovo', // { salaId } -> ack: { ok, salaId, numberPlayers, jogadores, segundosParaIniciar, chatAberto, modeloBot } — só o adm da sala TERMINADA (`salaId` é a sala antiga); cria uma sala nova com a mesma config e avisa quem mais estava lá (ver EventosServidor.CONVITE_REVANCHE)
     APOSTAR: 'apostar',          // { salaId, valor } -> ack: { ok } — valor é o número de vazas que o jogador acha que vai fazer
     JOGAR_CARTA: 'jogarCarta',   // { salaId, indice } -> ack: { ok } — indice é 0-based, posição na mão
     AINDA_ANIMANDO: 'aindaAnimando', // { salaId } -> ack opcional: { ok } — "ainda estou animando o que já chegou": renova a espera do turno (ver "Segurar pelas animações" no PROTOCOLO.md)
     ANIMACOES_CONCLUIDAS: 'animacoesConcluidas', // { salaId, seq } -> ack opcional: { ok } — "terminei de animar tudo até o evento `seq`"; seq null = não me espere mais. Quem nunca manda não segura nada (ver "Segurar pelas animações" no PROTOCOLO.md)
     SUGESTAO_BOT: 'sugestaoBot', // { salaId } -> ack: { ok, tipo: 'aposta', valor, modeloBot } | { ok, tipo: 'carta', indice, carta, modeloBot } — "dica do bot": o que o bot da sala (modeloBot) faria no seu lugar agora, sem jogar nada. Só na sua vez (de apostar ou de jogar); fora dela NAO_E_SUA_VEZ
-    RECONECTAR: 'reconectar',    // { salaId } -> ack: { ok, salaId, jogadores, ordem, mao, cartasRodada, numeroRodada, maosReveladas, mesa, vira, viraValor, apostas, eliminados, desconectados, ultimoPlacar, suaVez, jogadorDaVez, suaVezDaAposta, jogadorDaVezAposta, finalizada, vencedor, chatAberto } — estado pra remontar a tela inteira de uma partida já em andamento (ver PROTOCOLO.md)
+    RECONECTAR: 'reconectar',    // { salaId } -> ack: { ok, salaId, jogadores, ordem, visuais, mao, cartasRodada, numeroRodada, maosReveladas, mesa, vira, viraValor, apostas, eliminados, desconectados, ultimoPlacar, suaVez, jogadorDaVez, suaVezDaAposta, jogadorDaVezAposta, finalizada, vencedor, chatAberto } — estado pra remontar a tela inteira de uma partida já em andamento (ver PROTOCOLO.md)
     MINHA_SALA_ATIVA: 'minhaSalaAtiva', // {} -> ack: { ok, salaId: string | null } — existe uma partida em andamento (começou, não terminou) em que eu ainda tenho assento reclamável? pra descobrir sem saber o salaId de antemão (ex.: depois de um refresh de página)
+    MINHA_CARTEIRA: 'minhaCarteira', // {} -> ack: { ok, fichas, cor, chapeu, coresCompradas, chapeusComprados, convidado } — saldo, visual equipado e itens já pagos (ver conexao/carteira.js); convidado: carteira só da sessão, nunca ganha fichas
+    COMPRAR_ITEM: 'comprarItem', // { tipo: 'cor' | 'chapeu', valor } -> ack: { ok, ...carteira } — compra pra sempre e já equipa (preços em conexao/loja.js)
+    EQUIPAR_ITEM: 'equiparItem', // { tipo: 'cor' | 'chapeu', valor } -> ack: { ok, ...carteira } — troca o equipado por um item já comprado ou pelo grátis (COR_CINZA / SEM_CHAPEU)
     CHAT: 'chat',                // { salaId, tipo: 'aberta' | 'restrita', texto?, id? } -> ack: { ok } — 'restrita' (id do catálogo, ver conexao/chat/mensagensChat.js) sempre liberada; 'aberta' (texto livre) só se a sala foi criada com chatAberto
 };
 
@@ -41,9 +44,9 @@ export const EventosCliente = {
 // GameController — todos broadcast de sala, exceto SUA_MAO, que é privado
 // (só o próprio jogador recebe, via sala pessoal `jogador:<id>`).
 export const EventosServidor = {
-    LISTA_JOGADORES: 'listaJogadores', // { salaId, jogadores: [{ nome, adm }] }
+    LISTA_JOGADORES: 'listaJogadores', // { salaId, jogadores: [{ nome, adm, cor, chapeu }] }
     PARTIDA_INICIANDO_EM: 'partidaIniciandoEm', // { salaId, segundos }
-    NOVA_RODADA_INICIADA: 'novaRodadaIniciada', // { salaId, numero, cartas, ordem }
+    NOVA_RODADA_INICIADA: 'novaRodadaIniciada', // { salaId, numero, cartas, ordem, visuais } — visuais: [{ cor, chapeu }] na mesma ordem de `ordem`
     SUA_MAO: 'suaMao',                          // { salaId, mao: string[] } — PRIVADO
     MAOS_REVELADAS: 'maosReveladas',            // { salaId, maos: [{ jogador, mao: string[] }] } — PRIVADO; conjunto de mãos que ESTE jogador pode ver (hoje: rodada de 1 carta / "testa", cada um vê a mão dos outros menos a sua). Genérico — dá pra reusar em showdown, espectador, debug.
     MANILHA_VIRADA: 'manilhaVirada',            // { salaId, vira, viraValor }
@@ -65,6 +68,7 @@ export const EventosServidor = {
     VAGA_EXPIRADA: 'vagaExpirada', // { salaId, id, jogador } — tempoReservaMs sem reconectar depois de virar bot; a vaga não pode mais ser reclamada, esse assento é bot pro resto da partida
     NOVO_ADM: 'novoAdm', // { salaId, id, jogador } — o adm anterior teve a vaga expirada (ver VAGA_EXPIRADA); passa pro próximo jogador de verdade (nem bot original, nem com vaga expirada) na ordem de entrada
     CONVITE_REVANCHE: 'convidadoParaRevanche', // { salaId, novaSalaId, jogador } — broadcast na sala TERMINADA (salaId) quando o adm dela chama jogarDeNovo; jogador é o nome de quem chamou, novaSalaId é onde entrar (via entrarSala normal) se aceitar
+    FICHAS_GANHAS: 'fichasGanhas',              // { salaId, fichas, posicao, total, saldo } — PRIVADO; recompensa da colocação, assim que o jogador sai da partida (eliminado) ou vence. Só conta registrada, e nunca com a vaga expirada (abandono) nem depois de desistir
     CHAT_MENSAGEM: 'chatMensagem',              // { salaId, jogador, tipo: 'aberta' | 'restrita', id: number | null, texto } — broadcast pra sala inteira, incluindo quem enviou
 };
 
@@ -100,5 +104,9 @@ export const CodigosErro = {
     TOKEN_INVALIDO: 'TOKEN_INVALIDO',                 // retomarSessao com token que não bate a assinatura, expirou, ou veio ausente/malformado
     JA_AUTENTICADO: 'JA_AUTENTICADO',                 // entrar/cadastrar/entrarComoConvidado/retomarSessao tentando virar OUTRA conta num socket que já é alguém — desconecte antes de trocar (mesma conta de novo é permitido, não é erro)
     MUITAS_TENTATIVAS: 'MUITAS_TENTATIVAS',           // teto de tentativas por IP estourado num evento pré-autenticação (ver conexao/rateLimiter.js) — espere a janela passar
+    ITEM_INVALIDO: 'ITEM_INVALIDO',                   // comprarItem/equiparItem: tipo desconhecido ou valor fora do catálogo (conexao/loja.js)
+    ITEM_JA_COMPRADO: 'ITEM_JA_COMPRADO',             // comprarItem: item que a carteira já tem
+    ITEM_NAO_COMPRADO: 'ITEM_NAO_COMPRADO',           // equiparItem: item pago que a carteira ainda não comprou
+    SALDO_INSUFICIENTE: 'SALDO_INSUFICIENTE',         // comprarItem: fichas a menos que o preço
     ERRO_INTERNO: 'ERRO_INTERNO',                     // exceção inesperada no servidor (não deveria acontecer)
 };

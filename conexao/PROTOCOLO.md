@@ -86,9 +86,9 @@ digitada.
 Existe pra decidir, no fluxo de login em etapas (estilo Pokémon Showdown), o
 que o cliente pede a seguir: se `existe`, pede senha pra confirmar
 identidade (`entrar`); senão, oferece registrar o nome (`cadastrar`) ou
-seguir sem conta (`entrarComoConvidado`). Não existe botão de "entrar como
-convidado" solto na interface — é sempre consequência de responder "não" a
-essa oferta.
+seguir sem conta (`entrarComoConvidado`). No meetfront2 o pop-up de login
+também tem um botão de convidado direto, que não passa por aqui: usa o nome
+do campo ou, vazio, um nome sorteado (`Fantasma` + 4 dígitos).
 
 ### `entrar`
 Payload: `{ nome: string, senha: string }`
@@ -418,7 +418,12 @@ sala. Efeito:
   apontar pra ela — o jogador está livre pra entrar noutra sala.
 - Se era a última vaga de gente de verdade, a sala inteira é removida (igual
   `vagaExpirada` por tempo — ver "Expiração de vaga reservada").
-Ack sucesso: `{ ok: true }`.
+- **Fichas**: conta registrada ganha pela desistência conforme as rodadas que
+  já tinham terminado (`recompensaDesistencia` em `conexao/loja.js`: menos
+  de 3 nada, 3 → 25, 4 → 30, 5 ou mais → 40) e não recebe `fichasGanhas`
+  pela colocação depois. Convidado nunca ganha.
+Ack sucesso: `{ ok: true, fichasGanhas, saldo }` — `saldo` é `null` quando
+nada foi creditado.
 Erros possíveis: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`,
 `SALA_NAO_INICIADA` (a partida ainda não começou), `NAO_ESTA_NA_SALA` (não
 faz parte de uma partida em andamento nessa sala, ou a vaga já expirou).
@@ -622,7 +627,7 @@ logar de novo, o `socket.id` é outro); a sala precisa **já ter começado**
 parte daquela partida (ter entrado na sala antes dela começar); e a vaga
 dele não pode ter expirado de vez (ver `VAGA_EXPIRADA` abaixo e a seção
 "Expiração de vaga reservada" mais adiante).
-Ack sucesso: `{ ok: true, salaId, jogadores: [{ nome, adm }], ordem: string[],
+Ack sucesso: `{ ok: true, salaId, jogadores: [{ nome, adm, cor, chapeu }], ordem: string[], visuais,
 mao: string[], cartasRodada: number,
 numeroRodada: number, maosReveladas: [{ jogador, mao: string[] }],
 mesa: [{ jogador, carta: string }], vira: string | null,
@@ -724,15 +729,60 @@ o broadcast, igual ao resto do protocolo).
 Erros possíveis: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`, `NAO_ESTA_NA_SALA`,
 `CHAT_DESABILITADO`, `CHAT_INVALIDO`, `CHAT_EM_COOLDOWN`.
 
+### Carteira e loja (`minhaCarteira`, `comprarItem`, `equiparItem`)
+Pré-condição: socket já mandou `entrar`/`cadastrar`/`entrarComoConvidado`.
+Fonte da economia: `conexao/loja.js` (preços, catálogo, recompensas,
+importado também pelo front); quem guarda é `conexao/carteira.js`.
+
+A carteira é `{ fichas, cor, chapeu, coresCompradas, chapeusComprados,
+convidado }`. Toda conta nasce com `FICHAS_INICIAIS` (100), `cor: -1`
+(`COR_CINZA`) e `chapeu: 0` (`SEM_CHAPEU`) — o cinza e o "sem chapéu" são
+grátis e sempre disponíveis. `cor` é a matiz em graus do tom pastel do
+fantasminha (múltiplo de `PASSO_COR`, 10°); `chapeu` é o número do sprite
+(`public/app/src/assets/chapeus/chapeu-NNN.png`). Conta registrada guarda no
+banco (colunas de `usuarios`); convidado guarda só em memória, pelo id da
+sessão — começa igual, pode comprar, nunca ganha fichas e perde tudo
+quando a sessão acaba (`convidado: true`).
+
+- `minhaCarteira` — payload `{}`; ack `{ ok: true, ...carteira }`.
+- `comprarItem` — payload `{ tipo: 'cor' | 'chapeu', valor }`; desconta o
+  preço (`PRECO_COR` 20, `PRECO_CHAPEU` 50), guarda pra sempre e já equipa.
+  Ack `{ ok: true, ...carteira }`. Erros: `ITEM_INVALIDO`,
+  `ITEM_JA_COMPRADO`, `SALDO_INSUFICIENTE`.
+- `equiparItem` — payload `{ tipo, valor }`; troca o equipado por um item
+  já comprado ou pelo grátis, sem custo. Ack `{ ok: true, ...carteira }`.
+  Erros: `ITEM_INVALIDO`, `ITEM_NAO_COMPRADO`.
+
+Todos também podem dar `NAO_IDENTIFICADO`.
+
+**Visual na partida**: ao entrar numa sala (`criarSala`, `partidaRapida`,
+`entrarSala`, `jogarDeNovo`), o assento copia a `cor`/`chapeu` equipados
+naquele momento; bots ganham um visual sorteado do catálogo. Os dois
+aparecem em `listaJogadores`, em `novaRodadaIniciada` (`visuais`) e no ack
+de `reconectar` (`jogadores` e `visuais`).
+
+**Fichas por colocação**: assim que um jogador sai da partida (eliminado) ou
+vence, conta registrada recebe `100 + 50 × (total − posição)` — com 4
+jogadores, 4º 100, 3º 150, 2º 200, 1º 250 (`recompensaColocacao`). Quem cai
+na mesma rodada empata na posição melhor. Não ganha: bot, convidado, quem
+desistiu (recebe pelo ack de `desistir`) e quem abandonou (vaga expirada).
+Vem no evento privado `fichasGanhas`.
+
 ## Eventos servidor -> cliente
 
 Todos levam `salaId` no payload. Todos são broadcast pra sala inteira
 (`io.to(salaId)`), **exceto `suaMao` e `maosReveladas`**, que são privados —
 vão só pra `jogador:<id>` de cada destinatário (e cada um recebe um recorte
-diferente, no caso de `maosReveladas`).
+diferente, no caso de `maosReveladas`), e de `fichasGanhas`, que vai só pra
+quem ganhou.
 
 ### `listaJogadores`
-`{ salaId, jogadores: [{ nome, adm }] }` — toda vez que a lista de espera muda.
+`{ salaId, jogadores: [{ nome, adm, cor, chapeu }] }` — toda vez que a lista de espera muda. `cor`/`chapeu` é o visual do assento (ver "Carteira e loja").
+
+### `fichasGanhas` (privado)
+`{ salaId, fichas, posicao, total, saldo }` — fichas da colocação, assim que
+quem recebe sai da partida ou vence (ver "Fichas por colocação" em "Carteira
+e loja"). `saldo` é o saldo novo da conta.
 
 ### `partidaIniciandoEm`
 `{ salaId, segundos }` — disparado assim que a sala lota. `segundos` é a
@@ -746,7 +796,7 @@ adicionado:
 
 | Evento | Payload (além de `salaId`) |
 |---|---|
-| `novaRodadaIniciada` | `{ numero, cartas, ordem }` — `ordem` é a lista de nomes na ordem dos assentos em volta da mesa: sorteada no início da partida e fixa até o fim (eliminado continua no lugar dele). A vez sempre anda pra frente nessa lista — só quem começa gira a cada rodada —, então é com ela que o front desenha a mesa em ordem de jogo (a ordem de `jogadores`/`listaJogadores` é a de entrada na sala, não a de jogo) |
+| `novaRodadaIniciada` | `{ numero, cartas, ordem, visuais }` — `visuais` é `[{ cor, chapeu }]` na mesma ordem de `ordem` (ver "Carteira e loja"). `ordem` é a lista de nomes na ordem dos assentos em volta da mesa: sorteada no início da partida e fixa até o fim (eliminado continua no lugar dele). A vez sempre anda pra frente nessa lista — só quem começa gira a cada rodada —, então é com ela que o front desenha a mesa em ordem de jogo (a ordem de `jogadores`/`listaJogadores` é a de entrada na sala, não a de jogo) |
 | `suaMao` **(privado)** | `{ mao: string[] }` — só a mão de quem recebe |
 | `maosReveladas` **(privado)** | `{ maos: [{ jogador, mao: string[] }] }` — conjunto de mãos que ESTE jogador pode ver; ver seção "Rodada de 1 carta" abaixo |
 | `manilhaVirada` | `{ vira, viraValor }` |

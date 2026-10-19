@@ -79,7 +79,7 @@
     flex-direction: column;
     border-radius: 12px;
     border: 2px solid #2e313d;
-    border-top: 4px solid hsl(var(--hue-barra) 70% 72%);
+    border-top: 4px solid var(--cor-barra);
     background: linear-gradient(180deg, #1a1c25, #14161d);
     box-shadow: 0 4px 0 #0a0b0e;
     transition: border-color .2s;
@@ -197,7 +197,7 @@
     padding: 10px 8px 12px 12px;
     border-radius: 14px;
     border: 2px solid #2e313d;
-    border-top: 4px solid hsl(var(--hue-barra) 70% 72%);
+    border-top: 4px solid var(--cor-barra);
     background: linear-gradient(180deg, #1a1c25, #14161d);
     box-shadow: 0 4px 0 #0a0b0e, 0 8px 20px rgba(0, 0, 0, .45);
     transition: border-color .2s;

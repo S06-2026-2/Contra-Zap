@@ -1,5 +1,6 @@
 
 import { Player } from './Player.js';
+import { COR_CINZA, SEM_CHAPEU } from '../conexao/loja.js';
 
 export class PlayerGame extends Player {
     constructor(playerBase) {
@@ -18,6 +19,11 @@ export class PlayerGame extends Player {
         // então nunca conta contra "sobrou alguém real pra voltar" (ver
         // _expirarVaga).
         this.eraBot = playerBase.bot === true;
+        // Visual do assento (ver conexao/loja.js), fixo a partir da entrada
+        // na sala: quem traz é a camada de rede (conta/convidado) ou o
+        // próprio bots/Bot.js; sem nada, o padrão grátis.
+        this.cor = playerBase.cor ?? COR_CINZA;
+        this.chapeu = playerBase.chapeu ?? SEM_CHAPEU;
 
         this.hp = 3;
         this._steak = 0;

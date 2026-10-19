@@ -16,6 +16,7 @@ import bcrypt from 'bcrypt';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { FICHAS_INICIAIS, COR_CINZA, SEM_CHAPEU } from './loja.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // DB_PATH sobrescreve o arquivo do banco. Existe pros testes automatizados
@@ -38,6 +39,22 @@ db.exec(`
         criado_em TEXT NOT NULL DEFAULT (datetime('now'))
     )
 `);
+
+// Carteira e visual de cada conta (ver conexao/carteira.js e
+// conexao/loja.js). Bancos criados antes dessas colunas ganham elas aqui no
+// boot, com o valor padrão em todas as contas que já existiam.
+// `cores_compradas`/`chapeus_comprados` são arrays JSON dos ids já pagos.
+const COLUNAS_CARTEIRA = {
+    fichas: `INTEGER NOT NULL DEFAULT ${FICHAS_INICIAIS}`,
+    cor: `INTEGER NOT NULL DEFAULT ${COR_CINZA}`,
+    chapeu: `INTEGER NOT NULL DEFAULT ${SEM_CHAPEU}`,
+    cores_compradas: `TEXT NOT NULL DEFAULT '[]'`,
+    chapeus_comprados: `TEXT NOT NULL DEFAULT '[]'`,
+};
+const colunasExistentes = new Set(db.prepare('PRAGMA table_info(usuarios)').all().map((c) => c.name));
+for (const [coluna, tipo] of Object.entries(COLUNAS_CARTEIRA)) {
+    if (!colunasExistentes.has(coluna)) db.exec(`ALTER TABLE usuarios ADD COLUMN ${coluna} ${tipo}`);
+}
 
 semearSeVazio();
 
@@ -86,6 +103,49 @@ export async function criarUsuario(nome, senha) {
     const senha_hash = await bcrypt.hash(senha, SALT_ROUNDS);
     const info = db.prepare('INSERT INTO usuarios (nome, senha_hash) VALUES (?, ?)').run(nome, senha_hash);
     return { id: info.lastInsertRowid, nome };
+}
+
+// Carteira da conta: { fichas, cor, chapeu, coresCompradas, chapeusComprados },
+// ou null se o id não existe.
+export function buscarCarteira(id) {
+    const linha = db.prepare(
+        'SELECT fichas, cor, chapeu, cores_compradas, chapeus_comprados FROM usuarios WHERE id = ?'
+    ).get(id);
+    if (!linha) return null;
+    return {
+        fichas: linha.fichas,
+        cor: linha.cor,
+        chapeu: linha.chapeu,
+        coresCompradas: JSON.parse(linha.cores_compradas),
+        chapeusComprados: JSON.parse(linha.chapeus_comprados),
+    };
+}
+
+// Soma `valor` ao saldo e devolve o saldo novo (null se a conta não existe).
+export function creditarFichas(id, valor) {
+    const linha = db.prepare('UPDATE usuarios SET fichas = fichas + ? WHERE id = ? RETURNING fichas').get(valor, id);
+    return linha ? linha.fichas : null;
+}
+
+// Grava a carteira inteira de volta (fichas, equipados e listas de
+// comprados) — quem valida a compra/troca é conexao/carteira.js, dentro de
+// `transacao` abaixo, pra leitura e escrita não se intercalarem com outra
+// compra da mesma conta.
+export function gravarCarteira(id, carteira) {
+    db.prepare(
+        'UPDATE usuarios SET fichas = ?, cor = ?, chapeu = ?, cores_compradas = ?, chapeus_comprados = ? WHERE id = ?'
+    ).run(
+        carteira.fichas,
+        carteira.cor,
+        carteira.chapeu,
+        JSON.stringify(carteira.coresCompradas),
+        JSON.stringify(carteira.chapeusComprados),
+        id
+    );
+}
+
+export function transacao(fn) {
+    return db.transaction(fn)();
 }
 
 // Assíncrona de propósito (ver comentário do topo do arquivo) — devolve uma

@@ -1,3 +1,5 @@
+import { tom } from '../../visual.js';
+
 // Ficha de aposta pro protótipo de mesa (MesaExperimento) — mesmo espírito
 // do Carta.jsx: componente NOVO, classes prefixadas "ficha-exp-" pra não
 // colidir com nada do jogo real (que hoje nem tem ficha nenhuma, só o
@@ -13,7 +15,8 @@
 // o detalhe que o rascunho original não tinha (lá era só um anel de cor
 // sólida).
 //
-// `hue` (0-360, ver huesPorAssento em MesaExperimento.jsx): quando vem
+// `hue` (0-360 ou COR_CINZA, ver huesPorAssento em MesaExperimento.jsx e
+// tom em visual.js): quando vem
 // preenchido, a FACE (miolo) usa essa cor — é o que faz a ficha de aposta
 // de um fantasminha "combinar" com a cor do corpo dele (mesma fonte, ver
 // Fantasminha.jsx). Sem `hue` (a SUA ficha, que não tem fantasminha pra
@@ -22,9 +25,9 @@ export default function Ficha({ destacada = false, hue }) {
     const corFace = hue == null
         ? undefined // undefined = deixa o gradiente dourado fixo do CSS
         : {
-            '--ficha-face-clara': `hsl(${hue}, 85%, 88%)`,
-            '--ficha-face-media': `hsl(${hue}, 75%, 68%)`,
-            '--ficha-face-escura': `hsl(${hue}, 60%, 48%)`,
+            '--ficha-face-clara': tom(hue, 85, 88),
+            '--ficha-face-media': tom(hue, 75, 68),
+            '--ficha-face-escura': tom(hue, 60, 48),
         };
     return (
         <div className={`ficha-exp${destacada ? ' ficha-exp-destacada' : ''}`}>

@@ -10,6 +10,7 @@
 // protocolo (não existe socket associado pra isso).
 import { Player } from '../game/Player.js';
 import { proximoIdEfemero } from '../game/idEfemero.js';
+import { visualAleatorio } from '../conexao/loja.js';
 
 // Só pro nome default "Bot N" — o id em si vem de idEfemero.js, uma fonte
 // única compartilhada com conexao/convidado.js (ver o comentário lá pra
@@ -22,5 +23,9 @@ export class Bot extends Player {
         super(nome ?? `Bot ${proximoNumero}`, null);
         this.id = proximoIdEfemero();
         this.bot = true;
+        // Sorteado aqui, uma vez, pra todo cliente ver o mesmo bot igual.
+        const { cor, chapeu } = visualAleatorio();
+        this.cor = cor;
+        this.chapeu = chapeu;
     }
 }
