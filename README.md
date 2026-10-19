@@ -89,6 +89,11 @@ front sozinho antes de subir.
 As convenções e as armadilhas deste protocolo estão na skill
 `.claude/skills/testes/` — leia antes de escrever teste novo.
 
+Um panorama da suíte (cobertura, decisões de construção e os defeitos que ela
+já encontrou) está em `docs/relatorio-testes.html` — página estática, abre
+direto no navegador. Os números de lá são medidos à mão, então atualize-os ao
+mexer na suíte.
+
 ## Documentação da API
 
 ```

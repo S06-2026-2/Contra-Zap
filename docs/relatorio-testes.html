@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qualidade do Contra ZAP</title>
+<!--
+  Relatorio de testes do Contra ZAP - pagina estatica, sem build e sem
+  dependencia: abra o arquivo no navegador.
+
+  Os numeros vem de execucao local medida arquivo a arquivo (Node 22). Ao
+  mexer na suite, atualize-os aqui, senao a pagina vira enfeite: e a mesma
+  armadilha que ja tinha deixado o README dizendo "222 testes" quando eram
+  270 (ver tests/docs/asyncapi.test.js, que trava as contagens do
+  protocolo justamente por isso).
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Relatório de engenharia em coluna única: veredito primeiro, evidência
+   depois, limites no fim. Papel frio e tinta azulada — instrumento de
+   medição, não mesa de carteado. */
+:root {
+    --papel: #f7f8f9;
+    --superficie: #ffffff;
+    --superficie-2: #eef1f3;
+    --linha: #d9dee2;
+    --linha-forte: #b6bfc6;
+    --tinta: #151d24;
+    --tinta-media: #46545f;
+    --tinta-fraca: #74828c;
+    --acento: #146b6b;
+    --acento-fundo: #e3f0ef;
+    --bom: #0ca30c;
+    --atencao: #fab219;
+
+    --display: 'Newsreader', Georgia, 'Times New Roman', serif;
+    --corpo: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+    --dado: 'IBM Plex Mono', ui-monospace, 'Courier New', monospace;
+}
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --papel: #12171b;
+        --superficie: #1a2127;
+        --superficie-2: #222b32;
+        --linha: #2e383f;
+        --linha-forte: #46545f;
+        --tinta: #e8edf1;
+        --tinta-media: #a8b5bf;
+        --tinta-fraca: #7a8893;
+        --acento: #4cc2bc;
+        --acento-fundo: #16302f;
+        --bom: #3fd13f;
+        --atencao: #fac44d;
+        color-scheme: dark;
+    }
+}
+:root[data-theme="dark"] {
+    --papel: #12171b;
+    --superficie: #1a2127;
+    --superficie-2: #222b32;
+    --linha: #2e383f;
+    --linha-forte: #46545f;
+    --tinta: #e8edf1;
+    --tinta-media: #a8b5bf;
+    --tinta-fraca: #7a8893;
+    --acento: #4cc2bc;
+    --acento-fundo: #16302f;
+    --bom: #3fd13f;
+    --atencao: #fac44d;
+    color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    background: var(--papel);
+    color: var(--tinta);
+    font-family: var(--corpo);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+}
+.folha {
+    max-width: 900px;
+    margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 40px 72px;
+    display: flex;
+    flex-direction: column;
+    gap: 44px;
+}
+
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+h1 {
+    font-family: var(--display);
+    font-size: clamp(2.1rem, 6vw, 3.1rem);
+    font-weight: 500;
+    line-height: 1.08;
+    letter-spacing: -0.015em;
+}
+h2 {
+    font-family: var(--display);
+    font-size: clamp(1.35rem, 3.2vw, 1.7rem);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+}
+h3 { font-family: var(--corpo); font-size: 0.97rem; font-weight: 600; }
+p { margin: 0; }
+.medida { max-width: 64ch; }
+
+.sobrescrito {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--tinta-fraca);
+}
+.mono { font-family: var(--dado); font-size: 0.86em; }
+.guia { color: var(--tinta-media); }
+
+/* ---------- cabeçalho ---------- */
+header.capa { display: flex; flex-direction: column; gap: 16px; }
+.capa .linha-meta {
+    display: flex; flex-wrap: wrap; gap: 6px 18px;
+    padding-top: 14px; border-top: 2px solid var(--tinta);
+    font-size: 0.8rem; color: var(--tinta-fraca);
+}
+.capa .linha-meta b { color: var(--tinta-media); font-weight: 500; }
+
+/* ---------- veredito ---------- */
+.veredito {
+    background: var(--superficie);
+    border: 1px solid var(--linha);
+    border-radius: 4px;
+    padding: 28px 26px;
+    display: grid;
+    gap: 28px;
+    grid-template-columns: 1fr;
+}
+@media (min-width: 680px) { .veredito { grid-template-columns: auto 1fr; align-items: center; } }
+
+.heroi { display: flex; flex-direction: column; gap: 2px; }
+/* Figura-herói no mesmo sans do resto, com algarismos proporcionais:
+   tabular-nums só nas colunas de tabela. */
+.heroi .numero {
+    font-family: var(--corpo);
+    font-size: clamp(3.4rem, 10vw, 4.6rem);
+    font-weight: 600;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    color: var(--tinta);
+}
+.heroi .legenda { font-size: 0.95rem; color: var(--tinta-media); }
+.selo-aprovado {
+    display: inline-flex; align-items: center; gap: 7px;
+    align-self: flex-start;
+    margin-top: 10px;
+    padding: 4px 11px 4px 8px;
+    border: 1px solid color-mix(in oklab, var(--bom), var(--linha) 55%);
+    background: color-mix(in oklab, var(--bom), var(--superficie) 90%);
+    border-radius: 999px;
+    font-size: 0.82rem; font-weight: 600;
+    color: var(--tinta);
+}
+.selo-aprovado svg { flex: none; }
+
+.ladrilhos { display: grid; gap: 18px 26px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 680px) { .ladrilhos { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.ladrilho { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ladrilho .valor { font-size: 1.6rem; font-weight: 600; line-height: 1.15; }
+.ladrilho .rotulo { font-size: 0.82rem; color: var(--tinta-fraca); }
+
+/* ---------- seções ---------- */
+section { display: flex; flex-direction: column; gap: 16px; }
+section > .sobrescrito { margin-bottom: -6px; }
+
+.cartao {
+    background: var(--superficie);
+    border: 1px solid var(--linha);
+    border-radius: 4px;
+    padding: 20px 22px;
+}
+.destaque {
+    border-left: 3px solid var(--acento);
+    background: var(--acento-fundo);
+    padding: 16px 20px;
+    border-radius: 0 4px 4px 0;
+}
+.destaque p { color: var(--tinta); }
+
+/* ---------- tabelas ---------- */
+.rolar { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.88rem; min-width: 0; }
+caption { text-align: left; font-size: 0.82rem; color: var(--tinta-fraca); padding-bottom: 8px; }
+th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--linha); vertical-align: top; }
+thead th {
+    font-size: 0.72rem; font-weight: 600; letter-spacing: 0.07em;
+    text-transform: uppercase; color: var(--tinta-fraca);
+    border-bottom: 1px solid var(--linha-forte);
+    white-space: nowrap;
+}
+tbody tr:last-child td { border-bottom: none; }
+td.num, th.num { text-align: right; font-family: var(--dado); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.arq { font-family: var(--dado); font-size: 0.82rem; white-space: nowrap; }
+tfoot td { font-weight: 600; border-top: 1px solid var(--linha-forte); border-bottom: none; }
+
+/* ---------- achados ---------- */
+.achados { display: flex; flex-direction: column; gap: 14px; }
+.achado {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    background: var(--superficie);
+    border: 1px solid var(--linha);
+    border-radius: 4px;
+    padding: 18px 20px;
+}
+.achado .topo { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: baseline; }
+.achado h3 { flex: 1 1 auto; min-width: 0; }
+.etiqueta {
+    flex: none;
+    font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 3px;
+    border: 1px solid var(--linha-forte);
+    color: var(--tinta-media);
+    background: var(--superficie-2);
+}
+.etiqueta.corrigido {
+    border-color: color-mix(in oklab, var(--bom), var(--linha) 50%);
+    background: color-mix(in oklab, var(--bom), var(--superficie) 90%);
+    color: var(--tinta);
+}
+.achado p { font-size: 0.92rem; color: var(--tinta-media); }
+.achado p strong { color: var(--tinta); font-weight: 500; }
+.achado .porque {
+    font-size: 0.86rem;
+    padding-top: 10px;
+    border-top: 1px dashed var(--linha);
+    color: var(--tinta-fraca);
+}
+.achado .porque b { color: var(--tinta-media); font-weight: 600; }
+
+/* ---------- listas ---------- */
+ul.marcada { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: 7px; }
+ul.marcada li { font-size: 0.92rem; color: var(--tinta-media); }
+ul.marcada li strong { color: var(--tinta); font-weight: 500; }
+
+.duas { display: grid; gap: 18px; grid-template-columns: 1fr; }
+@media (min-width: 680px) { .duas { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------- rodapé ---------- */
+footer.rodape {
+    border-top: 1px solid var(--linha);
+    padding-top: 18px;
+    font-size: 0.82rem;
+    color: var(--tinta-fraca);
+    display: flex; flex-direction: column; gap: 6px;
+}
+footer.rodape code { font-family: var(--dado); font-size: 0.95em; color: var(--tinta-media); }
+
+:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+</style>
+</head>
+<body>
+<div class="folha">
+
+    <header class="capa">
+        <span class="sobrescrito">Contra ZAP · Relatório de testes</span>
+        <h1>O jogo está coberto de ponta a ponta</h1>
+        <p class="medida guia">
+            O Contra ZAP é um jogo de cartas multiplayer em tempo real. Esta página
+            mostra o que a suíte de testes garante, como ela foi construída e quais
+            defeitos reais ela já encontrou antes de alguém jogar.
+        </p>
+        <div class="linha-meta">
+            <span>Branch <b>testes-manutencao</b></span>
+            <span>Base <b>852479d</b></span>
+            <span>Node <b>22</b></span>
+            <span>Execução local completa</span>
+        </div>
+    </header>
+
+    <div class="veredito">
+        <div class="heroi">
+            <span class="numero">289</span>
+            <span class="legenda">testes automatizados</span>
+            <span class="selo-aprovado">
+                <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+                    <circle cx="8" cy="8" r="7" fill="none" stroke="var(--bom)" stroke-width="1.6"/>
+                    <path d="M4.6 8.2 L7 10.5 L11.4 5.6" fill="none" stroke="var(--bom)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Todos passando
+            </span>
+        </div>
+        <div class="ladrilhos">
+            <div class="ladrilho">
+                <span class="valor">0</span>
+                <span class="rotulo">Falhas na última execução</span>
+            </div>
+            <div class="ladrilho">
+                <span class="valor">51 de 51</span>
+                <span class="rotulo">Eventos do protocolo cobertos</span>
+            </div>
+            <div class="ladrilho">
+                <span class="valor">36 de 36</span>
+                <span class="rotulo">Códigos de erro exercitados</span>
+            </div>
+            <div class="ladrilho">
+                <span class="valor">4</span>
+                <span class="rotulo">Jobs no pipeline do CI</span>
+            </div>
+        </div>
+    </div>
+
+    <section>
+        <span class="sobrescrito">O que está sendo testado</span>
+        <h2>A API de verdade não é HTTP</h2>
+        <p class="medida guia">
+            O projeto tem <strong>um</strong> endpoint HTTP, o <span class="mono">/health</span>.
+            Todo o resto — login, salas, apostas, cartas, chat, reconexão — acontece por
+            <strong>socket.io</strong>, com request e response pelo <em>ack</em> do próprio
+            evento. É essa a superfície que precisa de contrato, e é ela que a suíte cobre.
+        </p>
+        <div class="destaque">
+            <p>
+                Cada evento responde <span class="mono">{ ok: true, … }</span> ou
+                <span class="mono">{ ok: false, codigo, mensagem }</span>. O
+                <span class="mono">codigo</span> é o que o cliente usa para decidir o que
+                fazer, então cada um dos 36 códigos tem teste próprio. Caminho feliz
+                coberto sem os erros é contrato pela metade.
+            </p>
+        </div>
+    </section>
+
+    <section>
+        <span class="sobrescrito">Cobertura</span>
+        <h2>Duas suítes, dois trabalhos</h2>
+        <div class="duas">
+            <div class="cartao">
+                <h3>Protocolo e regras · 270 testes</h3>
+                <p class="guia" style="font-size:.92rem;margin-top:6px">
+                    Sobe o servidor de verdade numa porta efêmera e conversa com ele por
+                    socket. Sem mock: o <span class="mono">Server.js</span> que roda aqui é o
+                    mesmo que vai para produção.
+                </p>
+                <ul class="marcada" style="margin-top:12px">
+                    <li><strong>Autenticação</strong> — login em etapas, cadastro, convidado, retomar sessão</li>
+                    <li><strong>Salas</strong> — criar, entrar, listar, sair, forçar início, partida rápida</li>
+                    <li><strong>Partida</strong> — mão, manilha, aposta, vaza, eliminação, fim de jogo</li>
+                    <li><strong>Reconexão</strong> — timeout, inatividade, vaga expirada, troca de adm</li>
+                    <li><strong>Limites</strong> — tetos de nome e senha, rate limit por IP, teto de salas</li>
+                </ul>
+            </div>
+            <div class="cartao">
+                <h3>Interface no navegador · 19 testes</h3>
+                <p class="guia" style="font-size:.92rem;margin-top:6px">
+                    Playwright com Chromium de verdade, contra o servidor real. Cobre só o
+                    que a suíte de protocolo não alcança: a tela e a costura entre as peças.
+                </p>
+                <ul class="marcada" style="margin-top:12px">
+                    <li><strong>Login</strong> — fluxo em etapas, campos que travam antes de enviar</li>
+                    <li><strong>Sala de espera</strong> — dois jogadores reais, roster nas duas telas</li>
+                    <li><strong>Partida</strong> — aposta só na sua vez, carta sai da mão</li>
+                    <li><strong>Reconexão</strong> — F5 no meio do jogo devolve a partida</li>
+                    <li><strong>Queda de rede</strong> — o aviso aparece e some quando volta</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="cartao rolar" style="padding:18px 20px">
+            <table>
+                <caption>Distribuição dos 270 testes de protocolo, medidos arquivo a arquivo.</caption>
+                <thead>
+                    <tr><th>Arquivo</th><th class="num">Testes</th><th class="num">Tempo</th><th>Assunto</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td class="arq">salas.test.js</td><td class="num">58</td><td class="num">1,3 s</td><td>ciclo de vida da sala</td></tr>
+                    <tr><td class="arq">autenticacao.test.js</td><td class="num">48</td><td class="num">2,2 s</td><td>identidade e sessão</td></tr>
+                    <tr><td class="arq">partida.test.js</td><td class="num">38</td><td class="num">1,4 s</td><td>regras do jogo</td></tr>
+                    <tr><td class="arq">reconexao.test.js</td><td class="num">34</td><td class="num">26,1 s</td><td>ausência e volta</td></tr>
+                    <tr><td class="arq">chat.test.js</td><td class="num">32</td><td class="num">1,8 s</td><td>mensagens e cooldown</td></tr>
+                    <tr><td class="arq">limites.test.js</td><td class="num">24</td><td class="num">1,9 s</td><td>tetos e rate limit</td></tr>
+                    <tr><td class="arq">carteira.test.js</td><td class="num">14</td><td class="num">1,7 s</td><td>fichas e loja</td></tr>
+                    <tr><td class="arq">modelosBot.test.js</td><td class="num">7</td><td class="num">0,2 s</td><td>catálogo de bots</td></tr>
+                    <tr><td class="arq">asyncapi.test.js</td><td class="num">7</td><td class="num">0,1 s</td><td>spec × protocolo</td></tr>
+                    <tr><td class="arq">health.test.js</td><td class="num">4</td><td class="num">0,9 s</td><td>o único endpoint HTTP</td></tr>
+                    <tr><td class="arq">segurarAnimacoes.test.js</td><td class="num">4</td><td class="num">1,0 s</td><td>turno x animação</td></tr>
+                </tbody>
+                <tfoot>
+                    <tr><td>11 arquivos</td><td class="num">270</td><td class="num">&lt; 30 s</td><td>em paralelo</td></tr>
+                </tfoot>
+            </table>
+        </div>
+        <p class="medida guia" style="font-size:.88rem">
+            O arquivo de reconexão domina o relógio sozinho. É inerente ao que ele testa:
+            expiração de vaga e inatividade exigem esperar tempo real passar, e acelerar
+            isso falsearia justamente o comportamento sob teste.
+        </p>
+    </section>
+
+    <section>
+        <span class="sobrescrito">Resultado</span>
+        <h2>O que os testes já pegaram</h2>
+        <p class="medida guia">
+            Suíte que só confirma o que já funciona não paga o próprio custo. Estes são
+            defeitos reais encontrados nesta rodada de manutenção, todos corrigidos.
+        </p>
+
+        <div class="achados">
+            <article class="achado">
+                <div class="topo">
+                    <h3>O E2E não rodava em máquina nova</h3>
+                    <span class="etiqueta corrigido">Corrigido</span>
+                </div>
+                <p>
+                    <span class="mono">npm run test:e2e</span> morria antes do primeiro teste com
+                    <span class="mono">vite: not found</span>. O passo que instala as dependências
+                    do front tinha sumido num merge.
+                </p>
+                <p class="porque">
+                    <b>Por que ninguém viu:</b> no CI o E2E roda contra a imagem Docker, caminho
+                    em que esse passo nem é usado. Quebrava só na máquina de quem desenvolve —
+                    exatamente onde alguém que acabou de clonar conclui que a suíte não presta.
+                </p>
+            </article>
+
+            <article class="achado">
+                <div class="topo">
+                    <h3>Oito eventos do protocolo sem documentação</h3>
+                    <span class="etiqueta corrigido">Corrigido</span>
+                </div>
+                <p>
+                    Loja, carteira, animações, <span class="mono">timerTurno</span> e
+                    <span class="mono">fichasGanhas</span> existiam no servidor e não apareciam
+                    na especificação da API que o time publica.
+                </p>
+                <p class="porque">
+                    <b>Por que ninguém viu:</b> o CI valida a <i>forma</i> do arquivo, não a
+                    cobertura. Um evento faltando passa validando. Agora um teste compara as
+                    duas listas nos dois sentidos e acusa pelo nome.
+                </p>
+            </article>
+
+            <article class="achado">
+                <div class="topo">
+                    <h3>Dois eventos que nenhum teste conseguia disparar</h3>
+                    <span class="etiqueta corrigido">Corrigido</span>
+                </div>
+                <p>
+                    <span class="mono">jogadoresEliminados</span> era inalcançável numa mesa de 2:
+                    quem zera a vida deixa um vivo, e o motor resolve o fim de jogo antes de
+                    virar a rodada, que é quem emite o evento. Toda a suíte usava mesas de 2.
+                </p>
+                <p class="porque">
+                    <b>Por que ninguém viu:</b> não era descuido, era consequência do cenário
+                    padrão. <span class="mono">novoAdm</span> tinha o mesmo problema: o helper
+                    punha o administrador como jogador ativo, então o posto nunca precisava
+                    trocar de mão.
+                </p>
+            </article>
+
+            <article class="achado">
+                <div class="topo">
+                    <h3>Um teste intermitente, caçado até a causa</h3>
+                    <span class="etiqueta corrigido">Corrigido</span>
+                </div>
+                <p>
+                    Falhava uma vez a cada dez execuções. Em vez de aceitar como "flaky", a
+                    execução foi repetida com captura até reproduzir: em algumas partidas
+                    vários jogadores zeram a vida na mesma virada e o evento esperado nunca sai.
+                </p>
+                <p class="porque">
+                    <b>Correção:</b> semente fixa no embaralhamento, recurso que o próprio
+                    protocolo oferece. A mesa passa a ser reproduzível carta por carta.
+                    <b>Depois:</b> 12 execuções completas sem falha.
+                </p>
+            </article>
+        </div>
+    </section>
+
+    <section>
+        <span class="sobrescrito">Como foi construída</span>
+        <h2>Decisões que sustentam a suíte</h2>
+        <div class="duas">
+            <div class="cartao">
+                <h3>Isolamento por processo</h3>
+                <p class="guia" style="font-size:.92rem;margin-top:6px">
+                    Cada arquivo roda com um banco SQLite temporário próprio, criado e apagado
+                    pela própria suíte. Rodar os testes nunca toca o banco nem a chave de quem
+                    está desenvolvendo, e nenhum arquivo enxerga conta criada por outro.
+                </p>
+            </div>
+            <div class="cartao">
+                <h3>Uma dependência, no total</h3>
+                <p class="guia" style="font-size:.92rem;margin-top:6px">
+                    A suíte de protocolo usa o runner nativo do Node, sem nenhuma biblioteca.
+                    A única dependência de desenvolvimento do projeto é o Playwright, com
+                    versão travada sem <span class="mono">^</span>: ele amarra o build exato
+                    do navegador.
+                </p>
+            </div>
+            <div class="cartao">
+                <h3>Cenário montado só pelo protocolo</h3>
+                <p class="guia" style="font-size:.92rem;margin-top:6px">
+                    Nenhum teste mexe no estado interno do servidor para chegar mais rápido na
+                    situação desejada. Um atalho por dentro esconderia justamente a regressão
+                    que o teste existe para pegar.
+                </p>
+            </div>
+            <div class="cartao">
+                <h3>Espera por evento, nunca por relógio</h3>
+                <p class="guia" style="font-size:.92rem;margin-top:6px">
+                    Os testes aguardam o evento que prova o que aconteceu, em vez de dormir e
+                    torcer. É o que permite a suíte inteira fechar em menos de 30 segundos sem
+                    ser instável.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <span class="sobrescrito">Evidência</span>
+        <h2>Estabilidade medida, não presumida</h2>
+        <div class="cartao rolar">
+            <table>
+                <thead>
+                    <tr><th>Verificação</th><th class="num">Execuções</th><th class="num">Falhas</th><th>Observação</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Suíte de protocolo, completa</td><td class="num">12</td><td class="num">0</td><td>depois da correção do intermitente</td></tr>
+                    <tr><td>E2E no navegador</td><td class="num">3</td><td class="num">0</td><td>44,3 s · 39,1 s · 37,3 s</td></tr>
+                    <tr><td>Especificação da API</td><td class="num">—</td><td class="num">0</td><td>validada com o mesmo comando do CI</td></tr>
+                    <tr><td>Teste de contrato, por mutação</td><td class="num">1</td><td class="num">—</td><td>defeito injetado, acusado pelo nome</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="medida guia" style="font-size:.88rem">
+            A última linha é a que importa mais. Um teste que só passa não prova que pega o
+            erro: um canal e um código foram removidos da especificação de propósito, o teste
+            falhou apontando os dois, e voltou a passar quando foram restaurados.
+        </p>
+    </section>
+
+    <footer class="rodape">
+        <div>
+            Números medidos em execução local, arquivo a arquivo, em Node 22. A suíte de
+            protocolo roda com <code>npm test</code> e a de navegador com <code>npm run test:e2e</code>.
+        </div>
+        <div>
+            Convenções e armadilhas do protocolo estão versionadas junto com o código, em
+            <code>.claude/skills/testes/</code>.
+        </div>
+    </footer>
+</div>
+</body>
+</html>
