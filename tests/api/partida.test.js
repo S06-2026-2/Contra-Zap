@@ -341,8 +341,18 @@ test('partida até o fim', async (t) => {
     // antes de virar a rodada (_resolverFimDeJogo roda antes de
     // _avancarParaProximaRodada, que é quem emite `jogadoresEliminados`).
     // Era por isso que o evento não tinha teste nenhum.
+    //
+    // E `seed` não é luxo aqui: sem ela o teste é intermitente de verdade
+    // (~10%). Nas rodadas de 3+ cartas vários jogadores podem zerar a vida
+    // na MESMA virada; quando isso deixa um só vivo, a partida termina pelo
+    // mesmo atalho de cima e o evento nunca sai — foi assim que este teste
+    // falhou uma vez em onze, esperando 60s por um evento que não viria.
+    // Com a seed a mesa é reproduzível carta por carta (ver `seed` em
+    // criarSala no PROTOCOLO.md), então a eliminação acontece sempre no
+    // mesmo ponto. Se um dia o baralho ou o rng mudarem, isto quebra de
+    // forma determinística — alta e sempre, não uma vez a cada dez.
     await t.test('jogadoresEliminados sai quando alguém zera a vida e a partida continua', async () => {
-        const { salaId, clientes } = await partidaEmAndamento(servidor, { humanos: 4 });
+        const { salaId, clientes } = await partidaEmAndamento(servidor, { humanos: 4, seed: 1 });
         const parar = clientes.map(cliente => jogarSozinho(cliente, salaId));
         t.after(() => parar.forEach(fn => fn()));
 
