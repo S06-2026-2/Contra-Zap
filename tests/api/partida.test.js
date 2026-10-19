@@ -335,6 +335,29 @@ test('partida até o fim', async (t) => {
         assert.equal(fim.salaId, salaId);
         assert.ok(clientes.some(cliente => cliente.nome === fim.vencedor), `vencedor inesperado: ${fim.vencedor}`);
     });
+
+    // Mesa de 4 de propósito. Numa de 2 este evento é inalcançável: quem
+    // zera a vida deixa UM vivo, e o GameController resolve o fim de jogo
+    // antes de virar a rodada (_resolverFimDeJogo roda antes de
+    // _avancarParaProximaRodada, que é quem emite `jogadoresEliminados`).
+    // Era por isso que o evento não tinha teste nenhum.
+    await t.test('jogadoresEliminados sai quando alguém zera a vida e a partida continua', async () => {
+        const { salaId, clientes } = await partidaEmAndamento(servidor, { humanos: 4 });
+        const parar = clientes.map(cliente => jogarSozinho(cliente, salaId));
+        t.after(() => parar.forEach(fn => fn()));
+
+        const eliminacao = await clientes[0].esperar(EventosServidor.JOGADORES_ELIMINADOS, { timeoutMs: 60_000 });
+
+        assert.equal(eliminacao.salaId, salaId);
+        assert.ok(eliminacao.eliminados.length >= 1, 'o evento só sai quando há eliminado');
+        for (const morto of eliminacao.eliminados) {
+            assert.ok(clientes.some(cliente => cliente.nome === morto.nome), `eliminado inesperado: ${morto.nome}`);
+            assert.ok(morto.hp <= 0, `${morto.nome} foi eliminado com hp ${morto.hp}`);
+        }
+        // Se a partida tivesse acabado aqui, este evento não teria saído —
+        // ele é o sinal de que a mesa encolheu mas o jogo segue.
+        assert.ok(eliminacao.eliminados.length < clientes.length, 'não dá pra eliminar a mesa inteira e continuar');
+    });
 });
 
 test('jogarDeNovo', async (t) => {
