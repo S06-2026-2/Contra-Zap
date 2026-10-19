@@ -1275,8 +1275,8 @@ components:
     CodigoErro:
       type: string
       description: |
-        Os 27 códigos de `conexao/eventos.js`. Use este campo para lógica no
-        cliente, nunca a `mensagem`.
+        Todos os códigos de `conexao/eventos.js`. Use este campo para lógica
+        no cliente, nunca a `mensagem`.
       enum:
         - NAO_IDENTIFICADO
         - NOME_INVALIDO
@@ -1310,3 +1310,7 @@ components:
         - JA_AUTENTICADO
         - MUITAS_TENTATIVAS
         - ERRO_INTERNO
+        - SALDO_INSUFICIENTE
+        - ITEM_INVALIDO
+        - ITEM_JA_COMPRADO
+        - ITEM_NAO_COMPRADO
