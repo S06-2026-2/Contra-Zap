@@ -16,7 +16,7 @@ info:
   version: 1.0.0
   description: |
     Jogo de cartas estilo truco, multiplayer. Este é o contrato completo entre
-    cliente e servidor: 19 eventos de cliente, 23 de servidor, 32 códigos de erro.
+    cliente e servidor: 25 eventos de cliente, 26 de servidor, 36 códigos de erro.
 
     ## Formato geral
 
@@ -182,6 +182,40 @@ channels:
       pedido: { $ref: '#/components/messages/PedidoSala' }
       resposta: { $ref: '#/components/messages/RespostaOk' }
 
+  # ---------- segurar pelas animações ----------
+  aindaAnimando:
+    address: aindaAnimando
+    title: Renovar a espera enquanto o front ainda anima
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoSala' }
+      resposta: { $ref: '#/components/messages/RespostaOk' }
+  animacoesConcluidas:
+    address: animacoesConcluidas
+    title: Terminei de animar até um ponto da fila
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoAnimacoesConcluidas' }
+      resposta: { $ref: '#/components/messages/RespostaOk' }
+
+  # ---------- carteira e loja ----------
+  minhaCarteira:
+    address: minhaCarteira
+    title: Saldo, visual equipado e itens já comprados
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoVazio' }
+      resposta: { $ref: '#/components/messages/RespostaCarteira' }
+  comprarItem:
+    address: comprarItem
+    title: Comprar um item da loja (e já equipar)
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoItem' }
+      resposta: { $ref: '#/components/messages/RespostaCarteira' }
+  equiparItem:
+    address: equiparItem
+    title: Equipar um item já comprado ou o grátis
+    messages:
+      pedido: { $ref: '#/components/messages/PedidoItem' }
+      resposta: { $ref: '#/components/messages/RespostaCarteira' }
+
   # ---------- empurrados pelo servidor ----------
   jogadorDesistiu:
     address: jogadorDesistiu
@@ -275,6 +309,18 @@ channels:
     address: chatMensagem
     title: Mensagem de chat para a sala
     messages: { evento: { $ref: '#/components/messages/EvChatMensagem' } }
+  distribuicaoConcluida:
+    address: distribuicaoConcluida
+    title: A distribuição da rodada terminou de ser segurada
+    messages: { evento: { $ref: '#/components/messages/EvDistribuicaoConcluida' } }
+  timerTurno:
+    address: timerTurno
+    title: O relógio de um turno começou a correr
+    messages: { evento: { $ref: '#/components/messages/EvTimerTurno' } }
+  fichasGanhas:
+    address: fichasGanhas
+    title: Recompensa da colocação (privado)
+    messages: { evento: { $ref: '#/components/messages/EvFichasGanhas' } }
 
 operations:
   # ---------- identidade ----------
@@ -554,6 +600,67 @@ operations:
       channel: { $ref: '#/channels/desistir' }
       messages: [{ $ref: '#/channels/desistir/messages/resposta' }]
 
+  # ---------- segurar pelas animações ----------
+  enviarAindaAnimando:
+    action: send
+    channel: { $ref: '#/channels/aindaAnimando' }
+    summary: '"Ainda estou animando o que já chegou" — renova a espera do turno.'
+    description: |
+      Ver "Segurar pelas animações" no `PROTOCOLO.md`. O ack é opcional: o
+      servidor responde `{ ok: true }`, mas o cliente pode emitir sem callback.
+      Quem nunca manda nada não segura ninguém.
+    messages: [{ $ref: '#/channels/aindaAnimando/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/aindaAnimando' }
+      messages: [{ $ref: '#/channels/aindaAnimando/messages/resposta' }]
+  enviarAnimacoesConcluidas:
+    action: send
+    channel: { $ref: '#/channels/animacoesConcluidas' }
+    summary: '"Terminei de animar tudo até o evento `seq`".'
+    description: |
+      `seq` null significa "não me espere mais". Ack opcional, igual a
+      `aindaAnimando`.
+    messages: [{ $ref: '#/channels/animacoesConcluidas/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/animacoesConcluidas' }
+      messages: [{ $ref: '#/channels/animacoesConcluidas/messages/resposta' }]
+
+  # ---------- carteira e loja ----------
+  enviarMinhaCarteira:
+    action: send
+    channel: { $ref: '#/channels/minhaCarteira' }
+    summary: Saldo, visual equipado e itens já pagos.
+    description: |
+      Convidado tem carteira só da sessão (`convidado: true`) e nunca ganha
+      fichas. Erro: `NAO_IDENTIFICADO`.
+    messages: [{ $ref: '#/channels/minhaCarteira/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/minhaCarteira' }
+      messages: [{ $ref: '#/channels/minhaCarteira/messages/resposta' }]
+  enviarComprarItem:
+    action: send
+    channel: { $ref: '#/channels/comprarItem' }
+    summary: Compra para sempre e já equipa.
+    description: |
+      Preços em `conexao/loja.js`. Devolve a carteira inteira depois da
+      compra. Erros: `NAO_IDENTIFICADO`, `ITEM_INVALIDO`,
+      `SALDO_INSUFICIENTE`, `ITEM_JA_COMPRADO`.
+    messages: [{ $ref: '#/channels/comprarItem/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/comprarItem' }
+      messages: [{ $ref: '#/channels/comprarItem/messages/resposta' }]
+  enviarEquiparItem:
+    action: send
+    channel: { $ref: '#/channels/equiparItem' }
+    summary: Troca o equipado por um item já comprado ou pelo grátis.
+    description: |
+      Os grátis (`COR_CINZA`, `SEM_CHAPEU`) não precisam estar comprados.
+      Erros: `NAO_IDENTIFICADO`, `ITEM_INVALIDO`, `ITEM_NAO_COMPRADO`.
+    messages: [{ $ref: '#/channels/equiparItem/messages/pedido' }]
+    reply:
+      channel: { $ref: '#/channels/equiparItem' }
+      messages: [{ $ref: '#/channels/equiparItem/messages/resposta' }]
+
   # ---------- recebidos ----------
   receberJogadorDesistiu:
     action: receive
@@ -652,6 +759,25 @@ operations:
     action: receive
     channel: { $ref: '#/channels/chatMensagem' }
     summary: Broadcast para a sala inteira, incluindo quem enviou.
+  receberDistribuicaoConcluida:
+    action: receive
+    channel: { $ref: '#/channels/distribuicaoConcluida' }
+    summary: O servidor segurou o tempo fixo da distribuição e vai pedir a primeira aposta.
+    description: Só sai quando algum front aderiu ao "segurar pelas animações".
+  receberTimerTurno:
+    action: receive
+    channel: { $ref: '#/channels/timerTurno' }
+    summary: O relógio desse jogador começou AGORA; `tempoMs` até o automático agir.
+    description: |
+      Para assento de bot, `tempoMs` é o `atrasoBotMs` — a pausa antes de
+      decidir, não um prazo que alguém possa perder.
+  receberFichasGanhas:
+    action: receive
+    channel: { $ref: '#/channels/fichasGanhas' }
+    summary: PRIVADO — recompensa da colocação, assim que o jogador sai da partida ou vence.
+    description: |
+      Só para conta registrada. Nunca sai para convidado, para quem desistiu
+      nem para quem teve a vaga expirada.
 
 components:
   messages:
@@ -739,6 +865,34 @@ components:
           id: { type: integer, description: 'Só para `restrita` — id do catálogo em `conexao/chat/mensagensChat.js` (1 a 4).' }
 
     # respostas
+    PedidoAnimacoesConcluidas:
+      name: PedidoAnimacoesConcluidas
+      payload:
+        type: object
+        required: [salaId]
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          seq:
+            type: [integer, 'null']
+            description: 'Último evento animado. `null` = "não me espere mais".'
+            examples: [12, null]
+    PedidoItem:
+      name: PedidoItem
+      title: Item da loja (comprar ou equipar)
+      payload:
+        type: object
+        required: [tipo, valor]
+        properties:
+          tipo: { type: string, enum: [cor, chapeu] }
+          valor:
+            type: integer
+            description: |
+              Para `cor`, o matiz em graus de 10 em 10 (0..350); `-1`
+              (`COR_CINZA`) é o cinza grátis. Para `chapeu`, o número do
+              sprite; `0` (`SEM_CHAPEU`) é o grátis. Catálogos em
+              `conexao/loja.js`.
+            examples: [120, -1, 3]
+
     RespostaOk:
       name: RespostaOk
       title: Sucesso sem corpo
@@ -841,6 +995,35 @@ components:
               carta: { type: string, description: 'A carta, no mesmo formato de `suaMao`.' }
               modeloBot: { type: string, description: 'Id do bot da sala (bots/modelosBot.js).' }
           - { $ref: '#/components/schemas/Erro' }
+    RespostaCarteira:
+      name: RespostaCarteira
+      title: Carteira inteira (saldo, equipado e comprados)
+      description: |
+        Mesma forma nos três eventos de carteira — `minhaCarteira`,
+        `comprarItem` e `equiparItem` devolvem o estado completo depois da
+        operação, não um delta.
+      payload:
+        type: object
+        required: [ok, fichas, cor, chapeu, coresCompradas, chapeusComprados, convidado]
+        properties:
+          ok: { type: boolean, const: true }
+          fichas: { type: integer, minimum: 0, examples: [100] }
+          cor:
+            type: integer
+            description: 'Matiz equipado; `-1` = cinza grátis.'
+            examples: [-1, 120]
+          chapeu:
+            type: integer
+            description: 'Sprite equipado; `0` = sem chapéu.'
+            examples: [0, 3]
+          coresCompradas: { type: array, items: { type: integer }, examples: [[120, 240]] }
+          chapeusComprados: { type: array, items: { type: integer }, examples: [[3]] }
+          convidado:
+            type: boolean
+            description: |
+              `true` = carteira só da sessão: some ao desconectar e nunca
+              ganha fichas de partida.
+
     RespostaReconectar:
       name: RespostaReconectar
       title: Estado para remontar a tela
@@ -1017,6 +1200,44 @@ components:
           salaId: { $ref: '#/components/schemas/SalaId' }
           motivo: { type: string, examples: [erro_interno] }
           erro: { type: string, description: Mensagem da exceção, para diagnóstico. }
+    EvDistribuicaoConcluida:
+      name: EvDistribuicaoConcluida
+      payload:
+        type: object
+        required: [salaId, numero]
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          numero: { type: integer, minimum: 1, description: 'Número da rodada cuja distribuição terminou.' }
+    EvTimerTurno:
+      name: EvTimerTurno
+      payload:
+        type: object
+        required: [salaId, id, jogador, tipo, tempoMs]
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          id: { type: string, description: 'Id do jogador de quem é a vez.' }
+          jogador: { type: string, examples: [henrique] }
+          tipo: { type: string, enum: [aposta, jogada] }
+          tempoMs:
+            type: integer
+            minimum: 0
+            description: |
+              Quanto falta até o automático agir. Para bot é o `atrasoBotMs`
+              (pausa antes de decidir), não um prazo perdível.
+            examples: [20000, 2000]
+    EvFichasGanhas:
+      name: EvFichasGanhas
+      title: Recompensa da colocação (privado)
+      payload:
+        type: object
+        required: [salaId, fichas, posicao, total, saldo]
+        properties:
+          salaId: { $ref: '#/components/schemas/SalaId' }
+          fichas: { type: integer, minimum: 0, description: 'Quanto esta colocação rendeu.' }
+          posicao: { type: integer, minimum: 1, examples: [1] }
+          total: { type: integer, minimum: 1, description: 'Quantos disputaram a partida.', examples: [4] }
+          saldo: { type: integer, minimum: 0, description: 'Saldo da carteira depois do crédito.' }
+
     EvChatMensagem:
       name: chatMensagem
       payload:
