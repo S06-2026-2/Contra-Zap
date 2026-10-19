@@ -5,6 +5,9 @@ import Partida from './components/Partida.jsx';
 import PartidaNovo from './components/novo/Partida.jsx';
 import PartidaMeetfront1 from './components/meetfront1/Partida.jsx';
 import PartidaMeetfront2 from './components/meetfront2/Partida.jsx';
+import InicioMeetfront2 from './components/meetfront2/Inicio.jsx';
+import CustomizacaoMeetfront2 from './components/meetfront2/Customizacao.jsx';
+import AvisoFichas from './components/meetfront2/AvisoFichas.jsx';
 import LoginArcade from './components/arcade/Login.jsx';
 import LobbyArcade from './components/arcade/Lobby.jsx';
 import PartidaArcade from './components/arcade/Partida.jsx';
@@ -28,7 +31,9 @@ const ROTA_FRENTE = '/front';
 // (cópia da mesa do novo onde entram as mudanças do encontro com o grupo).
 //
 // "meetfront2" é a frente das mudanças do segundo encontro, com a Partida
-// de components/meetfront2/ (por enquanto a mesma do meetfront1).
+// de components/meetfront2/. No lugar do Login ela tem a tela inicial
+// (`Inicio`: JOGAR e CUSTOMIZAÇÃO, com pop-up de login quando precisa) e a
+// `Customizacao`.
 //
 // "arcade" é a casca de components/arcade/ (ver
 // design_handoff_frente_arcade/README.md) — mesmas props das outras, mais
@@ -40,7 +45,13 @@ const ROTA_FRENTE = '/front';
 const FRENTES = {
     novo: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaNovo },
     meetfront1: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaMeetfront1 },
-    meetfront2: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaMeetfront2 },
+    meetfront2: {
+        Login: LoginArcade,
+        Lobby: LobbyArcade,
+        Partida: PartidaMeetfront2,
+        Inicio: InicioMeetfront2,
+        Customizacao: CustomizacaoMeetfront2,
+    },
     arcade: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaArcade },
     mescla: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaMescla },
     debugging: { Login, Lobby, Partida },
@@ -67,6 +78,10 @@ export default function App() {
     }, [frente]);
     const [player, setPlayer] = useState(null); // { nome, token }
     const [sala, setSala] = useState(null); // { salaId, jogadoresIniciais } ou { salaId, reconexao }
+    // Só nas frentes com tela inicial (ver `Inicio` em FRENTES): null é a
+    // própria tela inicial; 'jogar' (salas/partida) e 'customizar' só valem
+    // com sessão — sem ela, cai de volta na tela inicial.
+    const [destino, setDestino] = useState(null);
     // salaId de uma partida em andamento em que ainda temos assento mas cujo
     // socket não está mais na room — seja por expulsão por inatividade (ver
     // jogadorExpulsoPorInatividade em conexao/PROTOCOLO.md), seja por ter
@@ -193,6 +208,14 @@ export default function App() {
         setEscolhendoFrente(false);
     }
 
+    // Sair da conta: sem evento de logout no protocolo, o jeito de o
+    // servidor esquecer quem somos é um socket novo — recarregar a página
+    // sem a sessão salva faz isso e volta pra tela inicial deslogado.
+    function sairDaConta() {
+        limparSessaoSalva();
+        window.location.assign('/');
+    }
+
     if (escolhendoFrente) {
         return (
             <SeletorFrente
@@ -224,7 +247,13 @@ export default function App() {
         );
     }
 
-    const { Login: TelaLogin, Lobby: TelaLobby, Partida: TelaPartida } = FRENTES[frente];
+    const {
+        Login: TelaLogin,
+        Lobby: TelaLobby,
+        Partida: TelaPartida,
+        Inicio: TelaInicio,
+        Customizacao: TelaCustomizacao,
+    } = FRENTES[frente];
     const ehArcade = frente === 'arcade';
     // Tela desenhada pela casca da arcade (que tem a própria faixa de
     // conexão perdida): tudo na arcade e na mescla, e Login/Lobby no "novo",
@@ -234,12 +263,25 @@ export default function App() {
     const propsConexao = telaArcade ? { conectado } : {};
 
     let tela;
-    if (!player) {
+    if (TelaInicio && !sala && (!player || destino === null)) {
+        tela = (
+            <TelaInicio
+                meuNome={player?.nome}
+                onAutenticado={autenticar}
+                onIr={setDestino}
+                onSair={sairDaConta}
+                {...propsConexao}
+            />
+        );
+    } else if (TelaCustomizacao && !sala && destino === 'customizar') {
+        tela = <TelaCustomizacao meuNome={player.nome} onVoltar={() => setDestino(null)} {...propsConexao} />;
+    } else if (!player) {
         tela = <TelaLogin onAutenticado={autenticar} {...propsConexao} />;
     } else if (!sala) {
         tela = (
             <TelaLobby
                 meuNome={player.nome}
+                onVoltar={TelaInicio ? () => setDestino(null) : undefined}
                 salaParaReconectar={salaParaReconectar}
                 onEntrouNaSala={entrarNaSala}
                 onReconectou={(salaId, reconexao) => {
@@ -289,6 +331,8 @@ export default function App() {
                 </div>
             )}
             {tela}
+            {/* Fichas ganhas aparecem em qualquer tela (ver avisoFichas.js). */}
+            {TelaInicio && <AvisoFichas />}
         </>
     );
 }

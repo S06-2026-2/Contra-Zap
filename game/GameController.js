@@ -116,6 +116,8 @@ export class GameController extends EventEmitter {
         this.game = null;
         this.rodada = null;
         this.numeroRodada = 0;
+        // ids de quem já recebeu colocação (ver _registrarColocacoes).
+        this._colocados = new Set();
         // Cartas (valorInt*4+naipeInt) ja jogadas na rodada atual — memoria
         // que bots/BotBrain.js usa na observacao da rede. Zerada a cada
         // rodada nova em _jogarUmaRodada; so BotBrain le.
@@ -263,7 +265,7 @@ export class GameController extends EventEmitter {
 
         this.numeroRodada = 1;
         this.rodada = this.game.newRodada();
-        this.emit('novaRodadaIniciada', { numero: this.numeroRodada, cartas: this.rodada.round, ordem: this._ordemAssentos() });
+        this.emit('novaRodadaIniciada', { numero: this.numeroRodada, cartas: this.rodada.round, ordem: this._ordemAssentos(), visuais: this._visuaisAssentos() });
 
         // A partir daqui a partida roda em segundo plano, pausando pra
         // esperar cada jogada real (ver _aguardarJogada/jogarCarta) — pode
@@ -873,6 +875,11 @@ export class GameController extends EventEmitter {
         return this.game.ordemOriginal.map(j => j.nome);
     }
 
+    // Cor e chapéu de cada assento, na mesma ordem de _ordemAssentos.
+    _visuaisAssentos() {
+        return this.game.ordemOriginal.map(j => ({ cor: j.cor, chapeu: j.chapeu }));
+    }
+
     estadoDeReconexao(playerId) {
         if (!this.game) return null;
         const jogador = this.jogadores.find(j => j.id === playerId);
@@ -901,9 +908,10 @@ export class GameController extends EventEmitter {
             // Roster com adm — o ack de reconectar não passa por notificarSala,
             // então sem isto a tela remontada fica sem lista de jogadores até
             // o próximo evento que a mexa (novoAdm, alguém entrando/saindo).
-            jogadores: this.jogadores.map(j => ({ nome: j.nome, adm: j.adm })),
+            jogadores: this.jogadores.map(j => ({ nome: j.nome, adm: j.adm, cor: j.cor, chapeu: j.chapeu })),
             // Mesma lista do novaRodadaIniciada (ver _ordemAssentos).
             ordem: this._ordemAssentos(),
+            visuais: this._visuaisAssentos(),
             mao: jogador.mao.map(c => c.toString()),
             cartasRodada: this.rodada.round,
             numeroRodada: this.numeroRodada,
@@ -1149,6 +1157,8 @@ export class GameController extends EventEmitter {
         if (vivos.length === 1) {
             this._finalizada = true;
             this._vencedor = vivos[0].nome;
+            this._registrarColocacoes(this.jogadores.filter(j => j.id !== vivos[0].id));
+            this._registrarColocacoes([vivos[0]]);
             registrarPartidaFinalizada();
             this.emit('jogoFinalizado', { vencedor: this._vencedor });
             return true;
@@ -1164,7 +1174,9 @@ export class GameController extends EventEmitter {
             }
             this._finalizada = true;
             this._vencedor = vencedor.nome;
-             registrarPartidaFinalizada();
+            this._registrarColocacoes(this.jogadores.filter(j => j.id !== vencedor.id));
+            this._registrarColocacoes([vencedor]);
+            registrarPartidaFinalizada();
             this.emit('jogoFinalizado', { vencedor: this._vencedor });
             return true;
         }
@@ -1176,6 +1188,7 @@ export class GameController extends EventEmitter {
     // ver Game.proximaRodada).
     _avancarParaProximaRodada() {
         const eliminados = this.game.eliminarZerados();
+        this._registrarColocacoes(eliminados);
         if (eliminados.length > 0) {
             this.emit('jogadoresEliminados', { eliminados: eliminados.map(j => ({ nome: j.nome, hp: j.hp })) });
             this._somarAnimacaoFront(duracaoEliminacao());
@@ -1185,6 +1198,21 @@ export class GameController extends EventEmitter {
 
         this.numeroRodada++;
         this.rodada = this.game.proximaRodada();
-        this.emit('novaRodadaIniciada', { numero: this.numeroRodada, cartas: this.rodada.round, ordem: this._ordemAssentos() });
+        this.emit('novaRodadaIniciada', { numero: this.numeroRodada, cartas: this.rodada.round, ordem: this._ordemAssentos(), visuais: this._visuaisAssentos() });
+    }
+
+    // Colocação de quem acabou de sair da partida (eliminados desta virada,
+    // ou todo mundo no fim). Quem cai junto empata na posição melhor: com 4
+    // vivos e 2 caindo, os dois ficam em 3º. Emite 'colocacao' por jogador
+    // — evento interno (a camada de rede paga as fichas, ver
+    // conexao/socketServer.js), não vai pros clientes.
+    _registrarColocacoes(saindo) {
+        const total = this.jogadores.length;
+        const novos = saindo.filter(j => !this._colocados.has(j.id));
+        const posicao = this.jogadores.filter(j => !this._colocados.has(j.id)).length - novos.length + 1;
+        for (const jogador of novos) {
+            this._colocados.add(jogador.id);
+            this.emit('colocacao', { jogador, posicao, total });
+        }
     }
 }

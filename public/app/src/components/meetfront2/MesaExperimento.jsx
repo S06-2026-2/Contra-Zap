@@ -5,6 +5,7 @@ import { JogadaManilha, DanosDaMesa, tremerElemento, calcularEmpurraoZap, prepar
 import { prepararBitmapsFogo } from '../meetfront1/fogoInteiro.js';
 import Ficha from '../meetfront1/Ficha.jsx';
 import { sortearChapeu } from '../../chapeus.js';
+import { chapeuPorId, tom } from '../../visual.js';
 import { MENSAGENS_CHAT } from '../../../../../conexao/chat/mensagensChat.js';
 import { LIMITE_TEXTO_ABERTO } from '../../../../../conexao/chat/chat.js';
 import { modeloBotPorId } from '../../../../../bots/modelosBot.js';
@@ -1181,7 +1182,7 @@ function SuaCaixa({ fichasRef, hue, naVez, aposta, feitas, mostrarFeitas, infoTe
     return (
         <div
             className={`mf2-sua-caixa${naVez ? ' mf2-barra-vez' : ''}${infoTemporaria ? ' mf1-fichas-barra-info' : ''}`}
-            style={{ '--hue-barra': hue }}
+            style={{ '--cor-barra': tom(hue, 70, 72) }}
         >
             <div className="mf2-sua-coluna">
                 <div className="mf2-sua-nome">VOCÊ</div>
@@ -2102,18 +2103,23 @@ export default function MesaExperimento({ estado, acoes }) {
     }
     const duracaoJogada = mobile ? DURACAO_JOGADA_MOBILE_MS : DURACAO_JOGADA_MS;
     const cantoMelada = mobile && mesaMedida ? telaParaMesa(MELADA_POUSO_MOBILE) : { x: MELADA_CANTO_X, y: MELADA_CANTO_Y };
+    // Cor e chapéu de cada assento vêm do servidor (`cor`/`chapeu` de cada
+    // jogador em listaJogadores, ver conexao/loja.js): o que a conta ou o
+    // convidado equipou, sorteado pros bots. Sem eles (servidor antigo),
+    // sorteia aqui como antes. Chapéu é { id, src, ajuste } (ver
+    // chapeuPorId em visual.js) — `ajuste` é o nudge vertical calibrado pra
+    // ESSE chapéu, repassado pro Fantasminha via ajusteChapeuPct; sem
+    // chapéu, src null.
+    const chaveVisuais = ordemAssentos.map((j) => `${j.nome}:${j.cor}:${j.chapeu}`).join('|');
     const huesPorAssento = useMemo(
-        () => Array.from({ length: ordemAssentos.length }, () => Math.random() * 360),
-        [ordemAssentos.length]
+        () => ordemAssentos.map((j) => j.cor ?? Math.random() * 360),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [chaveVisuais]
     );
-    // Cada entrada é { id, src, ajuste } (ver sortearChapeu/CHAPEUS_COM_ID em
-    // chapeus.js) — `ajuste` é o nudge vertical calibrado pra ESSE chapéu
-    // específico (a maioria não nasceu desenhada pro mesmo lugar, ver
-    // assets/chapeus/calibracao-chapeus.csv), repassado pro Fantasminha via
-    // ajusteChapeuPct nos dois usos abaixo.
     const chapeusPorAssento = useMemo(
-        () => Array.from({ length: ordemAssentos.length }, () => sortearChapeu()),
-        [ordemAssentos.length]
+        () => ordemAssentos.map((j) => (j.chapeu === undefined ? sortearChapeu() : chapeuPorId(j.chapeu))),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [chaveVisuais]
     );
 
     function indiceDoNome(nome) {
@@ -4258,7 +4264,7 @@ export default function MesaExperimento({ estado, acoes }) {
                                         // Barra embaixo do fantasminha: nome em cima (corações
                                         // à direita, só no hover e no fim de rodada) e a fila de
                                         // fichas/cartas de vaza embaixo (ver BANDEJA_DESKTOP).
-                                        <div className={`mf2-barra${naVez ? ' mf2-barra-vez' : ''}`} style={{ '--hue-barra': huesPorAssento[i] }}>
+                                        <div className={`mf2-barra${naVez ? ' mf2-barra-vez' : ''}`} style={{ '--cor-barra': tom(huesPorAssento[i], 70, 72) }}>
                                             <div className="mf2-barra-topo">
                                                 {legendaNome}
                                                 {vidaVisivel && (

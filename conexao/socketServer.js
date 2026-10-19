@@ -5,6 +5,8 @@
 import { login, ErroLogin } from './login.js';
 import { cadastrar, ErroCadastro } from './cadastro.js';
 import { entrarComoConvidado, ErroConvidado } from './convidado.js';
+import { comprarItem, creditar, equiparItem, ErroCarteira, lerCarteira, visualDe } from './carteira.js';
+import { recompensaColocacao, recompensaDesistencia } from './loja.js';
 import { retomarSessao, ErroSessao } from './retomarSessao.js';
 import { usuarioExiste } from './db.js';
 import { SalaManager, ErroSala } from './SalaManager.js';
@@ -123,6 +125,14 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
                 throw new ErroProtocolo(CodigosErro.NAO_IDENTIFICADO, 'Envie "entrar" antes de criar, entrar ou listar salas.');
             }
             return player;
+        };
+
+        // Pra quem vai sentar numa sala: o assento copia cor/chapéu do
+        // player na entrada (ver PlayerGame), então eles são lidos da
+        // carteira agora — pega o que foi comprado/equipado até aqui.
+        const exigirJogadorComVisual = () => {
+            const player = exigirJogador();
+            return Object.assign(player, visualDe(player));
         };
 
         // Autentica o socket depois de login()/cadastrar() terem devolvido
@@ -264,7 +274,7 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
 
         socket.on(EventosCliente.CRIAR_SALA, (config = {}, ack) => {
             responder(ack, () => {
-                const player = exigirJogador();
+                const player = exigirJogadorComVisual();
                 // O join na room e a retransmissão dos eventos do controller
                 // vão num callback que roda ANTES dos bots entrarem: com um
                 // botNumber que já lota a sala, o agendarInicio (e o
@@ -306,7 +316,7 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
 
         socket.on(EventosCliente.PARTIDA_RAPIDA, (_payload, ack) => {
             responder(ack, () => {
-                const player = exigirJogador();
+                const player = exigirJogadorComVisual();
                 // Mesmo gancho de timing de criarSala: só é chamado quando a
                 // sala é nova de fato (SalaManager.partidaRapida decide isso).
                 const { sala, criada } = salaManager.partidaRapida(player, (salaCriada) => {
@@ -334,7 +344,7 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
 
         socket.on(EventosCliente.ENTRAR_SALA, ({ salaId, senha } = {}, ack) => {
             responder(ack, () => {
-                const player = exigirJogador();
+                const player = exigirJogadorComVisual();
                 const sala = salaManager.entrarSala(salaId, player, senha);
                 socket.join(sala.salaId);
                 salaPorSocket.set(socket.id, sala.salaId);
@@ -395,18 +405,22 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
         socket.on(EventosCliente.DESISTIR, ({ salaId } = {}, ack) => {
             responder(ack, () => {
                 const player = exigirJogador();
+                // Rodadas que já terminaram — a atual, em andamento, não conta.
+                const rodadasCompletas = Math.max(0, (salaManager.obterSala(salaId)?.controller.numeroRodada ?? 0) - 1);
                 // Desistência definitiva: perde na hora e a vaga expira (ver
                 // GameController.desistir). O jogadorDesistiu que sai daí é o
                 // que tira o socket dele da room, pelo listener em
-                // ligarControllerASala — nada a fazer aqui além de disparar.
+                // ligarControllerASala.
                 salaManager.desistir(salaId, player);
-                return {};
+                // Só chega aqui se desistiu de fato (senão desistir lançou).
+                const fichasGanhas = ehConvidadoId(player.id) ? 0 : recompensaDesistencia(rodadasCompletas);
+                return { fichasGanhas, saldo: creditar(player, fichasGanhas) };
             });
         });
 
         socket.on(EventosCliente.JOGAR_DE_NOVO, ({ salaId } = {}, ack) => {
             responder(ack, () => {
-                const player = exigirJogador();
+                const player = exigirJogadorComVisual();
                 const novaSala = salaManager.jogarDeNovo(salaId, player, (salaCriada) => {
                     socket.join(salaCriada.salaId);
                     salaPorSocket.set(socket.id, salaCriada.salaId);
@@ -501,6 +515,22 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
                 const player = exigirJogador();
                 return { salaId: salaManager.salaAtivaDoJogador(player.id) };
             });
+        });
+
+        // `convidado` vai junto pra tela avisar que a carteira dele some com
+        // a sessão (ver conexao/carteira.js).
+        const comConvidado = (carteira) => ({ ...carteira, convidado: ehConvidadoId(exigirJogador().id) });
+
+        socket.on(EventosCliente.MINHA_CARTEIRA, (_dados, ack) => {
+            responder(ack, () => comConvidado(lerCarteira(exigirJogador())));
+        });
+
+        socket.on(EventosCliente.COMPRAR_ITEM, ({ tipo, valor } = {}, ack) => {
+            responder(ack, () => comConvidado(comprarItem(exigirJogador(), tipo, valor)));
+        });
+
+        socket.on(EventosCliente.EQUIPAR_ITEM, ({ tipo, valor } = {}, ack) => {
+            responder(ack, () => comConvidado(equiparItem(exigirJogador(), tipo, valor)));
         });
 
         socket.on(EventosCliente.CHAT, ({ salaId, tipo, id, texto } = {}, ack) => {
@@ -601,8 +631,13 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
     return salaManager;
 }
 
+// Convidado e bot têm id efêmero negativo (ver game/idEfemero.js).
+function ehConvidadoId(id) {
+    return id < 0;
+}
+
 function resumoJogadores(sala) {
-    return sala.jogadores.map(jogador => ({ nome: jogador.nome, adm: jogador.adm }));
+    return sala.jogadores.map(jogador => ({ nome: jogador.nome, adm: jogador.adm, cor: jogador.cor, chapeu: jogador.chapeu }));
 }
 
 function notificarSala(io, sala) {
@@ -700,6 +735,18 @@ function ligarControllerASala(io, salaManager, sala, socketPorJogador, salaPorSo
         encerrarSeFinalizadaEVazia(io, salaManager, salaId);
     });
 
+    // Fichas pela colocação (ver GameController._registrarColocacoes e
+    // recompensaColocacao em conexao/loja.js), pagas assim que o jogador sai
+    // da partida — não só no fim. Ficam de fora: bot, convidado (carteira
+    // só em memória, nunca ganha), quem desistiu (já recebeu a dele no ack
+    // de `desistir`) e quem abandonou (vaga expirada).
+    controller.on('colocacao', ({ jogador, posicao, total }) => {
+        if (jogador.eraBot || jogador.desistiu || jogador.vagaExpirada || ehConvidadoId(jogador.id)) return;
+        const fichas = recompensaColocacao(posicao, total);
+        const saldo = creditar(jogador, fichas);
+        io.to(`jogador:${jogador.id}`).emit(EventosServidor.FICHAS_GANHAS, { salaId, fichas, posicao, total, saldo });
+    });
+
     // jogadorEntrou/jogadorSaiu (sala de espera) não têm evento próprio no
     // protocolo — a lista de jogadores já vai por listaJogadores. Aqui eles
     // viram uma linha de sistema no chat da sala ("Fulano entrou na sala"),
@@ -764,7 +811,7 @@ async function responder(ack, acao) {
         const resultado = await acao();
         ack({ ok: true, ...resultado });
     } catch (erro) {
-        if (erro instanceof ErroLogin || erro instanceof ErroCadastro || erro instanceof ErroConvidado || erro instanceof ErroSessao || erro instanceof ErroSala || erro instanceof ErroChat || erro instanceof ErroProtocolo) {
+        if (erro instanceof ErroLogin || erro instanceof ErroCadastro || erro instanceof ErroConvidado || erro instanceof ErroCarteira || erro instanceof ErroSessao || erro instanceof ErroSala || erro instanceof ErroChat || erro instanceof ErroProtocolo) {
             // `erro.dados` (hoje só ErroSala usa — ex.: JA_EM_PARTIDA manda
             // { salaId }) vai junto no ack de erro.
             ack({ ok: false, codigo: erro.codigo, mensagem: erro.message, ...(erro.dados ?? {}) });

@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { tom } from '../../visual.js';
 
 // Corpo do "fantasminha da bola" — não a versão que já estava na branch
 // atual, mas a de public/experimento (branch experimentando-front, commit
@@ -275,8 +276,8 @@ const PENSAMENTO_APOS_MS = 10_000;
 export const TIPOS_PENSAMENTO = ['interrogacao', 'engrenagens', 'lampada'];
 
 function Pensamento({ tipo, hue }) {
-    const cor = `hsl(${hue}, 80%, 82%)`;
-    const corEscura = `hsl(${hue}, 45%, 16%)`;
+    const cor = tom(hue, 80, 82);
+    const corEscura = tom(hue, 45, 16);
     if (tipo === 'interrogacao') {
         // Duas "?" nascendo de baixo, uma maior que a outra, cada uma
         // balançando no próprio ritmo.
@@ -308,7 +309,7 @@ function Pensamento({ tipo, hue }) {
         <div className="fantasminha-pensamento fantasminha-pensamento-lampada">
             <svg viewBox="0 0 60 90" overflow="visible">
                 <circle className="fantasminha-lampada-aceso" cx="30" cy="30" r="30" fill={cor} opacity=".45" filter="blur(6px)" />
-                <path d="M30,4 C16,4 7,14 7,27 C7,37 13,43 17,49 C19,52 20,56 20,60 L40,60 C40,56 41,52 43,49 C47,43 53,37 53,27 C53,14 44,4 30,4 Z" fill={`hsl(${hue}, 25%, 28%)`} stroke={corEscura} strokeWidth="3.5" />
+                <path d="M30,4 C16,4 7,14 7,27 C7,37 13,43 17,49 C19,52 20,56 20,60 L40,60 C40,56 41,52 43,49 C47,43 53,37 53,27 C53,14 44,4 30,4 Z" fill={tom(hue, 25, 28)} stroke={corEscura} strokeWidth="3.5" />
                 <path className="fantasminha-lampada-aceso" d="M30,4 C16,4 7,14 7,27 C7,37 13,43 17,49 C19,52 20,56 20,60 L40,60 C40,56 41,52 43,49 C47,43 53,37 53,27 C53,14 44,4 30,4 Z" fill={cor} stroke={corEscura} strokeWidth="3.5" />
                 <polyline points="22,58 24,40 27,32 30,40 33,32 36,40 38,58" fill="none" stroke={corEscura} strokeWidth="2.5" strokeLinejoin="round" />
                 <polyline className="fantasminha-lampada-aceso" points="24,40 27,32 30,40 33,32 36,40" fill="none" stroke="#fff" strokeWidth="2" strokeLinejoin="round" />
@@ -576,14 +577,14 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
                     <Engrenagem
                         className="fantasminha-engrenagem fantasminha-engrenagem-pequena"
                         dentes={8}
-                        corBase={`hsl(${hue}, 80%, 82%)`}
-                        corSombra={`hsl(${hue}, 65%, 68%)`}
+                        corBase={tom(hue, 80, 82)}
+                        corSombra={tom(hue, 65, 68)}
                     />
                     <Engrenagem
                         className="fantasminha-engrenagem fantasminha-engrenagem-grande"
                         dentes={10}
-                        corBase={`hsl(${hue}, 80%, 82%)`}
-                        corSombra={`hsl(${hue}, 65%, 68%)`}
+                        corBase={tom(hue, 80, 82)}
+                        corSombra={tom(hue, 65, 68)}
                     />
                 </>
             )}
@@ -593,9 +594,9 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
             >
                 <defs>
                     <radialGradient id={idGradiente} cx="35%" cy="30%" r="75%">
-                        <stop offset="0%" stopColor={`hsl(${hue}, 90%, 95%)`} />
-                        <stop offset="45%" stopColor={`hsl(${hue}, 80%, 82%)`} />
-                        <stop offset="100%" stopColor={`hsl(${hue}, 65%, 68%)`} />
+                        <stop offset="0%" stopColor={tom(hue, 90, 95)} />
+                        <stop offset="45%" stopColor={tom(hue, 80, 82)} />
+                        <stop offset="100%" stopColor={tom(hue, 65, 68)} />
                     </radialGradient>
                 </defs>
                 <path ref={corpoRef} d={corpoComPonta(0)} fill={`url(#${idGradiente})`}>
@@ -612,14 +613,14 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
                     <path
                         ref={pixelsRef}
                         className="fantasminha-contorno-pixels"
-                        fill={destacado || naVez ? '#ffcc00' : `hsl(${hue}, 45%, 16%)`}
+                        fill={destacado || naVez ? '#ffcc00' : tom(hue, 45, 16)}
                     />
                 ) : (
                     <path
                         className="fantasminha-contorno"
                         d={corpoComPonta(0)}
                         fill="none"
-                        stroke={destacado || naVez ? '#ffcc00' : `hsl(${hue}, 45%, 16%)`}
+                        stroke={destacado || naVez ? '#ffcc00' : tom(hue, 45, 16)}
                         strokeWidth="3"
                         strokeLinejoin="round"
                     >
@@ -697,7 +698,7 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
                             </clipPath>
                         </defs>
                         <g transform={`translate(${TELA_RECT.x} ${TELA_RECT.y})`} clipPath={`url(#${idTelaClip})`}>
-                            <g fill="none" stroke={`hsl(${hue}, 100%, 62%)`} strokeWidth="1.6" strokeLinejoin="round">
+                            <g fill="none" stroke={tom(hue, 100, 62)} strokeWidth="1.6" strokeLinejoin="round">
                                 Duas cópias idênticas lado a lado (a
                                     segunda começa exatamente onde a primeira
                                     termina, TELA_LARGURA à direita) — o <g>
@@ -743,7 +744,7 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
                             key={i}
                             className="fantasminha-particula"
                             style={{
-                                background: `hsl(${hue}, 75%, 78%)`,
+                                background: tom(hue, 75, 78),
                                 animationDelay: `${p.atraso.toFixed(0)}ms`,
                                 '--particula-dx': `${p.dx.toFixed(1)}px`,
                                 '--particula-dy': `${p.dy.toFixed(1)}px`,
@@ -753,7 +754,7 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
                     ))}
                 </div>
             )}
-            {/* Sorteado uma vez por fantasminha (ver chapeus.js) — nasce
+            {/* Sem `chapeu` (null), não tem chapéu. Nasce
                 fixo em cima da cabeça, não acompanha a cauda nem o rosto.
                 Durante `machucado`, ganha a classe -impacto (ver
                 @keyframes fantasminha-chapeu-impacto em index.css): sobe/
@@ -762,7 +763,7 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
                 animationDuration bate com DURACAO_DANO_MS de propósito,
                 pra terminar exatamente quando `machucado` vira false de
                 novo, sem sobrar uma ponta de animação cortada. */}
-            <span
+            {chapeu && <span
                 className={`fantasminha-chapeu${machucado ? ' fantasminha-chapeu-impacto' : ''}`}
                 style={{
                     backgroundImage: `url(${chapeu})`,
@@ -772,7 +773,7 @@ export default function Fantasminha({ children, destacado, danoVersao, bot, moni
                     '--chapeu-impacto-rot': `${chapeuImpacto.rot.toFixed(1)}deg`,
                     '--chapeu-ajuste': `${ajusteChapeuPct}%`,
                 }}
-            />
+            />}
             {/* Filho de .fantasminha-flutuante de propósito (não um
                 irmão) — assim quem passar algo aqui (ver MaoEmLeque em
                 MesaExperimento.jsx) recebe o EXATO mesmo flutuar em onda

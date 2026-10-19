@@ -28,8 +28,9 @@ O código do front fica todo em `public/app/src`:
   reconexão/F5.
 - `components/SeletorFrente.jsx` — escolhe entre as frentes. Não tem mais
   botão no jogo: abre só pela rota **`/front`** (ver `ROTA_FRENTE` no
-  `App.jsx`). Escolhendo (ou voltando), a URL volta pra `/` e segue pro
-  Login ou pras salas, conforme já havia sessão. A escolha fica no
+  `App.jsx`). Escolhendo (ou voltando), a URL volta pra `/` e segue pra
+  primeira tela da frente (tela inicial no meetfront2; Login ou salas nas
+  outras, conforme já havia sessão). A escolha fica no
   `localStorage` (chave `contrazap-frente-v2`), padrão **`meetfront2`**.
   Todas falam com o mesmo `socket.js`/`sessao.js`:
   - `components/arcade/` — Login, Lobby e Partida arcade. Login e Lobby
@@ -43,6 +44,19 @@ O código do front fica todo em `public/app/src`:
     Partida do meetfront1 com a própria cópia do `MesaExperimento.jsx`
     (prop `Mesa`), que importa o resto de `meetfront1/`. CSS próprio em
     `meetfront2.css`, escopado em `.mf2`.
+    No lugar do Login tem a tela inicial (`Inicio.jsx`): **JOGAR** (salas)
+    e **CUSTOMIZAÇÃO** (`Customizacao.jsx`, placeholder por enquanto). Sem
+    sessão, os dois abrem o pop-up de login (`PopupLogin.jsx`: fluxo em
+    etapas do Login da arcade + convidado direto, com nome do campo ou
+    `Fantasma####` sorteado). Com sessão, o topo da tela inicial tem
+    **SAIR** (limpa a sessão e recarrega); as salas têm **◀ INÍCIO**.
+    A customização é a loja (cor no círculo pastel, chapéus), com o
+    saldo de fichas no topo; o aviso "+N FICHAS" (`AvisoFichas.jsx`)
+    aparece em qualquer tela assim que você sai da partida. A mesa usa a
+    cor/chapéu que vêm do servidor (`chapeuPorId`/`tom` em `visual.js`).
+- **Fichas e loja** — regras em `conexao/loja.js` (compartilhado com o
+  front), carteira em `conexao/carteira.js` (conta no banco, convidado em
+  memória). Contrato em `conexao/PROTOCOLO.md`, seção "Carteira e loja".
   - `components/mescla/` — arcade com a mesa oval e os fantasminhas;
     serve de referência visual pro meetfront2.
   - `components/Login.jsx`, `Lobby.jsx`, `Partida.jsx` — a frente

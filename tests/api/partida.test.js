@@ -295,8 +295,13 @@ test('jogarCarta', async (t) => {
         parar.forEach(fn => fn());
 
         assert.equal(vaza.salaId, salaId);
-        assert.ok(clientes.some(cliente => cliente.nome === vaza.vencedor), 'o vencedor tem que ser um dos jogadores');
-        assert.equal(typeof vaza.carta, 'string');
+        // Vaza melada (cartas empatadas se anulam) fecha sem vencedor nem carta.
+        if (vaza.vencedor === null) {
+            assert.equal(vaza.carta, null);
+        } else {
+            assert.ok(clientes.some(cliente => cliente.nome === vaza.vencedor), 'o vencedor tem que ser um dos jogadores');
+            assert.equal(typeof vaza.carta, 'string');
+        }
     });
 
     await t.test('SALA_NAO_INICIADA numa sala que ainda não começou', async () => {
