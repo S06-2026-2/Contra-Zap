@@ -375,6 +375,8 @@ abaixo.
 Ack sucesso: `{ ok: true }`. O socket dá `leave` na sala e quem ficar recebe
 `listaJogadores` atualizado. Se quem saiu era o adm, a posição passa pro
 próximo da lista automaticamente. Se a sala ficar vazia, é descartada. Se
+só sobrarem bots, ela continua aberta por 5 minutos (`tempoSalaSoBotsMs` do
+`SalaManager`) esperando alguém de verdade entrar, e então é descartada. Se
 havia um início agendado (`partidaIniciandoEm`) e a sala deixou de estar
 cheia, o agendamento é cancelado.
 Erros possíveis: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`, `SALA_JA_INICIADA`,
@@ -958,7 +960,8 @@ partida começar (com `seq: 0`), pra já contar na distribuição da primeira
 rodada. A partir do primeiro
 aviso, ele passa a **segurar** a partida: antes de começar cada turno
 (aposta ou jogada, de humano ou de bot), o servidor espera todo cliente que
-aderiu (e que não esteja no automático) chegar no `seq` do último evento
+aderiu (e que não tenha virado bot nem sido eliminado — quem só assiste não
+segura ninguém) chegar no `seq` do último evento
 emitido — só então emite `turnoAposta`/`turnoJogador` e começa a contar o
 timer (anunciado pelo `timerTurno`). Sem notícia dos clientes, a espera
 dura no máximo `limiteSeguraMs` (10 s por padrão); cada
@@ -967,7 +970,9 @@ front manda um a cada ~2 s enquanto ainda tem animação de eventos já
 recebidos, então sequências longas (revelação + dano + distribuição + vira)
 seguram o tempo que precisarem. Um cliente que trava ou cai para de avisar
 e o turno começa. Em qualquer caso a espera inteira nunca passa de
-`limiteSeguraTotalMs` (60 s). `seq: null` tira o cliente da conta.
+`limiteSeguraTotalMs` (60 s). `seq: null` tira o cliente da conta — e o
+servidor faz o mesmo sozinho quando o socket dele cai no meio da partida (a
+tela adere de novo ao reabrir).
 Cliente que nunca manda o aviso não muda nada no ritmo da partida.
 
 **Exceção — a distribuição.** A primeira aposta de cada rodada não espera

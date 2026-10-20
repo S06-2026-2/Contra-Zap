@@ -183,6 +183,12 @@ const VAZA_REVELACAO_Y_FRACAO = 0.5;
 const VAZA_REVELACAO_ESCALA = 2.4;
 const VAZA_REVELACAO_TRANSICAO_MS = 550;
 const VAZA_REVELACAO_PAUSA_MS = 1100;
+// No mobile a carta vencedora fica no meio da tela, um pouco acima do
+// centro, e 20% menor: o texto vai embaixo dela (ver .mesa-exp-vaza-texto
+// no meetfront2.css), não do lado.
+const VAZA_REVELACAO_MOBILE_X_FRACAO = 0.5;
+const VAZA_REVELACAO_MOBILE_Y_FRACAO = 0.4;
+const VAZA_REVELACAO_MOBILE_ESCALA = VAZA_REVELACAO_ESCALA * 0.8;
 const VAZA_IMPACTO_QUEDA_PX = 26;
 const VAZA_IMPACTO_ESCALA = 0.7;
 const VAZA_IMPACTO_DURACAO_MS = 220;
@@ -280,6 +286,16 @@ const DURACAO_BOLHA_MS = 3200;
 const ORDEM_RANKS = ['4', '5', '6', '7', 'Q', 'J', 'K', 'A', '2', '3'];
 const NAIPES = ['Ouros', 'Espadas', 'Copas', 'Paus'];
 const NAIPE_INT = { Ouros: 0, Espadas: 1, Copas: 2, Paus: 3 };
+
+// Copia uma lista por assento trocando só o valor do assento `indice`.
+// Grava na posição em vez de `.map`: as listas nascem com o tamanho da sala
+// na hora que esta tela abriu (ainda na sala de espera), e o assento de
+// quem entrou depois fica além do fim — um `.map` nunca chegaria nele.
+function comValorNoAssento(lista, indice, atualizar) {
+    const nova = [...lista];
+    nova[indice] = atualizar(lista[indice]);
+    return nova;
+}
 
 // Cartas chegam do servidor como a string "[4 de Ouros]" (Carta.toString(),
 // ver conexao/PROTOCOLO.md) — mesmo parser que novo/Partida.jsx usa
@@ -723,11 +739,21 @@ function CartaDanoVoando({ de, obterDestino, atrasoMs, carta, hue, onChegou }) {
     );
 }
 
-function calcularEstadoRevelacaoVaza(fase, destino) {
+// Centro da revelação da vaza (carta vencedora, impacto, choque das
+// meladas), em px de tela.
+function centroRevelacaoVaza(mobile) {
+    return {
+        x: window.innerWidth * (mobile ? VAZA_REVELACAO_MOBILE_X_FRACAO : VAZA_REVELACAO_X_FRACAO),
+        y: window.innerHeight * (mobile ? VAZA_REVELACAO_MOBILE_Y_FRACAO : VAZA_REVELACAO_Y_FRACAO),
+    };
+}
+
+function calcularEstadoRevelacaoVaza(fase, destino, mobile) {
+    const centro = centroRevelacaoVaza(mobile);
     if (fase === 'impacto') {
         return {
-            x: window.innerWidth * VAZA_REVELACAO_X_FRACAO,
-            y: window.innerHeight * VAZA_REVELACAO_Y_FRACAO + VAZA_IMPACTO_QUEDA_PX,
+            x: centro.x,
+            y: centro.y + VAZA_IMPACTO_QUEDA_PX,
             rot: 0,
             escala: VAZA_IMPACTO_ESCALA,
         };
@@ -736,10 +762,10 @@ function calcularEstadoRevelacaoVaza(fase, destino) {
         return { x: destino.x, y: destino.y, rot: destino.rot ?? VAZA_POUSO_ROT_GRAUS, escala: destino.escala ?? VAZA_POUSO_ESCALA };
     }
     return {
-        x: window.innerWidth * VAZA_REVELACAO_X_FRACAO,
-        y: window.innerHeight * VAZA_REVELACAO_Y_FRACAO,
+        x: centro.x,
+        y: centro.y,
         rot: 0,
-        escala: VAZA_REVELACAO_ESCALA,
+        escala: mobile ? VAZA_REVELACAO_MOBILE_ESCALA : VAZA_REVELACAO_ESCALA,
     };
 }
 
@@ -755,13 +781,12 @@ function duracaoFaseRevelacaoVaza(fase) {
 // quique pra trás, inclinadas pra fora. `onImpacto` no instante do choque,
 // `onFim` depois de MELADA_PARADA_MS paradas. `saindo` derruba e apaga os
 // clones enquanto a mesa explode.
-function ChoqueMeladas({ cartas, saindo, onImpacto, onFim }) {
+function ChoqueMeladas({ cartas, saindo, onImpacto, onFim, mobile }) {
     const refs = useRef([]);
     const [chocou, setChocou] = useState(false);
 
     useEffect(() => {
-        const cx = window.innerWidth * VAZA_REVELACAO_X_FRACAO;
-        const cy = window.innerHeight * VAZA_REVELACAO_Y_FRACAO;
+        const { x: cx, y: cy } = centroRevelacaoVaza(mobile);
         const meio = (cartas.length - 1) / 2;
         const total = MELADA_SUBIR_MS + MELADA_SEGURAR_MS + MELADA_RECUAR_MS + MELADA_INVESTIR_MS + MELADA_QUICAR_MS;
         const marcas = [];
@@ -813,20 +838,20 @@ function ChoqueMeladas({ cartas, saindo, onImpacto, onFim }) {
             {chocou && (
                 <div
                     className="mesa-exp-melada-clarao"
-                    style={{ left: window.innerWidth * VAZA_REVELACAO_X_FRACAO, top: window.innerHeight * VAZA_REVELACAO_Y_FRACAO }}
+                    style={{ left: centroRevelacaoVaza(mobile).x, top: centroRevelacaoVaza(mobile).y }}
                 />
             )}
         </div>
     );
 }
 
-function CartaRevelando({ origem, destino, fase, carta }) {
+function CartaRevelando({ origem, destino, fase, carta, mobile }) {
     const [estado, setEstado] = useState({ x: origem.x, y: origem.y, rot: origem.rot, escala: origem.escala });
     const primeiraFaseRef = useRef(fase);
 
     useEffect(() => {
         const quadro = requestAnimationFrame(() => {
-            setEstado(calcularEstadoRevelacaoVaza(fase, destino));
+            setEstado(calcularEstadoRevelacaoVaza(fase, destino, mobile));
         });
         return () => cancelAnimationFrame(quadro);
         // eslint-disable-next-line react-hooks/exhaustive-deps -- só o alvo da fase de NASCIMENTO, mudanças de fase depois são o efeito de baixo
@@ -834,7 +859,7 @@ function CartaRevelando({ origem, destino, fase, carta }) {
 
     useEffect(() => {
         if (fase === primeiraFaseRef.current) return;
-        setEstado(calcularEstadoRevelacaoVaza(fase, destino));
+        setEstado(calcularEstadoRevelacaoVaza(fase, destino, mobile));
         // eslint-disable-next-line react-hooks/exhaustive-deps -- destino é fixo por instância
     }, [fase]);
 
@@ -2753,7 +2778,7 @@ export default function MesaExperimento({ estado, acoes }) {
             if (indice === -1) continue;
             const antes = vidaAnteriorRef.current[linha.nome] ?? VIDA_MAXIMA;
             if (linha.hp < antes && indice !== 0) {
-                setDanoPorAssento((v) => v.map((d, i) => (i === indice ? d + 1 : d)));
+                setDanoPorAssento((v) => comValorNoAssento(v, indice, (d) => (d ?? 0) + 1));
             }
             vidaAnteriorRef.current[linha.nome] = linha.hp;
 
@@ -2827,7 +2852,7 @@ export default function MesaExperimento({ estado, acoes }) {
         for (const nome of estado.eliminados ?? []) {
             if (mortesEmAndamentoRef.current.has(nome)) continue;
             const indice = indiceDoNome(nome);
-            if (indice <= 0) continue; // "Você" nunca é <Fantasminha> aqui, não tem o que desintegrar
+            if (indice === -1) continue; // "Você" também morre: o SeuFantasminha desintegra e some em 'morto'
             mortesEmAndamentoRef.current.add(nome);
             mortesAtivasRef.current += 1;
             setMortesAtivas((v) => v + 1);
@@ -2840,14 +2865,14 @@ export default function MesaExperimento({ estado, acoes }) {
         // Ver PAUSA_MORTE_APOS_DANO_MS lá em cima — o último respiro depois
         // que o coração já apagou, antes do fantasminha cair de vez.
         await esperar(PAUSA_MORTE_APOS_DANO_MS);
-        setEstadoMortePorAssento((atual) => atual.map((v, i) => (i === indice ? 'impacto' : v)));
-        setDanoPorAssento((atual) => atual.map((v, i) => (i === indice ? v + 1 : v)));
+        setEstadoMortePorAssento((atual) => comValorNoAssento(atual, indice, () => 'impacto'));
+        setDanoPorAssento((atual) => comValorNoAssento(atual, indice, (v) => (v ?? 0) + 1));
 
         await esperar(MORTE_IMPACTO_MS);
-        setEstadoMortePorAssento((atual) => atual.map((v, i) => (i === indice ? 'desintegrando' : v)));
+        setEstadoMortePorAssento((atual) => comValorNoAssento(atual, indice, () => 'desintegrando'));
 
         await esperar(MORTE_DESINTEGRAR_MS);
-        setEstadoMortePorAssento((atual) => atual.map((v, i) => (i === indice ? 'morto' : v)));
+        setEstadoMortePorAssento((atual) => comValorNoAssento(atual, indice, () => 'morto'));
 
         // Solta a trava (ver mortesAtivasRef lá em cima) — só agora que a
         // coreografia inteira (impacto + desintegrar) terminou de verdade.
@@ -3809,6 +3834,12 @@ export default function MesaExperimento({ estado, acoes }) {
     // CORACAO_IMPACTO_DURACAO_MS.
     function aoChegarCartaDano(carta) {
         setCartasDanoVoando((atual) => atual.filter((c) => c.id !== carta.id));
+        // O SEU fantasminha leva a pancada no instante em que cada carta/ficha
+        // bate no seu coração — os outros reagem quando o placar chega (ver
+        // efeito de fim de rodada, que pula o assento 0).
+        if (carta.assentoIndice === 0) {
+            setDanoPorAssento((atual) => comValorNoAssento(atual, 0, (d) => (d ?? 0) + 1));
+        }
         setVidaPorAssento((atual) => {
             if (atual[carta.assentoIndice] <= carta.heartIndice) return atual;
             const novo = [...atual];
@@ -4220,7 +4251,7 @@ export default function MesaExperimento({ estado, acoes }) {
                         <div
                             key={i}
                             ref={(el) => { assentoRefs.current[i] = el; }}
-                            className={`mesa-exp-assento${assento.eVoce ? ' mesa-exp-assento-voce' : ''}${assentosLancando.includes(i) ? ' mf1-assento-lancou' : ''}`}
+                            className={`mesa-exp-assento${assento.eVoce ? ' mesa-exp-assento-voce' : ''}${assentosLancando.includes(i) ? ' mf1-assento-lancou' : ''}${infoTemporaria && apostaDele != null ? ' mf1-assento-com-popup' : ''}`}
                             style={{ left: `${assento.x}%`, top: `${assento.y}%` }}
                             onMouseEnter={() => !assento.eVoce && setAssentoEmHoverIndex(i)}
                             onMouseLeave={() => !assento.eVoce && setAssentoEmHoverIndex(null)}
@@ -4579,6 +4610,7 @@ export default function MesaExperimento({ estado, acoes }) {
                             saindo={choqueMeladas.saindo}
                             onImpacto={choqueMeladas.onImpacto}
                             onFim={choqueMeladas.onFim}
+                            mobile={mobile}
                         />
                     )}
                     {melouVisivel && (
@@ -4594,8 +4626,8 @@ export default function MesaExperimento({ estado, acoes }) {
                     key={choqueVaza}
                     className="mesa-exp-vaza-onda-choque"
                     style={{
-                        left: `${window.innerWidth * VAZA_REVELACAO_X_FRACAO}px`,
-                        top: `${window.innerHeight * VAZA_REVELACAO_Y_FRACAO + VAZA_IMPACTO_QUEDA_PX}px`,
+                        left: `${centroRevelacaoVaza(mobile).x}px`,
+                        top: `${centroRevelacaoVaza(mobile).y + VAZA_IMPACTO_QUEDA_PX}px`,
                     }}
                 />
             )}
@@ -4606,6 +4638,7 @@ export default function MesaExperimento({ estado, acoes }) {
                     destino={vazaRevelando.destino}
                     fase={faseRevelacaoVaza}
                     carta={{ rank: vazaRevelando.rank, naipe: vazaRevelando.naipe }}
+                    mobile={mobile}
                 />
             )}
 
@@ -4631,6 +4664,15 @@ export default function MesaExperimento({ estado, acoes }) {
                         </strong>
                         {acoes?.jogarDeNovo && (
                             <button type="button" onClick={acoes.jogarDeNovo}>Jogar de novo</button>
+                        )}
+                        {/* No mobile o "Sair da partida" do canto fica escondido
+                            atrás do escurecido: a saída vem aqui, logo abaixo.
+                            Com convite de revanche aberto, o "Não" dele já é
+                            esse mesmo sair. */}
+                        {mobile && !estado.conviteRevanche && (
+                            <button type="button" onClick={() => acoes?.sair?.()} disabled={!acoes?.sair} className="secundario">
+                                Sair
+                            </button>
                         )}
                         {/* Convite de revanche (ver conviteRevanche em
                             novo/Partida.jsx) — chega só pra quem NÃO é o

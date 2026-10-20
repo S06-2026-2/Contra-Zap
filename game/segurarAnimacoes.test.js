@@ -222,3 +222,13 @@ test('um timeout não tira o jogador do segurar (a tela dele continua lá)', asy
     const cedo = await Promise.race([segunda.then(() => 'turno'), new Promise((r) => setTimeout(() => r('esperando'), 400))]);
     assert.equal(cedo, 'esperando');
 });
+
+test('quem já foi eliminado não segura a partida (a tela dele só assiste)', async (t) => {
+    const { c } = mesaDeDois({ limiteSeguraMs: 5_000 });
+    t.after(() => c.destruir());
+    c.registrarAnimacoes(1, 0);
+    c.jogadores.find((j) => j.id === 1).hp = 0;
+    c.iniciarPartida();
+    const { em, apostouEm } = await segundaAposta(c);
+    assert.ok(em - apostouEm < 500, `segurou pela tela de um eliminado (${em - apostouEm}ms)`);
+});

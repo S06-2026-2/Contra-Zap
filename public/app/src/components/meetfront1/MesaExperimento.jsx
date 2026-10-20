@@ -280,6 +280,16 @@ const ORDEM_RANKS = ['4', '5', '6', '7', 'Q', 'J', 'K', 'A', '2', '3'];
 const NAIPES = ['Ouros', 'Espadas', 'Copas', 'Paus'];
 const NAIPE_INT = { Ouros: 0, Espadas: 1, Copas: 2, Paus: 3 };
 
+// Copia uma lista por assento trocando só o valor do assento `indice`.
+// Grava na posição em vez de `.map`: as listas nascem com o tamanho da sala
+// na hora que esta tela abriu (ainda na sala de espera), e o assento de
+// quem entrou depois fica além do fim — um `.map` nunca chegaria nele.
+function comValorNoAssento(lista, indice, atualizar) {
+    const nova = [...lista];
+    nova[indice] = atualizar(lista[indice]);
+    return nova;
+}
+
 // Cartas chegam do servidor como a string "[4 de Ouros]" (Carta.toString(),
 // ver conexao/PROTOCOLO.md) — mesmo parser que novo/Partida.jsx usa
 // (lerCarta lá).
@@ -2802,7 +2812,7 @@ export default function MesaExperimento({ estado, acoes }) {
             if (indice === -1) continue;
             const antes = vidaAnteriorRef.current[linha.nome] ?? VIDA_MAXIMA;
             if (linha.hp < antes && indice !== 0) {
-                setDanoPorAssento((v) => v.map((d, i) => (i === indice ? d + 1 : d)));
+                setDanoPorAssento((v) => comValorNoAssento(v, indice, (d) => (d ?? 0) + 1));
             }
             vidaAnteriorRef.current[linha.nome] = linha.hp;
 
@@ -2876,7 +2886,7 @@ export default function MesaExperimento({ estado, acoes }) {
         for (const nome of estado.eliminados ?? []) {
             if (mortesEmAndamentoRef.current.has(nome)) continue;
             const indice = indiceDoNome(nome);
-            if (indice <= 0) continue; // "Você" nunca é <Fantasminha> aqui, não tem o que desintegrar
+            if (indice === -1) continue; // "Você" também morre: o SeuFantasminha desintegra e some em 'morto'
             mortesEmAndamentoRef.current.add(nome);
             mortesAtivasRef.current += 1;
             setMortesAtivas((v) => v + 1);
@@ -2889,14 +2899,14 @@ export default function MesaExperimento({ estado, acoes }) {
         // Ver PAUSA_MORTE_APOS_DANO_MS lá em cima — o último respiro depois
         // que o coração já apagou, antes do fantasminha cair de vez.
         await esperar(PAUSA_MORTE_APOS_DANO_MS);
-        setEstadoMortePorAssento((atual) => atual.map((v, i) => (i === indice ? 'impacto' : v)));
-        setDanoPorAssento((atual) => atual.map((v, i) => (i === indice ? v + 1 : v)));
+        setEstadoMortePorAssento((atual) => comValorNoAssento(atual, indice, () => 'impacto'));
+        setDanoPorAssento((atual) => comValorNoAssento(atual, indice, (v) => (v ?? 0) + 1));
 
         await esperar(MORTE_IMPACTO_MS);
-        setEstadoMortePorAssento((atual) => atual.map((v, i) => (i === indice ? 'desintegrando' : v)));
+        setEstadoMortePorAssento((atual) => comValorNoAssento(atual, indice, () => 'desintegrando'));
 
         await esperar(MORTE_DESINTEGRAR_MS);
-        setEstadoMortePorAssento((atual) => atual.map((v, i) => (i === indice ? 'morto' : v)));
+        setEstadoMortePorAssento((atual) => comValorNoAssento(atual, indice, () => 'morto'));
 
         // Solta a trava (ver mortesAtivasRef lá em cima) — só agora que a
         // coreografia inteira (impacto + desintegrar) terminou de verdade.
@@ -3844,6 +3854,12 @@ export default function MesaExperimento({ estado, acoes }) {
     // CORACAO_IMPACTO_DURACAO_MS.
     function aoChegarCartaDano(carta) {
         setCartasDanoVoando((atual) => atual.filter((c) => c.id !== carta.id));
+        // O SEU fantasminha leva a pancada no instante em que cada carta/ficha
+        // bate no seu coração — os outros reagem quando o placar chega (ver
+        // efeito de fim de rodada, que pula o assento 0).
+        if (carta.assentoIndice === 0) {
+            setDanoPorAssento((atual) => comValorNoAssento(atual, 0, (d) => (d ?? 0) + 1));
+        }
         setVidaPorAssento((atual) => {
             if (atual[carta.assentoIndice] <= carta.heartIndice) return atual;
             const novo = [...atual];
@@ -4230,7 +4246,7 @@ export default function MesaExperimento({ estado, acoes }) {
                         <div
                             key={i}
                             ref={(el) => { assentoRefs.current[i] = el; }}
-                            className={`mesa-exp-assento${assento.eVoce ? ' mesa-exp-assento-voce' : ''}${assentosLancando.includes(i) ? ' mf1-assento-lancou' : ''}`}
+                            className={`mesa-exp-assento${assento.eVoce ? ' mesa-exp-assento-voce' : ''}${assentosLancando.includes(i) ? ' mf1-assento-lancou' : ''}${infoTemporaria && apostaDele != null ? ' mf1-assento-com-popup' : ''}`}
                             style={{ left: `${assento.x}%`, top: `${assento.y}%` }}
                             onMouseEnter={() => !assento.eVoce && setAssentoEmHoverIndex(i)}
                             onMouseLeave={() => !assento.eVoce && setAssentoEmHoverIndex(null)}
