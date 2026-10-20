@@ -281,6 +281,16 @@ const ORDEM_RANKS = ['4', '5', '6', '7', 'Q', 'J', 'K', 'A', '2', '3'];
 const NAIPES = ['Ouros', 'Espadas', 'Copas', 'Paus'];
 const NAIPE_INT = { Ouros: 0, Espadas: 1, Copas: 2, Paus: 3 };
 
+// Copia uma lista por assento trocando só o valor do assento `indice`.
+// Grava na posição em vez de `.map`: as listas nascem com o tamanho da sala
+// na hora que esta tela abriu (ainda na sala de espera), e o assento de
+// quem entrou depois fica além do fim — um `.map` nunca chegaria nele.
+function comValorNoAssento(lista, indice, atualizar) {
+    const nova = [...lista];
+    nova[indice] = atualizar(lista[indice]);
+    return nova;
+}
+
 // Cartas chegam do servidor como a string "[4 de Ouros]" (Carta.toString(),
 // ver conexao/PROTOCOLO.md) — mesmo parser que novo/Partida.jsx usa
 // (lerCarta lá).
@@ -2753,7 +2763,7 @@ export default function MesaExperimento({ estado, acoes }) {
             if (indice === -1) continue;
             const antes = vidaAnteriorRef.current[linha.nome] ?? VIDA_MAXIMA;
             if (linha.hp < antes && indice !== 0) {
-                setDanoPorAssento((v) => v.map((d, i) => (i === indice ? d + 1 : d)));
+                setDanoPorAssento((v) => comValorNoAssento(v, indice, (d) => (d ?? 0) + 1));
             }
             vidaAnteriorRef.current[linha.nome] = linha.hp;
 
@@ -2840,14 +2850,14 @@ export default function MesaExperimento({ estado, acoes }) {
         // Ver PAUSA_MORTE_APOS_DANO_MS lá em cima — o último respiro depois
         // que o coração já apagou, antes do fantasminha cair de vez.
         await esperar(PAUSA_MORTE_APOS_DANO_MS);
-        setEstadoMortePorAssento((atual) => atual.map((v, i) => (i === indice ? 'impacto' : v)));
-        setDanoPorAssento((atual) => atual.map((v, i) => (i === indice ? v + 1 : v)));
+        setEstadoMortePorAssento((atual) => comValorNoAssento(atual, indice, () => 'impacto'));
+        setDanoPorAssento((atual) => comValorNoAssento(atual, indice, (v) => (v ?? 0) + 1));
 
         await esperar(MORTE_IMPACTO_MS);
-        setEstadoMortePorAssento((atual) => atual.map((v, i) => (i === indice ? 'desintegrando' : v)));
+        setEstadoMortePorAssento((atual) => comValorNoAssento(atual, indice, () => 'desintegrando'));
 
         await esperar(MORTE_DESINTEGRAR_MS);
-        setEstadoMortePorAssento((atual) => atual.map((v, i) => (i === indice ? 'morto' : v)));
+        setEstadoMortePorAssento((atual) => comValorNoAssento(atual, indice, () => 'morto'));
 
         // Solta a trava (ver mortesAtivasRef lá em cima) — só agora que a
         // coreografia inteira (impacto + desintegrar) terminou de verdade.

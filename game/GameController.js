@@ -579,24 +579,31 @@ export class GameController extends EventEmitter {
     // _clientesEmDia)
     _alguemSegurando() {
         for (const id of this._animacoesEmDia.keys()) {
-            const jogador = this.jogadores.find(j => j.id === id);
-            if (jogador && !jogador.bot) return true;
+            if (this._seguraPelaTela(id)) return true;
         }
         return false;
     }
 
-    // Todo humano que aderiu já animou até `alvo`? Só fica de fora assento
-    // que virou bot (expulso, saiu, desistiu — o socket saiu da sala). Um
-    // timeout isolado liga `desconectado` mas a tela continua lá, animando:
-    // se contasse, um único timeout fazia esse jogador parar de segurar a
-    // partida pra sempre.
+    // Todo humano que aderiu já animou até `alvo`? Ver _seguraPelaTela.
     _clientesEmDia(alvo) {
         for (const [id, seq] of this._animacoesEmDia) {
-            const jogador = this.jogadores.find(j => j.id === id);
-            if (!jogador || jogador.bot) continue;
+            if (!this._seguraPelaTela(id)) continue;
             if (seq < alvo) return false;
         }
         return true;
+    }
+
+    // A tela desse jogador ainda segura a partida? Fica de fora assento que
+    // virou bot (expulso, saiu, desistiu — o socket saiu da sala) e quem já
+    // foi eliminado: ninguém espera a tela de quem só está assistindo — se
+    // ele fecha o app ou bloqueia o celular, a tela para de avisar e cada
+    // turno dos vivos esperaria limiteSeguraMs inteiro até o fim da partida.
+    // Um timeout isolado liga `desconectado` mas a tela continua lá,
+    // animando: se contasse, um único timeout fazia esse jogador parar de
+    // segurar a partida pra sempre.
+    _seguraPelaTela(id) {
+        const jogador = this.jogadores.find(j => j.id === id);
+        return Boolean(jogador && !jogador.bot && jogador.hp > 0);
     }
 
     // Antes de começar um turno (aposta ou jogada, humano ou bot), espera os

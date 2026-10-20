@@ -606,6 +606,13 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
                             }
                         }
                     }
+                } else if (sala && sala.iniciada) {
+                    // Tela fechada não anima nada: sai do segurar pelas
+                    // animações (ver GameController.registrarAnimacoes) —
+                    // senão cada turno esperaria limiteSeguraMs inteiro por
+                    // ela até reconectar. A tela adere de novo sozinha ao
+                    // reabrir.
+                    salaManager.registrarAnimacoes(salaId, player, null);
                 } else {
                     try {
                         notificarSala(io, salaManager.sairSala(salaId, player));
