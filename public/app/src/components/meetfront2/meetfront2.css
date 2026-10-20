@@ -1,7 +1,8 @@
 /* Meetfront2 — as mudanças do segundo encontro com o grupo, por cima da
    mesa do meetfront1. Tudo debaixo de .mf2 (wrapper em Partida.jsx), pra
    nunca vazar pro meetfront1. O que é só do computador vai debaixo de
-   .mf1:not(.mf1-mobile): o mobile continua igual ao do meetfront1. */
+   .mf1:not(.mf1-mobile); o pouco que muda no mobile vai debaixo de
+   .mf1.mf1-mobile. */
 .mf2 {
     display: contents;
     /* Margem invisível dos dois lados no computador: tudo o que encosta na
@@ -334,4 +335,63 @@
 }
 .mf2 .mf2-pavio.mesa-exp-anel-urgente .mesa-exp-anel-brasa {
     filter: drop-shadow(0 0 5px #ff7a3d) drop-shadow(0 0 14px #ff3b1f) drop-shadow(0 0 24px rgba(255, 50, 20, .6));
+}
+
+/* ---------- Revelação da vaza no mobile ---------- */
+
+/* A carta vencedora fica no meio da tela, um pouco acima do centro (ver
+   VAZA_REVELACAO_MOBILE_* no JSX), e o texto vai embaixo dela em vez do
+   lado. O `top` é o centro do texto: centro da carta (40%) + metade da
+   carta crescida (154px x 1.92 / 2 = 148px) + folga + metade do texto. O
+   translate(-50%, -50%) continua, que é o que a animação de entrada usa. */
+.mf2 .mf1.mf1-mobile .mesa-exp-vaza-texto {
+    left: 50%;
+    top: calc(40% + 194px);
+    width: calc(100vw - 32px);
+    gap: 6px;
+}
+.mf2 .mf1.mf1-mobile .mesa-exp-vaza-texto strong {
+    font-size: 20px;
+}
+.mf2 .mf1.mf1-mobile .mesa-exp-vaza-texto span {
+    font-size: 13px;
+}
+.mf2 .mf1.mf1-mobile .mesa-exp-vaza-texto-melou strong {
+    font-size: 32px;
+}
+
+/* ---------- Fim de jogo no mobile ---------- */
+
+/* Em coluna em vez de lado a lado: o vencedor menor (1.3 em vez de 1.8)
+   em cima, um pouco acima do centro da tela, e embaixo o texto e os
+   botões (jogar de novo e sair). A caixa de fora continua do tamanho
+   visual final (180px x 1.3 = 234px), mesmo motivo do computador (ver
+   .mesa-exp-vitoria-fantasminha no index.css). */
+.mf2 .mf1.mf1-mobile .mesa-exp-vitoria {
+    flex-direction: column;
+    gap: 12px;
+    padding: 0 16px 12vh;
+}
+.mf2 .mf1.mf1-mobile .mesa-exp-vitoria-fantasminha {
+    width: 234px;
+    height: 234px;
+}
+.mf2 .mf1.mf1-mobile .mesa-exp-vitoria-fantasminha-escala {
+    transform: scale(1.3);
+    animation-name: mf2-vitoria-fantasminha-entrada-mobile;
+}
+@keyframes mf2-vitoria-fantasminha-entrada-mobile {
+    from { opacity: 0; transform: scale(.3); }
+    to   { opacity: 1; transform: scale(1.3); }
+}
+.mf2 .mf1.mf1-mobile .mesa-exp-vitoria-texto {
+    gap: 12px;
+}
+.mf2 .mf1.mf1-mobile .mesa-exp-vitoria-texto strong {
+    font-size: 26px;
+    white-space: normal;
+    text-align: center;
+}
+.mf2 .mf1.mf1-mobile .mesa-exp-vitoria-texto button {
+    min-width: 180px;
 }

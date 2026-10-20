@@ -1000,6 +1000,13 @@
     font-size: 12px;
     padding: 3px 7px;
 }
+/* O popup fica dentro do assento, e o assento (transform) é um contexto de
+   empilhamento próprio: sem subir o assento inteiro, o banner de vez (41) e
+   o topo (42) passam na frente do popup dos fantasminhas de cima. 43 fica
+   abaixo das revelações/vitória (44+). Só enquanto o popup está na tela. */
+.mf1.mf1-mobile .mesa-exp-assento.mf1-assento-com-popup {
+    z-index: 43;
+}
 
 /* Corações dos outros no mobile: menores, em coluna rente à borda da
    caixinha (do lado oposto ao das fichas, ver ladoVida), centrados na

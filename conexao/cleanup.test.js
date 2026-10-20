@@ -108,3 +108,36 @@ test('criarSala respeita o teto global de salas (LIMITE_DE_SALAS)', () => {
     sm.salas.delete('X0'); // abriu uma vaga
     assert.doesNotThrow(() => sm.criarSala(donoStub(), { numberPlayers: 4 }));
 });
+
+test('sala de espera só com bots é descartada depois de tempoSalaSoBotsMs', async () => {
+    const sm = new SalaManager({ tempoSalaSoBotsMs: 60 });
+    const sala = sm.criarSala(donoStub(), { numberPlayers: 4, botNumber: 2 });
+    const controller = sala.controller;
+    sm.sairSala(sala.salaId, donoStub());
+    assert.equal(sm.obterSala(sala.salaId), sala, 'não pode sumir na hora — ainda dá tempo de alguém entrar');
+
+    await sleep(120);
+    assert.equal(sm.obterSala(sala.salaId), null);
+    assert.equal(controller._encerrado, true);
+});
+
+test('alguém de verdade entrando na sala só com bots cancela o descarte', async () => {
+    const sm = new SalaManager({ tempoSalaSoBotsMs: 60 });
+    const sala = sm.criarSala(donoStub(1), { numberPlayers: 4, botNumber: 2 });
+    sm.sairSala(sala.salaId, donoStub(1));
+    sm.entrarSala(sala.salaId, donoStub(2));
+
+    await sleep(120);
+    assert.equal(sm.obterSala(sala.salaId), sala);
+    assert.equal(sm._timersSalaSoBots.size, 0);
+});
+
+test('sala com humano ainda dentro não entra na contagem de descarte', async () => {
+    const sm = new SalaManager({ tempoSalaSoBotsMs: 60 });
+    const sala = sm.criarSala(donoStub(1), { numberPlayers: 4, botNumber: 1 });
+    sm.entrarSala(sala.salaId, donoStub(2));
+    sm.sairSala(sala.salaId, donoStub(1));
+
+    await sleep(120);
+    assert.equal(sm.obterSala(sala.salaId), sala);
+});

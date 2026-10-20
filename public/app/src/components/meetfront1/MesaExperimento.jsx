@@ -2886,7 +2886,7 @@ export default function MesaExperimento({ estado, acoes }) {
         for (const nome of estado.eliminados ?? []) {
             if (mortesEmAndamentoRef.current.has(nome)) continue;
             const indice = indiceDoNome(nome);
-            if (indice <= 0) continue; // "Você" nunca é <Fantasminha> aqui, não tem o que desintegrar
+            if (indice === -1) continue; // "Você" também morre: o SeuFantasminha desintegra e some em 'morto'
             mortesEmAndamentoRef.current.add(nome);
             mortesAtivasRef.current += 1;
             setMortesAtivas((v) => v + 1);
@@ -3854,6 +3854,12 @@ export default function MesaExperimento({ estado, acoes }) {
     // CORACAO_IMPACTO_DURACAO_MS.
     function aoChegarCartaDano(carta) {
         setCartasDanoVoando((atual) => atual.filter((c) => c.id !== carta.id));
+        // O SEU fantasminha leva a pancada no instante em que cada carta/ficha
+        // bate no seu coração — os outros reagem quando o placar chega (ver
+        // efeito de fim de rodada, que pula o assento 0).
+        if (carta.assentoIndice === 0) {
+            setDanoPorAssento((atual) => comValorNoAssento(atual, 0, (d) => (d ?? 0) + 1));
+        }
         setVidaPorAssento((atual) => {
             if (atual[carta.assentoIndice] <= carta.heartIndice) return atual;
             const novo = [...atual];
@@ -4240,7 +4246,7 @@ export default function MesaExperimento({ estado, acoes }) {
                         <div
                             key={i}
                             ref={(el) => { assentoRefs.current[i] = el; }}
-                            className={`mesa-exp-assento${assento.eVoce ? ' mesa-exp-assento-voce' : ''}${assentosLancando.includes(i) ? ' mf1-assento-lancou' : ''}`}
+                            className={`mesa-exp-assento${assento.eVoce ? ' mesa-exp-assento-voce' : ''}${assentosLancando.includes(i) ? ' mf1-assento-lancou' : ''}${infoTemporaria && apostaDele != null ? ' mf1-assento-com-popup' : ''}`}
                             style={{ left: `${assento.x}%`, top: `${assento.y}%` }}
                             onMouseEnter={() => !assento.eVoce && setAssentoEmHoverIndex(i)}
                             onMouseLeave={() => !assento.eVoce && setAssentoEmHoverIndex(null)}

@@ -375,6 +375,8 @@ abaixo.
 Ack sucesso: `{ ok: true }`. O socket dá `leave` na sala e quem ficar recebe
 `listaJogadores` atualizado. Se quem saiu era o adm, a posição passa pro
 próximo da lista automaticamente. Se a sala ficar vazia, é descartada. Se
+só sobrarem bots, ela continua aberta por 5 minutos (`tempoSalaSoBotsMs` do
+`SalaManager`) esperando alguém de verdade entrar, e então é descartada. Se
 havia um início agendado (`partidaIniciandoEm`) e a sala deixou de estar
 cheia, o agendamento é cancelado.
 Erros possíveis: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`, `SALA_JA_INICIADA`,

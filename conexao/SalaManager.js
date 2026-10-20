@@ -53,6 +53,9 @@ const MAX_SALAS = 1000;
 // novo" cria uma sala nova e não pode ser barrado por salas velhas que só
 // não foram limpas ainda).
 const MAX_SALAS_POR_JOGADOR = 4;
+// Quanto uma sala de espera em que só sobraram bots fica no ar esperando
+// alguém de verdade entrar antes de ser descartada (ver sairSala).
+const TEMPO_SALA_SO_BOTS_MS = 5 * 60_000;
 
 // Quantos baralhos uma rodada com `numberPlayers` e mão de `round` cartas
 // precisa — mesma conta de game/Game.js (numCards = jogadores*round + 1).
@@ -174,7 +177,7 @@ class Sala {
 }
 
 export class SalaManager {
-    constructor({ tempoEsperaInicioMs = TEMPO_ESPERA_INICIO_MS_PADRAO, tempoTurnoMs, limiteInatividadeMs, atrasoBotMs, tempoReservaMs, pausaVazaMs, pausaRodadaMs, chatCooldownMs = CHAT_COOLDOWN_MS, maxSalasPorJogador = MAX_SALAS_POR_JOGADOR } = {}) {
+    constructor({ tempoEsperaInicioMs = TEMPO_ESPERA_INICIO_MS_PADRAO, tempoTurnoMs, limiteInatividadeMs, atrasoBotMs, tempoReservaMs, pausaVazaMs, pausaRodadaMs, chatCooldownMs = CHAT_COOLDOWN_MS, maxSalasPorJogador = MAX_SALAS_POR_JOGADOR, tempoSalaSoBotsMs = TEMPO_SALA_SO_BOTS_MS } = {}) {
         this.salas = new Map();
         this.tempoEsperaInicioMs = tempoEsperaInicioMs;
         // Teto de salas vivas não finalizadas que um mesmo jogador pode ter
@@ -182,6 +185,12 @@ export class SalaManager {
         // pelo mesmo motivo de tempoTurnoMs & cia.: testes que compartilham um
         // SalaManager entre casos precisam poder afrouxar isso.
         this.maxSalasPorJogador = maxSalasPorJogador;
+        // Ver TEMPO_SALA_SO_BOTS_MS. Injetável pelo mesmo motivo de
+        // tempoTurnoMs & cia. logo abaixo.
+        this.tempoSalaSoBotsMs = tempoSalaSoBotsMs;
+        // salaId -> timer que descarta a sala de espera só com bots (ver
+        // sairSala). Some quando alguém de verdade entra ou a sala é removida.
+        this._timersSalaSoBots = new Map();
         // undefined = deixa o GameController usar o próprio default (20s).
         // Só existe como opção aqui pra testes conseguirem injetar um valor
         // bem menor sem precisar mexer em GameController diretamente.
@@ -579,9 +588,32 @@ export class SalaManager {
 
         if (sala.jogadores.length === 0) {
             this.salas.delete(salaId);
+        } else if (!sala.jogadores.some(jogador => !jogador.bot)) {
+            this._agendarDescarteSoBots(sala);
         }
 
         return sala;
+    }
+
+    // Sala de espera em que só sobraram bots (o último humano saiu): ninguém
+    // de verdade vai começar essa partida, mas a sala continua aparecendo em
+    // listarAbertas. Dá tempoSalaSoBotsMs pra alguém entrar (ver _entrar,
+    // que cancela) e então descarta.
+    _agendarDescarteSoBots(sala) {
+        if (this._timersSalaSoBots.has(sala.salaId)) return;
+        const timer = setTimeout(() => {
+            this._timersSalaSoBots.delete(sala.salaId);
+            if (this.salas.get(sala.salaId) !== sala || sala.iniciada) return;
+            if (sala.jogadores.some(jogador => !jogador.bot)) return;
+            this.removerSala(sala.salaId);
+        }, this.tempoSalaSoBotsMs);
+        timer.unref?.();
+        this._timersSalaSoBots.set(sala.salaId, timer);
+    }
+
+    _cancelarDescarteSoBots(salaId) {
+        clearTimeout(this._timersSalaSoBots.get(salaId));
+        this._timersSalaSoBots.delete(salaId);
     }
 
     // Chat de sala — vale tanto na sala de espera quanto com a partida em
@@ -642,6 +674,7 @@ export class SalaManager {
         const sala = this.salas.get(salaId);
         if (!sala) return;
         this.salas.delete(salaId);
+        this._cancelarDescarteSoBots(salaId);
         // Teardown do controller: para o loop da partida se ainda estiver no
         // ar, solta os listeners de socket e cancela os timers de reserva —
         // sem isto a sala some do Map mas o GameController continua vivo em
@@ -732,6 +765,7 @@ export class SalaManager {
     }
 
     _entrar(sala, player) {
+        if (!player.bot) this._cancelarDescarteSoBots(sala.salaId);
         sala.controller.entrarNaSala(player);
         if (sala.jogadores.length === sala.numberPlayers) {
             sala.controller.agendarInicio(this.tempoEsperaInicioMs);
