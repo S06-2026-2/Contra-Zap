@@ -1,0 +1,105 @@
+# Deploy noturno no Railway.
+#
+# Existe porque o deploy automático do Railway não funciona em repositório de
+# organização do GitHub. Todo dia às 03:00 (horário de Brasília) verifica se a
+# main tem commit novo desde o último deploy e, se tiver E o CI estiver verde
+# nesse commit, publica no Railway. Também pode ser disparado à mão pela aba
+# Actions ("Run workflow").
+#
+# Precisa do secret RAILWAY_TOKEN (Project Token do Railway) e, opcionalmente,
+# das variáveis RAILWAY_SERVICE e RAILWAY_ENVIRONMENT.
+name: Deploy noturno (Railway)
+
+on:
+  schedule:
+    # GitHub Actions usa UTC: 06:00 UTC = 03:00 em Brasília (UTC-3, sem horário de verão).
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      forcar:
+        description: 'Deployar mesmo sem commit novo ou sem CI verde'
+        type: boolean
+        default: false
+
+# Evita dois deploys ao mesmo tempo (ex.: agendado + manual).
+concurrency:
+  group: deploy-railway
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # mover a tag "ultimo-deploy"
+  checks: read      # ler o resultado do CI
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Há commit novo desde o último deploy?
+        id: novidade
+        run: |
+          ATUAL=$(git rev-parse HEAD)
+          if git rev-parse -q --verify refs/tags/ultimo-deploy >/dev/null; then
+            ULTIMO=$(git rev-parse ultimo-deploy)
+          else
+            ULTIMO=""
+          fi
+          echo "atual=$ATUAL"   >> "$GITHUB_OUTPUT"
+          echo "ultimo=$ULTIMO" >> "$GITHUB_OUTPUT"
+          if [ "$ATUAL" = "$ULTIMO" ]; then
+            echo "mudou=false" >> "$GITHUB_OUTPUT"
+            echo "Sem commit novo (HEAD=$ATUAL já foi deployado)."
+          else
+            echo "mudou=true" >> "$GITHUB_OUTPUT"
+            echo "Commit novo: ${ULTIMO:-<nenhum deploy anterior>} -> $ATUAL"
+          fi
+
+      - name: CI está verde nesse commit?
+        id: ci
+        if: steps.novidade.outputs.mudou == 'true' || inputs.forcar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHA="${{ steps.novidade.outputs.atual }}"
+          # Conclusão de todos os check-runs do commit, exceto este próprio workflow.
+          RESUMO=$(gh api "repos/${{ github.repository }}/commits/$SHA/check-runs?per_page=100" \
+            --jq '[.check_runs[] | select(.name != "deploy")] | {total: length, ruins: [.[] | select(.conclusion != "success" and .conclusion != "skipped")] | length}')
+          echo "check-runs: $RESUMO"
+          TOTAL=$(echo "$RESUMO" | jq .total)
+          RUINS=$(echo "$RESUMO" | jq .ruins)
+          if [ "$TOTAL" -gt 0 ] && [ "$RUINS" -eq 0 ]; then
+            echo "verde=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "verde=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::CI não está verde (ou ainda não rodou) em $SHA — deploy pulado."
+          fi
+
+      - name: Instalar Railway CLI
+        if: (steps.novidade.outputs.mudou == 'true' && steps.ci.outputs.verde == 'true') || inputs.forcar
+        run: npm install -g @railway/cli
+
+      - name: Deploy no Railway
+        id: deploy
+        if: (steps.novidade.outputs.mudou == 'true' && steps.ci.outputs.verde == 'true') || inputs.forcar
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          SERVICO: ${{ vars.RAILWAY_SERVICE || 'contra-zap' }}
+          AMBIENTE: ${{ vars.RAILWAY_ENVIRONMENT || 'production' }}
+        run: |
+          test -n "$RAILWAY_TOKEN" || { echo "::error::Secret RAILWAY_TOKEN não configurado"; exit 1; }
+          # --ci: acompanha o build e falha o job se o deploy falhar.
+          railway up --service "$SERVICO" --environment "$AMBIENTE" --ci
+
+      - name: Marcar commit como deployado
+        if: steps.deploy.outcome == 'success'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f ultimo-deploy "${{ steps.novidade.outputs.atual }}"
+          git push -f origin refs/tags/ultimo-deploy
