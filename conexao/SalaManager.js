@@ -521,6 +521,9 @@ export class SalaManager {
             throw new ErroSala(CodigosErro.VAGA_EXPIRADA, 'Sua vaga nessa partida expirou — não é mais possível reconectar.');
         }
 
+        // Antes do estado, pro ack já sair com o visual novo (ver
+        // GameController.atualizarVisual).
+        sala.controller.atualizarVisual(player.id, player);
         const estado = sala.controller.estadoDeReconexao(player.id);
         if (!estado) {
             throw new ErroSala(CodigosErro.NAO_ESTA_NA_SALA, 'Você não faz parte dessa partida.');

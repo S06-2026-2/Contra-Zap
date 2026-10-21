@@ -759,7 +759,9 @@ Todos também podem dar `NAO_IDENTIFICADO`.
 
 **Visual na partida**: ao entrar numa sala (`criarSala`, `partidaRapida`,
 `entrarSala`, `jogarDeNovo`), o assento copia a `cor`/`chapeu` equipados
-naquele momento; bots ganham um visual sorteado do catálogo. Os dois
+naquele momento, e copia de novo a cada `reconectar` — quem saiu, trocou na
+loja e voltou senta com o visual novo, e a sala recebe um `listaJogadores`
+com a troca. Bots ganham um visual sorteado do catálogo. Os dois
 aparecem em `listaJogadores`, em `novaRodadaIniciada` (`visuais`) e no ack
 de `reconectar` (`jogadores` e `visuais`).
 
