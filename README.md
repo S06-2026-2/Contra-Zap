@@ -5,6 +5,16 @@
 Jogo de cartas estilo truco, multiplayer, jogado no navegador. Motor de regras
 em Node.js, comunicação em tempo real via Socket.io, front-end em React.
 
+## Jogar online
+
+**[contrazap.up.railway.app](https://contrazap.up.railway.app)** — versão em
+produção, hospedada no Railway. Basta abrir no navegador, criar uma conta (ou
+entrar como convidado) e chamar os amigos pra uma sala. Saúde do servidor:
+[`/health`](https://contrazap.up.railway.app/health).
+
+> O deploy é automático a cada push na `main`. Rodar localmente (abaixo) só é
+> necessário pra desenvolver.
+
 ## Pré-requisitos
 
 [Node.js](https://nodejs.org/) **22 ou superior** — o `better-sqlite3@13`
