@@ -502,10 +502,14 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
 
         socket.on(EventosCliente.RECONECTAR, ({ salaId } = {}, ack) => {
             responder(ack, () => {
-                const player = exigirJogador();
+                // Com visual: o assento troca pra cor/chapéu equipados agora
+                // (ver SalaManager.reconectar), e o listaJogadores leva a
+                // troca pra mesa de quem ficou.
+                const player = exigirJogadorComVisual();
                 const { sala, estado } = salaManager.reconectar(salaId, player);
                 socket.join(salaId);
                 salaPorSocket.set(socket.id, salaId);
+                notificarSala(io, sala);
                 return { salaId, ...estado, chatAberto: sala.chatAberto };
             });
         });

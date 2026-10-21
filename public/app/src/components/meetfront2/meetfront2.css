@@ -350,11 +350,15 @@
     width: calc(100vw - 32px);
     gap: 6px;
 }
+/* Silkscreen no 700 (o outro peso carregado no index.html) pra ler melhor
+   no tamanho menor. */
 .mf2 .mf1.mf1-mobile .mesa-exp-vaza-texto strong {
-    font-size: 20px;
+    font-size: 24px;
+    font-weight: 700;
 }
 .mf2 .mf1.mf1-mobile .mesa-exp-vaza-texto span {
-    font-size: 13px;
+    font-size: 15px;
+    font-weight: 700;
 }
 .mf2 .mf1.mf1-mobile .mesa-exp-vaza-texto-melou strong {
     font-size: 32px;
@@ -388,7 +392,8 @@
     gap: 12px;
 }
 .mf2 .mf1.mf1-mobile .mesa-exp-vitoria-texto strong {
-    font-size: 26px;
+    font-size: 32px;
+    font-weight: 900;
     white-space: normal;
     text-align: center;
 }

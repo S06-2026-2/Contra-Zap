@@ -414,6 +414,23 @@ test('reconectar devolve a mão atual e de quem é a vez', async () => {
     assert.equal(estadoDaVez.suaVez, true);
 });
 
+test('reconectar troca o visual do assento pelo equipado agora', async () => {
+    const { manager, sala, outroJogador } = await criarSalaIniciada();
+    const assento = sala.jogadores.find(j => j.id === outroJogador.id);
+    const chapeuAntes = assento.chapeu;
+
+    // Como se tivesse saído, comprado/equipado na loja e voltado.
+    outroJogador.cor = 140;
+    outroJogador.chapeu = 3;
+    const { estado } = manager.reconectar(sala.salaId, outroJogador);
+
+    assert.equal(assento.cor, 140);
+    assert.equal(assento.chapeu, 3);
+    assert.notEqual(chapeuAntes, 3);
+    const noAck = estado.jogadores.find(j => j.nome === outroJogador.nome);
+    assert.deepEqual({ cor: noAck.cor, chapeu: noAck.chapeu }, { cor: 140, chapeu: 3 });
+});
+
 test('reconectar numa sala cuja partida ainda não começou devolve SALA_NAO_INICIADA', () => {
     const manager = new SalaManager();
     const dono = criarPlayer(1, 'henrique');

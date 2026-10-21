@@ -1026,6 +1026,18 @@ export class GameController extends EventEmitter {
     // — só desliga a flag de "jogando no automático". O resto do estado
     // (mão, hp, vez) já sobrevive à desconexão por natureza, não precisa
     // reconstruir nada.
+    // Cor e chapéu do assento, trocados pelos que o jogador tem equipados
+    // agora (ver SalaManager.reconectar): quem saiu, trocou na loja e voltou
+    // senta com o visual novo. undefined não mexe (player sem carteira, ex.:
+    // testes). Devolve false se esse playerId não está na sala.
+    atualizarVisual(playerId, { cor, chapeu }) {
+        const jogador = this.jogadores.find(j => j.id === playerId);
+        if (!jogador) return false;
+        if (cor !== undefined) jogador.cor = cor;
+        if (chapeu !== undefined) jogador.chapeu = chapeu;
+        return true;
+    }
+
     marcarReconectado(playerId) {
         const jogador = this.jogadores.find(j => j.id === playerId);
         if (!jogador) return false;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { chamar } from '../../socket.js';
 import { chapeuPorId, tom } from '../../visual.js';
 import {
@@ -7,20 +7,22 @@ import {
 import Casca from '../arcade/Casca.jsx';
 import { tocarSom } from '../arcade/somArcade.js';
 import Fantasminha from '../meetfront1/Fantasminha.jsx';
+import Ficha from '../meetfront1/Ficha.jsx';
 import Saldo from './Saldo.jsx';
 import './inicio.css';
 
+// `opcoes`: a ordem das setas e da grade, o grátis sempre primeiro.
 const ABAS = {
-    cor: { rotulo: 'COR', preco: PRECO_COR, gratis: COR_CINZA, comprados: 'coresCompradas' },
-    chapeu: { rotulo: 'CHAPÉU', preco: PRECO_CHAPEU, gratis: SEM_CHAPEU, comprados: 'chapeusComprados' },
+    cor: { rotulo: 'COR', preco: PRECO_COR, gratis: COR_CINZA, comprados: 'coresCompradas', opcoes: [COR_CINZA, ...CORES_LOJA] },
+    chapeu: { rotulo: 'CHAPÉU', preco: PRECO_CHAPEU, gratis: SEM_CHAPEU, comprados: 'chapeusComprados', opcoes: [SEM_CHAPEU, ...CHAPEUS_LOJA] },
 };
 
-// Raio do círculo de cores, em px (o centro é o cinza grátis).
-const RAIO_CIRCULO = 128;
-
-// Loja de customização: o fantasminha à esquerda com o que está
-// selecionado (comprado ou não, pra provar antes), a loja à direita — o
-// círculo de cores pastel (cinza grátis no meio) e a grade de chapéus. Quem
+// Loja de customização: à esquerda o saldo e o fantasminha com o que está
+// selecionado (comprado ou não, pra provar antes), com setas dos lados que
+// andam pelas opções da aba aberta (as setas do teclado também); à direita
+// a grade da aba — cores ou chapéus —, onde clicar escolhe direto. Na
+// grade, o que você já tem fica com borda azul clara e o selecionado com a
+// amarela; "Já tem" esconde o que você ainda não comprou. Quem
 // decide saldo, posse e preço é o servidor (ver conexao/carteira.js); a
 // tela só mostra a carteira que ele devolve.
 export default function Customizacao({ meuNome, onVoltar, conectado }) {
@@ -30,6 +32,17 @@ export default function Customizacao({ meuNome, onVoltar, conectado }) {
     const [provando, setProvando] = useState(null);
     const [carregando, setCarregando] = useState(false);
     const [erro, setErro] = useState(null);
+    const gradeRef = useRef(null);
+    // "Já tem": a grade e as setas só mostram o que você já possui.
+    const [soOsMeus, setSoOsMeus] = useState(false);
+
+    // As opções da aba aberta, na ordem das setas e da grade (ver ABAS),
+    // filtradas por "Já tem" quando marcado.
+    function opcoesVisiveis(chave) {
+        const { opcoes, gratis, comprados } = ABAS[chave];
+        if (!soOsMeus || !carteira) return opcoes;
+        return opcoes.filter((id) => id === gratis || carteira[comprados].includes(id));
+    }
 
     useEffect(() => {
         let cancelado = false;
@@ -42,6 +55,47 @@ export default function Customizacao({ meuNome, onVoltar, conectado }) {
             .catch((erroDaChamada) => { if (!cancelado) setErro(erroDaChamada.message); });
         return () => { cancelado = true; };
     }, []);
+
+    // Anda `passo` opções na aba aberta, dando a volta nas pontas. Provando
+    // algo que o filtro escondeu, a seta parte do começo da lista.
+    function andar(passo) {
+        if (!provando) return;
+        const opcoes = opcoesVisiveis(aba);
+        const indice = opcoes.indexOf(provando[aba]);
+        const atual = indice === -1 ? (passo > 0 ? -1 : 0) : indice;
+        const proximo = opcoes[(atual + passo + opcoes.length) % opcoes.length];
+        setProvando({ ...provando, [aba]: proximo });
+    }
+    const andarRef = useRef(andar);
+    andarRef.current = andar;
+
+    useEffect(() => {
+        function aoTeclar(evento) {
+            // Tecla não passa pelo som de clique da casca (ver
+            // instalarSomDeClique), então toca aqui o mesmo das setas.
+            const passo = evento.key === 'ArrowLeft' ? -1 : evento.key === 'ArrowRight' ? 1 : 0;
+            if (!passo) return;
+            tocarSom('aba');
+            andarRef.current(passo);
+        }
+        window.addEventListener('keydown', aoTeclar);
+        return () => window.removeEventListener('keydown', aoTeclar);
+    }, []);
+
+    // A opção escolhida pelas setas fica sempre à vista na grade. Rola só a
+    // grade (ela é o offsetParent dos itens, ver .mf2-loja-grade) — um
+    // scrollIntoView levaria a página junto e, no celular, o fantasminha
+    // sairia da tela a cada seta.
+    useEffect(() => {
+        const grade = gradeRef.current;
+        const item = grade?.querySelector('.mf2-loja-selecionado');
+        if (!item) return;
+        if (item.offsetTop < grade.scrollTop) {
+            grade.scrollTop = item.offsetTop;
+        } else if (item.offsetTop + item.offsetHeight > grade.scrollTop + grade.clientHeight) {
+            grade.scrollTop = item.offsetTop + item.offsetHeight - grade.clientHeight;
+        }
+    }, [provando, aba]);
 
     async function agir(evento, tipo, valor) {
         setErro(null);
@@ -87,8 +141,15 @@ export default function Customizacao({ meuNome, onVoltar, conectado }) {
             return (
                 <div className="mf2-loja">
                     <div className="az-painel mf2-loja-provador">
+                        <div className="az-px mf2-loja-saldo" title="Suas fichas">
+                            <span className="mf2-loja-saldo-ficha"><Ficha /></span>
+                            <span className="mf2-loja-saldo-valor">{carteira.fichas}</span>
+                            <span className="mf2-loja-saldo-rotulo">FICHAS</span>
+                        </div>
                         <div className="mf2-loja-fantasma">
+                            <button type="button" data-som="aba" className="az-b az-px mf2-loja-seta" onClick={() => andar(-1)} aria-label="Opção anterior">‹</button>
                             <Fantasminha monitor={false} hue={provando.cor} chapeu={chapeu.src} ajusteChapeuPct={chapeu.ajuste} />
+                            <button type="button" data-som="aba" className="az-b az-px mf2-loja-seta" onClick={() => andar(1)} aria-label="Próxima opção">›</button>
                         </div>
                         {acao}
                         {erro && <div className="az-erro">{erro}</div>}
@@ -107,60 +168,37 @@ export default function Customizacao({ meuNome, onVoltar, conectado }) {
                                     {rotulo}
                                 </button>
                             ))}
+                            <label className="az-px mf2-loja-filtro" data-som="aba">
+                                <input type="checkbox" checked={soOsMeus} onChange={(evento) => setSoOsMeus(evento.target.checked)} />
+                                JÁ TEM
+                            </label>
                         </div>
                         <div className="mf2-loja-preco">
                             {aba === 'cor' ? `Cada cor: ${PRECO_COR} fichas` : `Cada chapéu: ${PRECO_CHAPEU} fichas`} · comprou, é seu pra sempre
                         </div>
 
-                        {aba === 'cor' ? (
-                            <div className="mf2-loja-circulo" style={{ '--raio': `${RAIO_CIRCULO}px` }}>
-                                {CORES_LOJA.map((hue, i) => {
-                                    const angulo = (i / CORES_LOJA.length) * 2 * Math.PI - Math.PI / 2;
+                        <div ref={gradeRef} className="mf2-loja-grade">
+                            {opcoesVisiveis(aba).map((id) => {
+                                const comprado = id === info.gratis || carteira[info.comprados].includes(id);
+                                const classes = `az-b mf2-loja-item${provando[aba] === id ? ' mf2-loja-selecionado' : ''}${comprado ? ' mf2-loja-comprado' : ''}`;
+                                const escolher = () => setProvando({ ...provando, [aba]: id });
+                                if (aba === 'cor') {
                                     return (
-                                        <BotaoCor
-                                            key={hue}
-                                            hue={hue}
-                                            x={Math.cos(angulo) * RAIO_CIRCULO}
-                                            y={Math.sin(angulo) * RAIO_CIRCULO}
-                                            selecionado={provando.cor === hue}
-                                            emUso={carteira.cor === hue}
-                                            comprado={carteira.coresCompradas.includes(hue)}
-                                            onClick={() => setProvando({ ...provando, cor: hue })}
-                                        />
-                                    );
-                                })}
-                                <BotaoCor
-                                    hue={COR_CINZA}
-                                    x={0}
-                                    y={0}
-                                    grande
-                                    selecionado={provando.cor === COR_CINZA}
-                                    emUso={carteira.cor === COR_CINZA}
-                                    comprado
-                                    onClick={() => setProvando({ ...provando, cor: COR_CINZA })}
-                                />
-                            </div>
-                        ) : (
-                            <div className="mf2-loja-chapeus">
-                                {[SEM_CHAPEU, ...CHAPEUS_LOJA].map((id) => {
-                                    const sprite = chapeuPorId(id);
-                                    const comprado = id === SEM_CHAPEU || carteira.chapeusComprados.includes(id);
-                                    return (
-                                        <button
-                                            key={id}
-                                            type="button"
-                                            className={`az-b mf2-loja-chapeu${provando.chapeu === id ? ' mf2-loja-selecionado' : ''}${carteira.chapeu === id ? ' mf2-loja-em-uso' : ''}${comprado ? ' mf2-loja-comprado' : ''}`}
-                                            onClick={() => setProvando({ ...provando, chapeu: id })}
-                                            title={id === SEM_CHAPEU ? 'Sem chapéu' : `Chapéu ${id}`}
-                                        >
-                                            {sprite.src
-                                                ? <span className="mf2-loja-chapeu-sprite" style={{ backgroundImage: `url(${sprite.src})` }} />
-                                                : <span className="az-px mf2-loja-sem-chapeu">SEM</span>}
+                                        <button key={id} type="button" className={classes} onClick={escolher} title={id === COR_CINZA ? 'Cinza (grátis)' : `Cor ${id}°`}>
+                                            <span className="mf2-loja-cor-amostra" style={{ background: tom(id, 80, 82) }} />
                                         </button>
                                     );
-                                })}
-                            </div>
-                        )}
+                                }
+                                const sprite = chapeuPorId(id);
+                                return (
+                                    <button key={id} type="button" className={classes} onClick={escolher} title={id === SEM_CHAPEU ? 'Sem chapéu' : `Chapéu ${id}`}>
+                                        {sprite.src
+                                            ? <span className="mf2-loja-chapeu-sprite" style={{ backgroundImage: `url(${sprite.src})` }} />
+                                            : <span className="az-px mf2-loja-sem-chapeu">SEM</span>}
+                                    </button>
+                                );
+                            })}
+                        </div>
                         {carteira.convidado && (
                             <div className="az-nota az-centro">Como convidado, suas compras somem quando a sessão acabar.</div>
                         )}
@@ -188,19 +226,5 @@ export default function Customizacao({ meuNome, onVoltar, conectado }) {
                 </button>
             </div>
         </Casca>
-    );
-}
-
-// Bolinha de cor no círculo: marcada quando selecionada, com anel quando
-// em uso, apagada quando ainda não foi comprada.
-function BotaoCor({ hue, x, y, grande = false, selecionado, emUso, comprado, onClick }) {
-    return (
-        <button
-            type="button"
-            className={`az-b mf2-loja-cor${grande ? ' mf2-loja-cor-cinza' : ''}${selecionado ? ' mf2-loja-selecionado' : ''}${emUso ? ' mf2-loja-em-uso' : ''}${comprado ? ' mf2-loja-comprado' : ''}`}
-            style={{ background: tom(hue, 80, 82), '--x': `${x}px`, '--y': `${y}px` }}
-            onClick={onClick}
-            title={hue === COR_CINZA ? 'Cinza (grátis)' : `Cor ${hue}°`}
-        />
     );
 }

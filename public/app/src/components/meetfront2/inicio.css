@@ -72,44 +72,75 @@
 }
 .mf2-loja-fantasma {
     display: flex;
-    justify-content: center;
-    padding: 36px 0 12px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 24px 0 12px;
 }
+/* Setas do provador: andam pelas opções da aba aberta (ver andar). */
+.mf2-loja-seta {
+    flex: none;
+    width: 44px;
+    height: 64px;
+    border-radius: 10px;
+    border: 2px solid #2e313d;
+    background: #1d1f28;
+    color: #f5c451;
+    font-size: 34px;
+    line-height: 1;
+}
+.mf2-loja-seta:hover { border-color: #f5c451; background: #2a2618; }
+.mf2-loja-seta:active { translate: 0 2px; }
+
+/* Saldo grande no topo do provador — o do canto da tela é pequeno demais
+   pra quem está decidindo o que comprar. */
+.mf2-loja-saldo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 2px solid #8a6410;
+    background: #1d1a12;
+    color: #f5c451;
+}
+.mf2-loja-saldo-ficha { width: 40px; height: 40px; display: inline-block; }
+.mf2-loja-saldo-ficha .ficha-exp { filter: none; }
+.mf2-loja-saldo-valor { font-size: 30px; text-shadow: 3px 3px 0 #8a6410; }
+.mf2-loja-saldo-rotulo { font-size: 12px; color: #cfd3de; align-self: flex-end; padding-bottom: 6px; }
 .mf2-loja-vitrine {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 14px;
 }
-.mf2-loja-abas { width: 100%; }
+.mf2-loja-abas { width: 100%; align-items: center; }
+/* Filtro "Já tem" ao lado das abas COR/CHAPÉU: no computador logo depois
+   delas; no celular encostado na direita (ver o @media lá embaixo). */
+.mf2-loja-filtro {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 10px;
+    font-size: 12px;
+    color: #cfd3de;
+    cursor: pointer;
+    user-select: none;
+}
+.mf2-loja-filtro input {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    accent-color: #f5c451;
+    cursor: pointer;
+}
 .mf2-loja-preco { font-size: 13px; color: #8d93a6; text-align: center; }
 
-.mf2-loja-circulo {
+/* Grade da aba aberta (cores ou chapéus). position: relative faz dela o
+   offsetParent dos itens, que é o que a rolagem das setas usa. */
+.mf2-loja-grade {
     position: relative;
-    width: calc(var(--raio) * 2 + 44px);
-    height: calc(var(--raio) * 2 + 44px);
-    flex: none;
-}
-.mf2-loja-cor {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 30px;
-    height: 30px;
-    margin: -15px 0 0 -15px;
-    translate: var(--x) var(--y);
-    border-radius: 50%;
-    border: 3px solid #0c0d11;
-    opacity: .55;
-    transition: scale .12s ease, opacity .12s ease;
-}
-.mf2-loja-cor:hover { scale: 1.2; opacity: 1; }
-.mf2-loja-cor-cinza { width: 64px; height: 64px; margin: -32px 0 0 -32px; }
-.mf2-loja-cor.mf2-loja-comprado { opacity: 1; }
-.mf2-loja-cor.mf2-loja-em-uso { box-shadow: 0 0 0 3px #7fd6a5; }
-.mf2-loja-cor.mf2-loja-selecionado { scale: 1.3; opacity: 1; box-shadow: 0 0 0 3px #f5c451; z-index: 1; }
-
-.mf2-loja-chapeus {
     width: 100%;
     max-height: 380px;
     overflow-y: auto;
@@ -118,7 +149,7 @@
     gap: 8px;
     padding: 4px;
 }
-.mf2-loja-chapeu {
+.mf2-loja-item {
     aspect-ratio: 1;
     display: flex;
     align-items: center;
@@ -128,10 +159,17 @@
     background: #1d1f28;
     opacity: .6;
 }
-.mf2-loja-chapeu:hover { opacity: 1; border-color: #4a4f60; }
-.mf2-loja-chapeu.mf2-loja-comprado { opacity: 1; }
-.mf2-loja-chapeu.mf2-loja-em-uso { border-color: #7fd6a5; }
-.mf2-loja-chapeu.mf2-loja-selecionado { border-color: #f5c451; background: #2a2618; opacity: 1; }
+.mf2-loja-item:hover { opacity: 1; border-color: #4a4f60; }
+/* Já tem: borda azul clara. Selecionado: o amarelo forte, por cima do azul
+   (vem depois e ganha). */
+.mf2-loja-item.mf2-loja-comprado { opacity: 1; border-color: #8fd0ff; }
+.mf2-loja-item.mf2-loja-selecionado { border-color: #f5c451; background: #2a2618; opacity: 1; box-shadow: 0 0 0 2px #f5c451; }
+.mf2-loja-cor-amostra {
+    width: 62%;
+    height: 62%;
+    border-radius: 50%;
+    border: 3px solid #0c0d11;
+}
 .mf2-loja-chapeu-sprite {
     width: 80%;
     height: 80%;
@@ -144,5 +182,6 @@
 
 @media (max-width: 760px) {
     .mf2-loja { grid-template-columns: 1fr; }
-    .mf2-loja-circulo { scale: .8; margin: -30px 0; }
+    .mf2-loja-grade { max-height: 260px; }
+    .mf2-loja-filtro { margin-left: auto; }
 }
