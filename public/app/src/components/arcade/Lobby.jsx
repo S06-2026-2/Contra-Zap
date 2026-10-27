@@ -218,8 +218,9 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
     );
 
     if (vista === 'criar') {
-        const seletor = (valores, atual, escolher) => (
-            <div className="az-seletor">
+        // `rotulo` nomeia o grupo: os números se repetem entre os seletores.
+        const seletor = (rotulo, valores, atual, escolher) => (
+            <div className="az-seletor" role="group" aria-label={rotulo}>
                 {valores.map((n) => (
                     <button
                         key={n}
@@ -263,11 +264,11 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
                     <div className="az-painel az-painel-criar">
                         <div>
                             <div className="az-px az-rotulo">JOGADORES</div>
-                            {seletor(OPCOES_JOGADORES, numberPlayers, escolherJogadores)}
+                            {seletor('Jogadores', OPCOES_JOGADORES, numberPlayers, escolherJogadores)}
                         </div>
                         <div>
                             <div className="az-px az-rotulo">BOTS PRA COMPLETAR</div>
-                            {seletor(Array.from({ length: numberPlayers }, (_, i) => i), botNumber, setBotNumber)}
+                            {seletor('Bots pra completar', Array.from({ length: numberPlayers }, (_, i) => i), botNumber, setBotNumber)}
                         </div>
                         <div>
                             <div className="az-px az-rotulo">QUAL BOT</div>
@@ -289,7 +290,7 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
                         </div>
                         <div>
                             <div className="az-px az-rotulo">CARTAS NA 1ª RODADA</div>
-                            {seletor(OPCOES_CARTAS, roundStart, setRoundStart)}
+                            {seletor('Cartas na 1ª rodada', OPCOES_CARTAS, roundStart, setRoundStart)}
                         </div>
                         <div>
                             <div className="az-px az-rotulo">CORAÇÕES INICIAIS <span className="az-em-breve">EM BREVE</span></div>

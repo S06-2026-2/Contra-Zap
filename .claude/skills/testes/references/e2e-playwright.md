@@ -27,13 +27,14 @@ camada — mas fora do `npm test` (script próprio `test:e2e`, job próprio no C
 
 | Método | O que faz pela interface |
 |---|---|
-| `Jogador.entrar(browser, nome?)` | contexto novo, `/`, login como convidado, espera "Olá, nome" |
-| `criarSala({ jogadores, bots, cartas })` | preenche o form da Lobby, clica Criar, devolve o `salaId` lido do título |
-| `entrarNaSala(salaId)` | "Atualizar lista" → acha o `<li>` da sala → "Entrar" |
-| `forcarInicio()` | clica `/Forçar início/`, espera "Vez de:" |
-| `apostar(valor, alternativa)` | espera "Aposta — sua vez", aposta; se recusada (APOSTA_FECHA_RODADA), tenta `alternativa` |
-| `jogarPrimeiraCarta()` | espera "sua vez, clique numa carta", clica a 1ª |
-| `cartas()` | locator `.mao button.carta` |
+| `Jogador.entrar(browser, nome?)` | contexto novo, `/` → JOGAR → nome → "JOGAR COMO CONVIDADO", espera "SALAS ABERTAS" |
+| `criarSala({ jogadores, bots, cartas })` | "+ CRIAR SALA", escolhe nos seletores (grupos por nome), "ABRIR MESA", devolve o `salaId` lido de "SALA XXXXXX" |
+| `entrarNaSala(salaId)` | "ATUALIZAR" → cartão `.az-sala` com o id → "ENTRAR" |
+| `roster()` | os assentos da sala de espera (`.az-grade-espera`) |
+| `forcarInicio()` | clica `/Forçar início/i`, espera o "Sair da partida" |
+| `apostar(valor, alternativa)` | espera a placa "Apostar" da mão, aposta pelo pop-up; se o valor fecha a soma (botão travado ou APOSTA_FECHA_RODADA), tenta `alternativa` |
+| `jogarUmaCarta()` | espera "Sua vez! Escolha uma carta.", clica a última do leque |
+| `cartas()` / `nomesDasCartas()` | locator `.mesa-exp-sua-mao-carta` / os `aria-label` delas |
 | `page`, `context`, `nome` | crus, pra asserção |
 
 Fixtures do `test`: `jogador` (um, já logado) e `jogadores(n)` (vários em
@@ -41,9 +42,10 @@ paralelo). Ambas fecham os contextos no fim.
 
 ## Decisões tomadas (e por quê)
 
-1. **Sem `data-testid`.** A interface tem `<label>` e botões com texto; os
-   seletores por acessibilidade bastaram. Se um dia um elemento sem texto
-   precisar ser alvo, aí sim adicione `data-testid` — não antes.
+1. **Sem `data-testid`.** Botões têm texto; onde faltava nome (campos do
+   PopupLogin e da aposta, seletores de criar sala, cartas desenhadas) o
+   front ganhou nome acessível (`aria-label`, `role="group"`,
+   `role="img"`). Melhora a tela pra leitor de tela e serve ao teste.
 2. **Servidor por execução, não compartilhado.** `webServer` com
    `reuseExistingServer: false`: algo já na 3100 é de OUTRA execução com
    OUTRO banco. Banco em `mkdtemp`, mesma disciplina de
@@ -52,10 +54,9 @@ paralelo). Ambas fecham os contextos no fim.
    variável de ambiente: o teste começa a partida pelo botão do adm e
    responde aos turnos na hora. O único tempo que se paga é o `atrasoBotMs`
    de 2s por ação do bot — daí `expect.timeout` de 15s e `timeout` de 60s.
-4. **Build versionado.** `public/dist` está no git, e o E2E usa ele. É
-   conveniente (nada a buildar no CI) e perigoso (pode ficar velho em
-   relação a `public/app/src`). Regra: mexeu no front, rebuilda antes de
-   commitar.
+4. **Build na hora.** `public/dist` não é versionado: localmente o
+   `webServer` builda antes de subir; no CI o E2E roda contra a imagem
+   Docker (`E2E_SERVIDOR_EXTERNO=true`), que builda o front dentro dela.
 5. **1 humano + 1 bot para partida.** Mesa mínima do projeto; dispensa um
    segundo navegador nos testes de mão/aposta/carta. Os testes com 2 humanos
    ficam em `sala.spec.js`, onde a interação entre telas é o assunto.
@@ -65,16 +66,21 @@ paralelo). Ambas fecham os contextos no fim.
 
 ## Armadilhas encontradas
 
-- **Texto duplicado entre status e log.** `<span class="status-jogador">` e
-  `<pre class="log">` mostram o mesmo "X apostou 0". `getByText` acha os
-  dois → *strict mode violation*. Escope no elemento certo.
-- **O botão de forçar início tem texto informal** (`Partida.jsx:502`). O
-  teste usa `/Forçar início/` de propósito, pra sobreviver a uma reescrita.
+- **O E2E segue a frente do app.** Ele já foi escrito pra frente
+  `debugging` (fixada via localStorage); quando ela saiu do app, os 19
+  testes morreram no primeiro `getByLabel('Nome')`. Removeu ou trocou uma
+  tela? Rode o E2E antes do merge.
+- **O botão de forçar início só existe pro adm** (`acoes.forcarInicio` vem
+  só com `souDono`). O teste usa `/Forçar início/i` pra sobreviver a uma
+  reescrita do texto.
 - **A vez é sorteada.** Nunca assuma que o humano aposta/joga primeiro; a
-  fixture espera o título "sua vez" aparecer.
+  fixture espera a placa "Apostar" / o banner "Sua vez!" aparecer.
 - **`apostar` pode ser recusado.** Se o humano for o último a apostar e o
-  valor fechar a soma no número de cartas (`APOSTA_FECHA_RODADA`), o form
-  fica na tela. A fixture detecta pelo título que não sumiu e tenta outro valor.
+  valor fechar a soma no número de cartas, o pop-up trava o botão (ou o
+  servidor recusa com `APOSTA_FECHA_RODADA` e o pop-up fica aberto). A
+  fixture detecta os dois casos e tenta outro valor.
+- **Rodada cega esconde a mão.** Com 1 carta (default) ela chega como
+  "Carta virada". Teste que lê a carta pede `cartas: 3`.
 
 ## O que fica de fora (de propósito)
 
