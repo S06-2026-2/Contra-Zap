@@ -16,9 +16,8 @@ const OPCOES_CARTAS = [1, 2, 3, 4, 5];
 // Lista de salas + criar sala (duas "vistas" da mesma tela) + reconexão
 // numa partida em andamento. A lógica de entrada (JA_EM_PARTIDA, sala
 // privada com senha, reconectar/desistir) segue o conexao/PROTOCOLO.md.
-// `onVoltar` só vem nas frentes com tela inicial (meetfront2): aparece o
-// botão de voltar pra ela no topo.
-export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onReconectou, onTrocarFrente, onVoltar, conectado }) {
+// `onVoltar`: botão de voltar pra tela inicial no topo.
+export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onReconectou, onVoltar, conectado }) {
     const [vista, setVista] = useState('salas'); // 'salas' | 'criar'
     const [salas, setSalas] = useState(null); // null = ainda não buscou
     const [numberPlayers, setNumberPlayers] = useState(4);
@@ -186,17 +185,6 @@ export default function Lobby({ meuNome, salaParaReconectar, onEntrouNaSala, onR
                 </button>
             )}
             <span className="az-px az-topo-nome" title="Você">{meuNome}</span>
-            {onTrocarFrente && (
-                <button
-                    type="button"
-                    data-som="aba"
-                    className="az-b az-px az-topo-btn"
-                    onClick={onTrocarFrente}
-                    title="Trocar de frente visual"
-                >
-                    🔄<span className="az-rotulo-largo"> FRONT</span>
-                </button>
-            )}
         </>
     );
 

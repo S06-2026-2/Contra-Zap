@@ -1,9 +1,7 @@
-/* Meetfront1 — as mudanças pedidas no encontro com o grupo, num ambiente
-   separado do front provisório (components/novo/). A base visual é a mesma:
-   os componentes daqui usam as classes mesa-exp-* / carta-exp-* / etc. do
-   index.css. O que for só deste front entra AQUI, sempre debaixo de .mf1
-   (classe na raiz da mesa, ver MesaExperimento.jsx), pra nunca vazar pro
-   front provisório. */
+/* Meetfront1 — as mudanças pedidas no primeiro encontro com o grupo, por
+   cima da base visual do index.css (classes mesa-exp-* / carta-exp-* /
+   etc.). O que for só daqui entra AQUI, sempre debaixo de .mf1 (classe na
+   raiz da mesa, ver meetfront2/MesaExperimento.jsx). */
 
 /* Canto de cima à esquerda. Primeira linha (.mf1-topo): banner de vez,
    o balão do chat (mesma altura do banner, centros alinhados) e o título (CONTRA ZAP + sala/senha). */
@@ -21,7 +19,7 @@
 .mf1 .mf1-topo .mesa-exp-cabecalho-titulo {
     position: static;
 }
-/* Largura fixa (o dobro da mínima do front provisório) que o texto nunca
+/* Largura fixa que o texto nunca
    empurra: sem quebra de linha, e a fonte encolhe até caber (ver BannerVez
    em MesaExperimento.jsx). line-height em px segura a altura. */
 .mf1 .mesa-exp-turno-banner {
@@ -87,7 +85,7 @@
     left: 20px;
     z-index: 42;
 }
-/* 1.3x mais larga que a do front provisório (264px), crescendo pra
+/* 1.3x mais larga que a base do index.css (264px), crescendo pra
    direita — a borda esquerda continua alinhada com o banner. */
 .mf1 .mf1-chat-aberto .mesa-exp-chat-linha {
     margin: 0;
@@ -150,7 +148,7 @@
 }
 
 /* Sua vez de apostar não pinta as cartas: o véu vermelho por carta do
-   front provisório (.mesa-exp-sua-mao-carta-entrada::after) fica sempre
+   index.css (.mesa-exp-sua-mao-carta-entrada::after) fica sempre
    apagado aqui. */
 .mf1 .mesa-exp-sua-mao-apostando .mesa-exp-sua-mao-carta-entrada::after {
     opacity: 0;
@@ -193,7 +191,7 @@
    muitas cartas, multiplicando o 1.5 base. Hover devolve a carta ao
    tamanho cheio da vez (--escala-vez, sem o encolhimento): com a mão
    apertada, passar o mouse é como se lê a carta que está por baixo. A
-   transição um pouco mais longa que o hover do front provisório é a que
+   transição um pouco mais longa que o hover do index.css é a que
    faz a mão "crescer" quando a vez chega. */
 .mf1 .mesa-exp-sua-mao-carta {
     transform: translateX(-50%) translateX(var(--deslocamento-carta)) rotate(var(--rotacao-carta)) scale(calc(1.5 * var(--escala-mao, 1)));
@@ -382,8 +380,8 @@
     }
 }
 
-/* Frente meetfront1 (classe no body, ver App.jsx): sem a aba de filtro de
-   tela em nenhuma tela — nem no Login/Lobby da arcade, nem o botão FX que
+/* Classe no body (ver App.jsx): sem a aba de filtro de tela em nenhuma
+   tela — nem nas telas da casca arcade, nem o botão FX que
    abre ela no celular. O código do painel continua lá; na mesa ele já
    nem é montado (MOSTRAR_PAINEL_FILTRO em FiltroTela.jsx). */
 .mf1-frente .az-filtro,
@@ -746,226 +744,6 @@
     font-size: 11px;
 }
 
-/* ---------- Lab de pouso (ver LabPouso.jsx) ---------- */
-
-/* Camada das cartas tacadas e das zonas: a tela inteira, em % dela — o
-   mesmo sistema das zonas em zonasPouso.js. */
-.mf1 .mf1-lab-camada {
-    position: fixed;
-    inset: 0;
-    z-index: 50;
-    pointer-events: none;
-}
-.mf1 .mf1-lab-carta {
-    position: absolute;
-    transform: translate(-50%, -50%) rotate(var(--rot)) scale(var(--escala));
-    animation: mf1-lab-carta-pousar .22s ease-out;
-}
-@keyframes mf1-lab-carta-pousar {
-    from { opacity: 0; transform: translate(-50%, -50%) rotate(var(--rot)) scale(calc(var(--escala) * 1.6)); }
-}
-.mf1 .mf1-lab-carta-dono .carta-exp {
-    box-shadow: 0 0 0 4px var(--cor-dono);
-}
-.mf1 .mf1-lab-zona {
-    position: absolute;
-    box-sizing: border-box;
-    border: 2px solid var(--cor);
-    border-radius: 4px;
-    background: color-mix(in srgb, var(--cor) 16%, transparent);
-    pointer-events: auto;
-    touch-action: none;
-    cursor: move;
-}
-.mf1 .mf1-lab-zona-numero {
-    position: absolute;
-    left: 3px;
-    top: 1px;
-    font: 400 11px Silkscreen, monospace;
-    color: var(--cor);
-    text-shadow: 0 1px 2px #000;
-}
-.mf1 .mf1-lab-zona-alca {
-    position: absolute;
-    right: -9px;
-    bottom: -9px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--cor);
-    border: 2px solid #0c0d11;
-    touch-action: none;
-    cursor: nwse-resize;
-}
-
-/* Meladas de exemplo: a âncora fica no ponto salvo (em % da tela) e as
-   cartas saem dela com o mesmo deslocamento da mesa (deslocamentoMelada).
-   Arrastar qualquer uma move o canto inteiro. A faixa de baixo marca o
-   timer + fichas + vida do mobile (até 84px da base). */
-.mf1 .mf1-lab-assento {
-    touch-action: none;
-    cursor: move;
-}
-.mf1 .mf1-lab-melada {
-    position: absolute;
-    width: 0;
-    height: 0;
-}
-.mf1 .mf1-lab-melada-carta {
-    position: absolute;
-    left: 0;
-    top: 0;
-    pointer-events: auto;
-    touch-action: none;
-    cursor: move;
-}
-.mf1 .mf1-lab-melada-rotulo {
-    position: absolute;
-    left: -20px;
-    top: -64px;
-    font: 400 10px Silkscreen, monospace;
-    color: rgba(255, 255, 255, .6);
-    text-shadow: 0 1px 2px #000;
-    white-space: nowrap;
-}
-.mf1 .mf1-lab-faixa-baixo {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 84px;
-    z-index: 41;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: repeating-linear-gradient(45deg, #1a1c25 0 10px, #14161d 10px 20px);
-    border-top: 2px solid #262935;
-    font: 400 10px Silkscreen, monospace;
-    color: #6b7080;
-}
-
-.mf1 .mf1-lab-painel {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 60;
-    max-height: 48vh;
-    overflow-y: auto;
-    box-sizing: border-box;
-    padding: 10px 10px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    background: linear-gradient(180deg, #1a1c25, #14161d);
-    border-top: 2px solid #262935;
-    box-shadow: 0 -6px 18px rgba(0, 0, 0, .6);
-    font: 400 13px Archivo, system-ui, sans-serif;
-    color: #cfd3dc;
-}
-.mf1 .mf1-lab-linha {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-}
-.mf1 .mf1-lab-rotulo {
-    font: 400 11px Silkscreen, monospace;
-    color: #8a8f9c;
-    margin-right: 2px;
-}
-.mf1 .mf1-lab-valor {
-    font: 400 11px Silkscreen, monospace;
-    color: #f5c451;
-}
-.mf1 .mf1-lab-check {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-.mf1 .mf1-lab-btn {
-    min-height: 30px;
-    padding: 0 10px;
-    border: 2px solid #262935;
-    border-radius: 6px;
-    background: #20232e;
-    color: #e6e8ee;
-    font: 400 11px Silkscreen, monospace;
-    cursor: pointer;
-}
-.mf1 .mf1-lab-btn-ativo {
-    border-color: #f5c451;
-    color: #f5c451;
-}
-.mf1 .mf1-lab-abrir {
-    position: fixed;
-    left: 8px;
-    bottom: 8px;
-    z-index: 60;
-}
-.mf1 .mf1-lab-nota {
-    font-size: 11px;
-    color: #8a8f9c;
-}
-.mf1 .mf1-lab-aviso {
-    font: 400 11px Silkscreen, monospace;
-    color: #ff4b3e;
-}
-.mf1 .mf1-lab-codigo {
-    box-sizing: border-box;
-    width: 100%;
-    height: 120px;
-    resize: vertical;
-    padding: 6px;
-    border: 2px solid #262935;
-    border-radius: 6px;
-    background: #0c0d11;
-    color: #cfd3dc;
-    font: 11px ui-monospace, Consolas, monospace;
-    user-select: text;
-}
-
-/* Lab do leque (ver LabMao.jsx): a mão fica embaixo, então o painel vai
-   pro topo. Cada ajuste numa linha: rótulo, slider, valor. */
-.mf1 .mf1-lab-painel-topo {
-    top: 0;
-    bottom: auto;
-    border-top: none;
-    border-bottom: 2px solid #262935;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, .6);
-}
-.mf1 .mf1-lab-abrir-topo {
-    top: 8px;
-    bottom: auto;
-}
-.mf1 .mf1-lab-leitura {
-    font: 400 10px Silkscreen, monospace;
-    color: #f5c451;
-}
-.mf1 .mf1-lab-tabela {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 2px 8px;
-    font: 11px ui-monospace, Consolas, monospace;
-    color: #8a8f9c;
-}
-.mf1 .mf1-lab-tabela-atual {
-    color: #f5c451;
-}
-.mf1 .mf1-lab-controle {
-    display: grid;
-    grid-template-columns: 9.5em 1fr 3.5em;
-    align-items: center;
-    gap: 6px;
-}
-.mf1 .mf1-lab-controle input {
-    width: 100%;
-    min-width: 0;
-}
-.mf1 .mf1-lab-controle-rotulo {
-    font-size: 12px;
-}
-
 /* Bandeja de fichas dos outros no mobile (ver BANDEJA_MOBILE em
    MesaExperimento.jsx): compartimento logo abaixo da caixinha, mesma
    largura e mesmo visual (placa quase preta, aro escuro), com um sulco por
@@ -1016,147 +794,8 @@
 .mf1.mf1-mobile .mesa-exp-assento-vida {
     top: 53px;
 }
-.mf1.mf1-mobile .mesa-exp-assento-vida-direita {
-    right: 6px;
-}
-.mf1.mf1-mobile .mesa-exp-assento-vida-esquerda {
-    left: 6px;
-}
 .mf1.mf1-mobile .mesa-exp-assento-vida .mesa-exp-coracao {
     font-size: 14px;
-}
-
-/* Partida beta / demo de desempenho (ver DemoBeta.jsx). Telas de config e
-   relatório no idioma do arcade (ardósia + Silkscreen); o mostrador ao
-   vivo fica fora da camada filtrada, no topo, por cima de tudo. */
-.mf1-demo-tela {
-    position: fixed;
-    inset: 0;
-    overflow-y: auto;
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    padding: 48px 16px;
-    background: #0d0e13;
-    color: #d8dbe6;
-}
-.mf1-demo-painel {
-    width: 100%;
-    max-width: 440px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 24px;
-    border: 1px solid #262935;
-    border-radius: 16px;
-    background: linear-gradient(180deg, #1a1c25, #14161d);
-}
-.mf1-demo-painel-largo {
-    max-width: 760px;
-}
-.mf1-demo-titulo {
-    font-size: 18px;
-    color: #f5c451;
-}
-.mf1-demo-subtitulo {
-    margin-top: 8px;
-    font-size: 11px;
-    color: #8a8fa3;
-}
-.mf1-demo-nota {
-    font-size: 13px;
-    line-height: 1.5;
-    color: #a3a8ba;
-}
-.mf1-demo-nota strong {
-    color: #f1e6d2;
-}
-.mf1-demo-check {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 6px 0;
-    background: none;
-    border: 0;
-    color: #d8dbe6;
-    text-align: left;
-    cursor: pointer;
-}
-.mf1-demo-marca {
-    flex: none;
-    width: 16px;
-    height: 16px;
-    border-radius: 4px;
-    background: #22252f;
-    border: 1px solid #353948;
-}
-.mf1-demo-marca-ligada {
-    background: #7fd6a5;
-}
-.mf1-demo-botoes {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-.mf1-demo-botoes .az-btn {
-    flex: 1 1 160px;
-}
-.mf1-demo-numeros {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 10px;
-}
-.mf1-demo-numeros > div {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 10px;
-    border-radius: 10px;
-    background: #101218;
-    font-size: 12px;
-    color: #8a8fa3;
-}
-.mf1-demo-numeros .az-px {
-    font-size: 20px;
-    color: #f1e6d2;
-}
-.mf1-demo-tabela {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-}
-.mf1-demo-tabela th,
-.mf1-demo-tabela td {
-    padding: 5px 8px;
-    border-bottom: 1px solid #262935;
-    text-align: right;
-    white-space: nowrap;
-}
-.mf1-demo-tabela th:first-child,
-.mf1-demo-tabela td:first-child {
-    text-align: left;
-    white-space: normal;
-}
-.mf1-demo-tabela th {
-    color: #8a8fa3;
-    font-weight: normal;
-}
-.mf1-demo-atual td {
-    color: #f5c451;
-}
-.mf1-demo-hud {
-    position: fixed;
-    top: 6px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 10000;
-    padding: 4px 10px;
-    border-radius: 6px;
-    background: rgba(0, 0, 0, 0.7);
-    color: #7fd6a5;
-    font-size: 11px;
-    white-space: nowrap;
-    pointer-events: none;
 }
 
 /* Grão leve (ver GraoLeve em FiltroTela.jsx): ladrilho de ruído repetido,
@@ -1239,36 +878,6 @@
 }
 @keyframes mf1-choque-glitch-passar {
     to { transform: translateY(-100%); }
-}
-
-/* Choque em franjas (CHOQUE_MODO 'franjas' em FiltroTela.jsx): durante o
-   choque, cartas e assentos ganham um drop-shadow vermelho de um lado e
-   ciano do outro, sem desfoque, tremendo e voltando a zero. Duas
-   animações iguais com nomes diferentes (-1/-2) pra um choque logo atrás
-   do outro recomeçar do pico. */
-.mf1-choque-franjas-1 .carta-exp,
-.mf1-choque-franjas-1 .mesa-exp-assento {
-    animation: mf1-franjas-1 var(--franjas-ms) ease-out both;
-}
-.mf1-choque-franjas-2 .carta-exp,
-.mf1-choque-franjas-2 .mesa-exp-assento {
-    animation: mf1-franjas-2 var(--franjas-ms) ease-out both;
-}
-@keyframes mf1-franjas-1 {
-    0%   { filter: drop-shadow(7px 0 0 rgba(255, 30, 70, .75)) drop-shadow(-7px 0 0 rgba(30, 220, 255, .75)); }
-    12%  { filter: drop-shadow(-4px 1px 0 rgba(255, 30, 70, .7)) drop-shadow(5px -1px 0 rgba(30, 220, 255, .7)); }
-    25%  { filter: drop-shadow(5px 0 0 rgba(255, 30, 70, .6)) drop-shadow(-4px 0 0 rgba(30, 220, 255, .6)); }
-    45%  { filter: drop-shadow(-2px 0 0 rgba(255, 30, 70, .45)) drop-shadow(3px 0 0 rgba(30, 220, 255, .45)); }
-    70%  { filter: drop-shadow(1px 0 0 rgba(255, 30, 70, .25)) drop-shadow(-1px 0 0 rgba(30, 220, 255, .25)); }
-    100% { filter: drop-shadow(0 0 0 rgba(255, 30, 70, 0)) drop-shadow(0 0 0 rgba(30, 220, 255, 0)); }
-}
-@keyframes mf1-franjas-2 {
-    0%   { filter: drop-shadow(7px 0 0 rgba(255, 30, 70, .75)) drop-shadow(-7px 0 0 rgba(30, 220, 255, .75)); }
-    12%  { filter: drop-shadow(-4px 1px 0 rgba(255, 30, 70, .7)) drop-shadow(5px -1px 0 rgba(30, 220, 255, .7)); }
-    25%  { filter: drop-shadow(5px 0 0 rgba(255, 30, 70, .6)) drop-shadow(-4px 0 0 rgba(30, 220, 255, .6)); }
-    45%  { filter: drop-shadow(-2px 0 0 rgba(255, 30, 70, .45)) drop-shadow(3px 0 0 rgba(30, 220, 255, .45)); }
-    70%  { filter: drop-shadow(1px 0 0 rgba(255, 30, 70, .25)) drop-shadow(-1px 0 0 rgba(30, 220, 255, .25)); }
-    100% { filter: drop-shadow(0 0 0 rgba(255, 30, 70, 0)) drop-shadow(0 0 0 rgba(30, 220, 255, 0)); }
 }
 
 /* Borda elétrica em flipbook (ver bordaFlipbook.js): uma janela do tamanho

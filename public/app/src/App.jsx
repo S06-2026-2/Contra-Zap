@@ -1,61 +1,21 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import Login from './components/Login.jsx';
-import Lobby from './components/Lobby.jsx';
-import Partida from './components/Partida.jsx';
-import PartidaNovo from './components/novo/Partida.jsx';
-import PartidaMeetfront1 from './components/meetfront1/Partida.jsx';
-import PartidaMeetfront2 from './components/meetfront2/Partida.jsx';
-import InicioMeetfront2 from './components/meetfront2/Inicio.jsx';
-import CustomizacaoMeetfront2 from './components/meetfront2/Customizacao.jsx';
+import Partida from './components/meetfront2/Partida.jsx';
+import Inicio from './components/meetfront2/Inicio.jsx';
+import Customizacao from './components/meetfront2/Customizacao.jsx';
 import AvisoFichas from './components/meetfront2/AvisoFichas.jsx';
-import LoginArcade from './components/arcade/Login.jsx';
-import LobbyArcade from './components/arcade/Lobby.jsx';
-import PartidaArcade from './components/arcade/Partida.jsx';
-import PartidaMescla from './components/mescla/Partida.jsx';
+import Lobby from './components/arcade/Lobby.jsx';
 import Casca from './components/arcade/Casca.jsx';
-import SeletorFrente, { lerFrenteSalva } from './components/SeletorFrente.jsx';
 import { assinarConexao, chamar, obterConexao, socket } from './socket.js';
 import { avisarSessaoRetomada, lerSessaoSalva, limparSessaoSalva, salvarSessao } from './sessao.js';
 
-// Única rota de verdade do app: /front abre o seletor de frente (ver
-// ROTA_FRENTE); o resto — frente, login, lobby, sala — é tudo estado em
-// memória/localStorage, nunca a URL.
-const ROTA_FRENTE = '/front';
-
-// "novo" usa o Login e o Lobby da arcade e a Partida própria, que é sempre
-// o front provisório (components/novo/MesaExperimento.jsx, alimentado pelo
-// socket em components/novo/Partida.jsx) — ver SeletorFrente.jsx pra como a
-// escolha de frente é lembrada por navegador.
+// Sem rotas: tela inicial, customização, salas e partida são todas
+// estado em memória/sessionStorage, nunca a URL (a única exceção é o /lab,
+// tratado em main.jsx).
 //
-// "meetfront1" é igual ao "novo", com a Partida de components/meetfront1/
-// (cópia da mesa do novo onde entram as mudanças do encontro com o grupo).
-//
-// "meetfront2" é a frente das mudanças do segundo encontro, com a Partida
-// de components/meetfront2/. No lugar do Login ela tem a tela inicial
-// (`Inicio`: JOGAR e CUSTOMIZAÇÃO, com pop-up de login quando precisa) e a
-// `Customizacao`.
-//
-// "arcade" é a casca de components/arcade/ (ver
-// design_handoff_frente_arcade/README.md) — mesmas props das outras, mais
-// `conectado`: ela desenha a própria faixa de conexão perdida, então o
-// banner global some nas telas dela.
-//
-// "mescla" é a arcade inteira com a mesa trocada por components/mescla/ —
-// o oval e os fantasminhas do "novo" com a interface da arcade.
-const FRENTES = {
-    novo: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaNovo },
-    meetfront1: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaMeetfront1 },
-    meetfront2: {
-        Login: LoginArcade,
-        Lobby: LobbyArcade,
-        Partida: PartidaMeetfront2,
-        Inicio: InicioMeetfront2,
-        Customizacao: CustomizacaoMeetfront2,
-    },
-    arcade: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaArcade },
-    mescla: { Login: LoginArcade, Lobby: LobbyArcade, Partida: PartidaMescla },
-    debugging: { Login, Lobby, Partida },
-};
+// Tela inicial (`Inicio`: JOGAR e CUSTOMIZAÇÃO, com pop-up de login quando
+// precisa) e `Customizacao` vêm de components/meetfront2/; as salas são a
+// Lobby da casca arcade (components/arcade/, ver
+// design_handoff_frente_arcade/README.md); a Partida é a do meetfront2.
 
 // Máquina de estado bem simples. Sessão (nome + token) fica em memória
 // aqui (`player`) mas é espelhada em sessionStorage (ver sessao.js) — o
@@ -63,23 +23,15 @@ const FRENTES = {
 // compartilhado entre abas (localStorage) nem entre sessões do navegador
 // (cookie persistente).
 export default function App() {
-    // Lembrada por navegador via localStorage; sem nada salvo, abre no
-    // meetfront2 (ver SeletorFrente.jsx).
-    const [frente, setFrente] = useState(lerFrenteSalva);
-    // true quando a página abriu em /front: o seletor aparece no lugar de
-    // tudo. Escolher (ou voltar) troca a URL pra / sem recarregar e segue
-    // pro Login ou pras salas, conforme já havia sessão ou não.
-    const [escolhendoFrente, setEscolhendoFrente] = useState(() => window.location.pathname === ROTA_FRENTE);
-    // Marca o body na frente meetfront1: o CSS dela esconde o painel de
-    // filtro de tela também no Login/Lobby, que são as telas da arcade
-    // (ver .mf1-frente em meetfront1/meetfront1.css).
+    // Marca o body: o CSS do meetfront1 esconde o painel de filtro de tela
+    // também nas telas da casca arcade (ver .mf1-frente em
+    // meetfront1/meetfront1.css).
     useEffect(() => {
-        document.body.classList.toggle('mf1-frente', frente === 'meetfront1' || frente === 'meetfront2');
-    }, [frente]);
+        document.body.classList.add('mf1-frente');
+    }, []);
     const [player, setPlayer] = useState(null); // { nome, token }
     const [sala, setSala] = useState(null); // { salaId, jogadoresIniciais } ou { salaId, reconexao }
-    // Só nas frentes com tela inicial (ver `Inicio` em FRENTES): null é a
-    // própria tela inicial; 'jogar' (salas/partida) e 'customizar' só valem
+    // null é a própria tela inicial; 'jogar' (salas/partida) e 'customizar' só valem
     // com sessão — sem ela, cai de volta na tela inicial.
     const [destino, setDestino] = useState(null);
     // salaId de uma partida em andamento em que ainda temos assento mas cujo
@@ -102,7 +54,7 @@ export default function App() {
     // antes de saber se dá pra retomar uma sessão de antes de um F5.
     const [restaurandoSessao, setRestaurandoSessao] = useState(true);
 
-    // Único lugar que autentica de verdade — login normal (Login.jsx),
+    // Único lugar que autentica de verdade — login normal (PopupLogin.jsx),
     // retomada de uma sessão salva (useEffect logo abaixo) e retomada
     // depois de uma reconexão de rede (outro useEffect mais abaixo) passam
     // todos por aqui, pra `player` (memória) e a sessão salva
@@ -200,14 +152,6 @@ export default function App() {
         setSala({ salaId, jogadoresIniciais, segundosParaIniciar, chatAberto, senha });
     }
 
-    // Sair do /front: a URL volta pra / (replaceState, sem recarregar —
-    // a sessão retomada lá em cima continua valendo) e o fluxo normal
-    // decide entre Login e salas. Trocar de frente não mexe em player/sala.
-    function sairDoSeletor() {
-        window.history.replaceState(null, '', '/');
-        setEscolhendoFrente(false);
-    }
-
     // Sair da conta: sem evento de logout no protocolo, o jeito de o
     // servidor esquecer quem somos é um socket novo — recarregar a página
     // sem a sessão salva faz isso e volta pra tela inicial deslogado.
@@ -216,84 +160,46 @@ export default function App() {
         window.location.assign('/');
     }
 
-    if (escolhendoFrente) {
-        return (
-            <SeletorFrente
-                atual={frente}
-                onEscolher={(escolhida) => {
-                    setFrente(escolhida);
-                    sairDoSeletor();
-                }}
-                onVoltar={sairDoSeletor}
-                conectado={conectado}
-            />
-        );
-    }
-
     if (restaurandoSessao) {
-        if (frente !== 'debugging') {
-            return (
-                <Casca conectado={conectado}>
-                    <div className="az-tela az-tela-login">
-                        <div className="az-px az-vazio">CARREGANDO...</div>
-                    </div>
-                </Casca>
-            );
-        }
         return (
-            <div className="cartao">
-                <p>Carregando...</p>
-            </div>
+            <Casca conectado={conectado}>
+                <div className="az-tela az-tela-login">
+                    <div className="az-px az-vazio">CARREGANDO...</div>
+                </div>
+            </Casca>
         );
     }
-
-    const {
-        Login: TelaLogin,
-        Lobby: TelaLobby,
-        Partida: TelaPartida,
-        Inicio: TelaInicio,
-        Customizacao: TelaCustomizacao,
-    } = FRENTES[frente];
-    const ehArcade = frente === 'arcade';
-    // Tela desenhada pela casca da arcade (que tem a própria faixa de
-    // conexão perdida): tudo na arcade e na mescla, e Login/Lobby no "novo",
-    // no "meetfront1" e no "meetfront2".
-    const telaArcade = ehArcade || frente === 'mescla'
-        || ((frente === 'novo' || frente === 'meetfront1' || frente === 'meetfront2') && !sala);
-    const propsConexao = telaArcade ? { conectado } : {};
 
     let tela;
-    if (TelaInicio && !sala && (!player || destino === null)) {
+    if (!sala && (!player || destino === null)) {
         tela = (
-            <TelaInicio
+            <Inicio
                 meuNome={player?.nome}
                 onAutenticado={autenticar}
                 onIr={setDestino}
                 onSair={sairDaConta}
-                {...propsConexao}
+                conectado={conectado}
             />
         );
-    } else if (TelaCustomizacao && !sala && destino === 'customizar') {
-        tela = <TelaCustomizacao meuNome={player.nome} onVoltar={() => setDestino(null)} {...propsConexao} />;
-    } else if (!player) {
-        tela = <TelaLogin onAutenticado={autenticar} {...propsConexao} />;
+    } else if (!sala && destino === 'customizar') {
+        tela = <Customizacao meuNome={player.nome} onVoltar={() => setDestino(null)} conectado={conectado} />;
     } else if (!sala) {
         tela = (
-            <TelaLobby
+            <Lobby
                 meuNome={player.nome}
-                onVoltar={TelaInicio ? () => setDestino(null) : undefined}
+                onVoltar={() => setDestino(null)}
                 salaParaReconectar={salaParaReconectar}
                 onEntrouNaSala={entrarNaSala}
                 onReconectou={(salaId, reconexao) => {
                     setSalaParaReconectar(null);
                     setSala({ salaId, reconexao });
                 }}
-                {...propsConexao}
+                conectado={conectado}
             />
         );
     } else {
         tela = (
-            <TelaPartida
+            <Partida
                 // key força o React a montar uma instância NOVA sempre que
                 // salaId muda — sem isso, trocar de sala rodando "jogar de
                 // novo" (Partida -> Partida, sem passar pela Lobby no meio)
@@ -314,25 +220,23 @@ export default function App() {
                     setSala(null);
                 }}
                 onEntrouNaSala={entrarNaSala}
-                {...propsConexao}
             />
         );
     }
 
     return (
         <>
-            <div className="badge-frente">
-                {frente === 'novo' ? '✨ Novo' : frente === 'meetfront1' ? '🤝 Meetfront1' : frente === 'meetfront2' ? '🧭 Meetfront2' : ehArcade ? '👾 Arcade' : frente === 'mescla' ? '🃏 Mescla' : '🐞 Debugging'}
-            </div>
-            {/* Independe da tela atual — some sozinho quando 'connect' disparar de novo (ver socket.js) */}
-            {!conectado && !telaArcade && (
+            {/* Fora da sala a casca arcade desenha a própria faixa de conexão
+                perdida; na partida é este banner, que some sozinho quando
+                'connect' disparar de novo (ver socket.js). */}
+            {!conectado && sala && (
                 <div className="banner-conexao">
                     🔌 Conexão perdida — tentando reconectar...
                 </div>
             )}
             {tela}
             {/* Fichas ganhas aparecem em qualquer tela (ver avisoFichas.js). */}
-            {TelaInicio && <AvisoFichas />}
+            <AvisoFichas />
         </>
     );
 }

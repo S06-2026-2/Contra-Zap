@@ -27,9 +27,9 @@ import '../meetfront1/meetfront1.css';
 // partir dos handlers de socket, ver conexao/PROTOCOLO.md) e `acoes`
 // (funções que chamam o servidor de verdade), e reage a MUDANÇA de prop —
 // via useEffect — em vez de reagir a clique de botão. A camada de socket
-// inteira continua morando só em Partida.jsx (novo/Partida.jsx); este
+// inteira continua morando só em meetfront1/Partida.jsx; este
 // arquivo nunca chama `chamar`/`socket.on` diretamente. `acoes` ainda pode
-// vir undefined (ver novo/Partida.jsx) — Fatia 1 deste plugue é só
+// vir undefined (ver meetfront1/Partida.jsx) — Fatia 1 deste plugue é só
 // exibição, suas própias ações (jogar carta, apostar, chat) ainda não
 // existem; todo controle que dependeria de `acoes` fica inerte/oculto
 // enquanto isso.
@@ -298,8 +298,7 @@ function comValorNoAssento(lista, indice, atualizar) {
 }
 
 // Cartas chegam do servidor como a string "[4 de Ouros]" (Carta.toString(),
-// ver conexao/PROTOCOLO.md) — mesmo parser que novo/Partida.jsx usa
-// (lerCarta lá).
+// ver conexao/PROTOCOLO.md).
 function lerCarta(texto) {
     const m = /^\[(.+) de (.+)]$/.exec(String(texto ?? '').trim());
     return m ? { rank: m[1], naipe: m[2] } : null;
@@ -352,7 +351,7 @@ const VIRA_LEGENDA_DESLOCAMENTO_ENTRE_CARTAS = 20;
 // "Você" sempre no ângulo de baixo — ver ordemAssentos mais abaixo pra como
 // isso é garantido mesmo quando `estado.jogadores` não te lista primeiro.
 // Outros um pouco mais perto da mesa que no meetfront1 (62/68), sem chegar
-// na borda do oval como na mescla.
+// na borda do oval.
 const RAIO_X_OUTROS = 55;
 const RAIO_Y_OUTROS = 58;
 // Raio a mais pra quem fica na metade de cima da mesa, proporcional a quão
@@ -1717,7 +1716,7 @@ export function MaoEmLeque({ quantidade, cartas }) {
 // `naVez`: sua vez de JOGAR carta — a mão inteira avança um pouco pra
 // frente (ver .mesa-exp-sua-mao-vez) e recua quando a vez passa.
 // `apostando`: sua vez de APOSTAR — no meetfront1 as cartas não mudam de
-// cor (o véu vermelho do front provisório fica apagado, ver
+// cor (o véu vermelho do index.css fica apagado, ver
 // meetfront1.css); quem chama atenção é a placa. `onApostar` (só com o popup fechado)
 // mostra a placa "Apostar" no meio da mão, FORA do container da mão: assim
 // o hover nela não conta como hover da mão (que encolheria as cartas) e,
@@ -1872,7 +1871,7 @@ function LequeManilha({ rank }) {
     );
 }
 
-// `estado`: o mesmo estado bruto que novo/Partida.jsx já monta a partir dos
+// `estado`: o mesmo estado bruto que meetfront1/Partida.jsx já monta a partir dos
 // handlers de socket (ver conexao/PROTOCOLO.md) — { salaId, meuNome,
 // iniciada, jogadores, ordem, segundosParaIniciar, senha, chatAberto, mao,
 // cartasRodada, numeroRodada, maosReveladas, mesa, vira, jogadorDaVez,
@@ -1967,7 +1966,7 @@ function TelaEspera({ estado, acoes }) {
                 ))}
             </div>
 
-            {/* acoes.forcarInicio só vem pro adm (ver novo/Partida.jsx). */}
+            {/* acoes.forcarInicio só vem pro adm (ver meetfront1/Partida.jsx). */}
             {acoes?.forcarInicio && (
                 <div className="az-linha-botoes">
                     <button
@@ -2686,7 +2685,7 @@ export default function MesaExperimento({ estado, acoes }) {
     // Mesa (vaza atual) mudou — o ÚLTIMO elemento do array é sempre a carta
     // que acabou de ser jogada e causou esta mudança, tanto quando ela só
     // ENTRA numa vaza em andamento quanto quando ela abre uma vaza NOVA (ver
-    // cartaJogada em novo/Partida.jsx: `abrindoVazaNova` troca o array
+    // cartaJogada em meetfront1/Partida.jsx: `abrindoVazaNova` troca o array
     // inteiro por um array de 1 elemento só — esse elemento continua sendo
     // "a jogada que aconteceu agora"). Array vazio = novaRodadaIniciada
     // limpou a mesa; quem cuida disso é o efeito de rodada, não este.
@@ -3955,7 +3954,7 @@ export default function MesaExperimento({ estado, acoes }) {
             <div className="mesa-exp-tela mesa-exp-tela-espera mf1">
                 <CabecalhoMesa salaId={estado.salaId} senha={estado.senha} rodada={estado.iniciada ? estado.numeroRodada : 0}>
                     {/* Antes de começar, acoes.sair é sairSala (libera a vaga e
-                        volta pra lista de salas) — ver sair() em novo/Partida.jsx. */}
+                        volta pra lista de salas) — ver sair() em meetfront1/Partida.jsx. */}
                     <button type="button" className="mesa-exp-sair" onClick={() => acoes?.sair?.()} disabled={!acoes?.sair}>
                         Sair da fila
                     </button>
@@ -3971,7 +3970,7 @@ export default function MesaExperimento({ estado, acoes }) {
     // Ainda tem alguém pra apostar nesta rodada (ver TextoAposta).
     const apostasEmAndamento = estado.jogadorDaVezAposta != null;
     // Anel de timer só quando o SEU timer está correndo no servidor (ver
-    // timerTurno em novo/Partida.jsx — some quando você aposta/joga).
+    // timerTurno em meetfront1/Partida.jsx — some quando você aposta/joga).
     const seuPrazo = estado.prazoTurno?.jogador === estado.meuNome ? estado.prazoTurno : null;
     const seuFantasminha = (
         <SeuFantasminha
@@ -4675,7 +4674,7 @@ export default function MesaExperimento({ estado, acoes }) {
                             </button>
                         )}
                         {/* Convite de revanche (ver conviteRevanche em
-                            novo/Partida.jsx) — chega só pra quem NÃO é o
+                            meetfront1/Partida.jsx) — chega só pra quem NÃO é o
                             adm, quando o adm já chamou "Jogar de novo" logo
                             acima. "Não" reaproveita o mesmo acoes.sair de
                             sempre: recusar É só sair da sala, sem chamada de

@@ -3,7 +3,7 @@ import { createContext, useContext } from 'react';
 // Como a manilha de Paus (zap) é desenhada — vale pra toda carta de Paus que
 // é manilha (mão, mesa, voando) e pra coreografia da jogada dela
 // (CartaPausSimulada em MesaDanificada.jsx). A demo de desempenho
-// (DemoBeta.jsx) troca peça por peça pra medir; o jogo usa
+// (DemoBeta.jsx, na branch StashedFronts) troca peça por peça pra medir; o jogo usa
 // AJUSTES_ZAP_PADRAO.
 //
 // - borda: 'viva' = BordaEletrica original (4 feTurbulence de 6 oitavas,

@@ -1,4 +1,4 @@
-// Pequenos pedaços visuais compartilhados pelas telas da frente arcade.
+// Pequenos pedaços visuais compartilhados pelas telas do jogo.
 
 // Cor do avatar por índice de assento (ordem do roster da sala).
 export const CORES = ['#f5c451', '#3d9be9', '#7fd6a5', '#e07be0', '#ff9d5c'];
@@ -17,7 +17,7 @@ export function coracoes(hp, max = HP_INICIAL) {
 }
 
 // bots/Bot.js sempre nomeia como "Bot N" — o roster pré-início não manda
-// flag de bot nenhuma (ver salaSoVoceEBots em novo/Partida.jsx).
+// flag de bot nenhuma.
 export function ehBot(nome) {
     return /^Bot \d+$/.test(nome ?? '');
 }

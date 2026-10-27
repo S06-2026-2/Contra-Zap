@@ -69,7 +69,7 @@ export class GameController extends EventEmitter {
         // levou" antes da próxima carta cair — mesmo problema do atrasoBotMs
         // acima, mas do lado do front em vez do de bots resolvendo rápido
         // demais. Valor pareado com PAUSA_VAZA_MS em
-        // public/app/src/components/novo/Partida.jsx; mudou um lado, muda o
+        // public/app/src/components/meetfront1/Partida.jsx; mudou um lado, muda o
         // outro. Só entra ANTES de uma próxima vaza de verdade dentro da
         // MESMA rodada (ver _jogarUmaRodada) — a última vaza de uma rodada
         // usa pausaRodadaMs logo abaixo em vez desta (a suposição antiga de

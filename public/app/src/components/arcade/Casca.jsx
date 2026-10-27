@@ -4,14 +4,14 @@ import { DefsFiltro, PainelFiltro } from './PainelFiltro.jsx';
 import { alternarSom, assinarSom, instalarSomDeClique, somLigado, tocarSom } from './somArcade.js';
 import './arcade.css';
 
-// Casca comum das três telas da frente arcade: fundo, barra de cima (logo +
-// SOM ON/OFF), faixa de "conexão perdida" e o painel de filtro de tela.
-// Cada tela (Login/Lobby/Partida) monta a sua — o que precisa sobreviver à
+// Casca comum das telas fora da partida (tela inicial, customização,
+// salas): fundo, barra de cima (logo + SOM ON/OFF), faixa de "conexão
+// perdida" e o painel de filtro de tela. Cada tela monta a sua — o que precisa sobreviver à
 // troca de tela (som ligado, filtro escolhido) mora fora do React (ver
 // somArcade.js e filtros.js).
 //
-// `conectado` vem do App só pra esta frente (as outras usam o banner-conexao
-// global, que o App esconde quando a frente é arcade).
+// `conectado` vem do App (na partida, quem avisa é o banner-conexao global,
+// ver App.jsx).
 //
 // `cheia`: no celular a tela ocupa exatamente a altura da janela, sem
 // rolagem de página (a mesa — ver .az-app-cheia em arcade.css).
@@ -21,8 +21,8 @@ export default function Casca({ conectado = true, direita, cheia = false, childr
     const [filtroAberto, setFiltroAberto] = useState(false);
     const alternarFiltro = () => setFiltroAberto((a) => !a);
 
-    // O index.css prende o #root numa coluna de 720px com padding — a frente
-    // arcade ocupa a largura toda e desenha o próprio fundo.
+    // O index.css prende o #root numa coluna de 720px com padding — a casca
+    // ocupa a largura toda e desenha o próprio fundo.
     useEffect(() => {
         document.body.classList.add('az-body');
         return () => document.body.classList.remove('az-body');
