@@ -4094,6 +4094,7 @@ export default function MesaExperimento({ estado, acoes }) {
                                     inputMode="numeric"
                                     value={apostaValorPopup}
                                     onChange={(e) => digitarApostaValorPopup(e.target.value)}
+                                    aria-label="Quantas vazas"
                                     disabled={apostaEnviando}
                                 />
                                 <button

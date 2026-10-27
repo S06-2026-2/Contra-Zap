@@ -5,9 +5,11 @@
 // pela interface. Nada aqui fala com o servidor por fora do navegador: se um
 // botão sumir da tela, o E2E tem que quebrar — é pra isso que ele existe.
 //
-// Seletores por acessibilidade (`getByLabel`, `getByRole`): a interface tem
-// <label> de verdade e botões com texto, então não precisou de data-testid.
-// Regex onde o texto tem partes variáveis ou que podem ser reescritas.
+// As telas são as do app: tela inicial + PopupLogin (meetfront2), salas
+// (Lobby da arcade) e a mesa (MesaExperimento do meetfront2). Seletores por
+// acessibilidade (`getByLabel`, `getByRole`) — campos, seletores e cartas têm
+// nome acessível, então não precisou de data-testid. As poucas classes CSS
+// usadas (mão, vira, cartão de sala) são o recorte da tela que o jogador olha.
 import { test as base, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 
@@ -17,6 +19,23 @@ export function nomeUnico(prefixo = 'jogador') {
     return `${prefixo}-${randomUUID().slice(0, 6)}`;
 }
 
+// Nome acessível de uma carta com a face pra cima (ver Carta.jsx).
+export const CARTA_ABERTA = /^(4|5|6|7|Q|J|K|A|2|3) de (Ouros|Copas|Espadas|Paus)$/;
+
+// Abre o pop-up de login pelo JOGAR da tela inicial — o caminho de quem
+// chega no site sem sessão.
+export async function abrirLogin(page) {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'JOGAR', exact: true }).click();
+    await expect(page.getByText('ENTRE PRA JOGAR')).toBeVisible();
+}
+
+// Logado e nas salas: o título da Lobby e o nome no topo.
+export async function esperarSalas(page, nome) {
+    await expect(page.getByText('SALAS ABERTAS')).toBeVisible();
+    await expect(page.getByTitle('Você')).toHaveText(nome);
+}
+
 export class Jogador {
     constructor(context, page, nome) {
         this.context = context;
@@ -24,92 +43,99 @@ export class Jogador {
         this.nome = nome;
     }
 
-    // Abre a página e entra como convidado pelo fluxo em etapas do Login.jsx:
-    // nome -> "ainda não tem conta" -> "Não, só jogar". É o login mais curto
-    // da interface e autentica igual aos outros.
+    // Entra como convidado direto da primeira etapa do PopupLogin ("JOGAR
+    // COMO CONVIDADO" com o nome digitado): o login mais curto da interface,
+    // e autentica igual aos outros.
     static async entrar(browser, nome = nomeUnico()) {
         const context = await browser.newContext();
-        // Contexto novo do Playwright não tem localStorage nenhum — sem isto,
-        // abriria na frente padrão (meetfront2, ver SeletorFrente.jsx — a
-        // chave tem que ser a mesma CHAVE_FRENTE de lá). Fixa
-        // "debugging" pra o E2E continuar testando a interface de sempre,
-        // igual a um usuário de verdade que já escolheu isso antes.
-        await context.addInitScript(() => {
-            try { localStorage.setItem('contrazap-frente-v2', 'debugging'); } catch {}
-        });
         const page = await context.newPage();
         const jogador = new Jogador(context, page, nome);
-        await page.goto('/');
+        await abrirLogin(page);
         await page.getByLabel('Nome').fill(nome);
-        await page.getByRole('button', { name: 'Continuar' }).click();
-        await page.getByRole('button', { name: 'Não, só jogar' }).click();
-        await expect(page.getByRole('heading', { name: `Olá, ${nome}` })).toBeVisible();
+        await page.getByRole('button', { name: 'JOGAR COMO CONVIDADO' }).click();
+        await esperarSalas(page, nome);
         return jogador;
     }
 
-    // Preenche o formulário "Criar sala" da Lobby e devolve o salaId lido do
-    // título "Sala XXXXXX" da tela seguinte.
+    // "+ CRIAR SALA" na Lobby, escolhe nos seletores e abre a mesa; devolve
+    // o salaId lido do título "SALA XXXXXX" da sala de espera. Jogadores
+    // primeiro: o seletor de bots vai de 0 a jogadores-1.
     async criarSala({ jogadores = 2, bots = 0, cartas } = {}) {
-        await this.page.getByLabel('Jogadores').fill(String(jogadores));
-        await this.page.getByLabel('Bots').fill(String(bots));
-        if (cartas !== undefined) {
-            await this.page.getByLabel('Cartas na 1ª rodada').fill(String(cartas));
-        }
-        await this.page.getByRole('button', { name: 'Criar', exact: true }).click();
+        await this.page.getByRole('button', { name: '+ CRIAR SALA' }).click();
+        await this.escolher('Jogadores', jogadores);
+        await this.escolher('Bots pra completar', bots);
+        if (cartas !== undefined) await this.escolher('Cartas na 1ª rodada', cartas);
+        await this.page.getByRole('button', { name: 'ABRIR MESA' }).click();
 
-        const titulo = this.page.getByRole('heading', { name: /^Sala [0-9A-F]{6}$/ });
+        const titulo = this.page.getByText(/^SALA [0-9A-F]{6}$/);
         await expect(titulo).toBeVisible();
-        return (await titulo.textContent()).replace('Sala ', '').trim();
+        return (await titulo.textContent()).replace('SALA', '').trim();
     }
 
-    // Entra numa sala pela lista "Salas abertas" da Lobby — o caminho de quem
-    // não criou a sala. Atualiza a lista primeiro: ela só recarrega sozinha a
-    // cada 10s, e a sala pode ter sido criada há menos que isso.
+    async escolher(grupo, valor) {
+        await this.page.getByRole('group', { name: grupo }).getByRole('button', { name: String(valor), exact: true }).click();
+    }
+
+    // Entra numa sala pela lista da Lobby — o caminho de quem não criou a
+    // sala. Atualiza a lista primeiro: ela só recarrega sozinha a cada 10s,
+    // e a sala pode ter sido criada há menos que isso.
     async entrarNaSala(salaId) {
-        await this.page.getByRole('button', { name: 'Atualizar lista' }).click();
-        const item = this.page.getByRole('listitem').filter({ hasText: salaId });
-        await expect(item).toBeVisible();
-        await item.getByRole('button', { name: 'Entrar' }).click();
-        await expect(this.page.getByRole('heading', { name: `Sala ${salaId}` })).toBeVisible();
+        await this.page.getByRole('button', { name: 'ATUALIZAR' }).click();
+        const cartao = this.page.locator('.az-sala').filter({ hasText: salaId });
+        await cartao.getByRole('button', { name: 'ENTRAR', exact: true }).click();
+        await expect(this.page.getByText(`SALA ${salaId}`, { exact: true })).toBeVisible();
     }
 
-    // Só o adm vê este botão, e só com a sala cheia. Regex porque o texto
-    // exato desse botão não é algo que o teste deva travar.
+    // Os assentos da sala de espera.
+    roster() {
+        return this.page.locator('.az-grade-espera');
+    }
+
+    // Só o adm recebe este botão, e ele só habilita com a sala cheia. A
+    // partida começou quando o "Sair da fila" vira "Sair da partida".
     async forcarInicio() {
-        await this.page.getByRole('button', { name: /Forçar início/ }).click();
-        await expect(this.page.getByRole('heading', { name: /^Vez de:/ })).toBeVisible();
+        await this.page.getByRole('button', { name: /Forçar início/i }).click();
+        await expect(this.page.getByRole('button', { name: 'Sair da partida' })).toBeVisible();
     }
 
     // Espera a MINHA vez de apostar (a ordem é sorteada; se um bot vem antes,
-    // ele leva ~2s) e aposta `valor`. Se o servidor recusar por
-    // APOSTA_FECHA_RODADA — só acontece com o último a apostar — tenta
+    // ele leva ~2s) — é quando a placa "Apostar" aparece na mão — e aposta
+    // `valor` pelo pop-up. Se `valor` fecharia a soma das vazas (só acontece
+    // com o último a apostar), o pop-up trava o botão; se o servidor recusar
+    // mesmo assim, o pop-up continua aberto. Nos dois casos tenta
     // `alternativa`, que por construção não fecha a soma.
     async apostar(valor = 0, alternativa = 1) {
-        const minhaVez = this.page.getByRole('heading', { name: /Aposta — sua vez/ });
-        await expect(minhaVez).toBeVisible({ timeout: 20_000 });
+        await this.page.getByRole('button', { name: 'Apostar', exact: true }).click({ timeout: 20_000 });
 
-        const campo = this.page.getByLabel(/Quantas vazas/);
+        const popup = this.page.getByRole('heading', { name: 'Quantas vazas você vai fazer?' });
+        const campo = this.page.getByLabel('Quantas vazas');
+        const confirmar = this.page.getByRole('button', { name: 'Apostar', exact: true });
         await campo.fill(String(valor));
-        await this.page.getByRole('button', { name: 'Apostar' }).click();
 
-        // Aceita: o título "sua vez" some. Recusada: ele continua lá.
-        const aceita = await minhaVez.waitFor({ state: 'hidden', timeout: 4_000 }).then(() => true, () => false);
+        const aceita = await confirmar.isEnabled()
+            && await confirmar.click().then(() => popup.waitFor({ state: 'hidden', timeout: 4_000 })).then(() => true, () => false);
         if (!aceita) {
             await campo.fill(String(alternativa));
-            await this.page.getByRole('button', { name: 'Apostar' }).click();
-            await expect(minhaVez).toBeHidden();
+            await confirmar.click();
+            await expect(popup).toBeHidden();
         }
     }
 
-    // As cartas da mão são botões dentro de .mao (ver Partida.jsx).
+    // As cartas da minha mão, na ordem do leque.
     cartas() {
-        return this.page.locator('.mao button.carta');
+        return this.page.locator('.mesa-exp-sua-mao-carta');
     }
 
-    // Espera a minha vez de jogar e clica na primeira carta.
-    async jogarPrimeiraCarta() {
-        await expect(this.page.getByRole('heading', { name: /sua vez, clique numa carta/ })).toBeVisible({ timeout: 30_000 });
-        await this.cartas().first().click();
+    // Nome acessível de cada carta da mão (ver Carta.jsx).
+    async nomesDasCartas() {
+        return this.cartas().locator('[role="img"]').evaluateAll((cartas) => cartas.map((c) => c.getAttribute('aria-label')));
+    }
+
+    // Espera a minha vez de jogar e clica na ÚLTIMA carta do leque — a única
+    // que nenhuma vizinha cobre (as da esquerda ficam por baixo da seguinte).
+    async jogarUmaCarta() {
+        await expect(this.page.getByText('Sua vez! Escolha uma carta.')).toBeVisible({ timeout: 30_000 });
+        await this.cartas().last().click();
     }
 
     async fechar() {
@@ -120,15 +146,6 @@ export class Jogador {
 // `jogador`: um jogador já logado. `jogadores(n)`: vários, em paralelo — pra
 // sala com gente de verdade dos dois lados. Os dois fecham tudo no fim.
 export const test = base.extend({
-    // Mesma razão do addInitScript em Jogador.entrar, pra quem usa `page`
-    // direto (ex.: login.spec.js) em vez de passar por Jogador.entrar.
-    context: async ({ context }, use) => {
-        await context.addInitScript(() => {
-            try { localStorage.setItem('contrazap-frente-v2', 'debugging'); } catch {}
-        });
-        await use(context);
-    },
-
     jogador: async ({ browser }, use) => {
         const jogador = await Jogador.entrar(browser);
         await use(jogador);

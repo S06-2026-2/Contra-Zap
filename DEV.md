@@ -181,10 +181,6 @@ Legenda: 🔴 atrapalha jogar / bug · 🟡 falta informação, robustez · 🟢
       a partida para na rodada 4) — desde a espera das animações do front
       (`_esperarDistribuicao`/`game/animacoesFront.js`). Provável que o teste
       precise fixar `duracaoDistribuicaoMs`, mas não foi investigado.
-- [ ] 🔴 **E2E (`tests/e2e/`) escrito pra frente debugging** — a
-      `fixtures.js` fixa `contrazap-frente-v2 = debugging` no localStorage e
-      os specs procuram os elementos daquela interface, que não existe mais.
-      Reescrever os specs pra tela inicial/salas/mesa atuais.
 
 ### Código
 

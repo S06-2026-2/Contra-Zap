@@ -128,6 +128,7 @@ export default function PopupLogin({ destino, onAutenticado, onFechar }) {
                         className="az-input az-input-amarelo"
                         value={nome}
                         onChange={(e) => setNome(e.target.value)}
+                        aria-label="Nome"
                         maxLength={NOME_MAX}
                         autoFocus
                         autoComplete="username"
@@ -185,6 +186,7 @@ export default function PopupLogin({ destino, onAutenticado, onFechar }) {
                         type="password"
                         value={senha}
                         onChange={(e) => setSenha(e.target.value)}
+                        aria-label="Senha"
                         maxLength={SENHA_MAX}
                         autoFocus
                         autoComplete="current-password"
@@ -233,6 +235,7 @@ export default function PopupLogin({ destino, onAutenticado, onFechar }) {
                         type="password"
                         value={senha}
                         onChange={(e) => setSenha(e.target.value)}
+                        aria-label="Nova senha"
                         maxLength={SENHA_MAX}
                         autoFocus
                         autoComplete="new-password"

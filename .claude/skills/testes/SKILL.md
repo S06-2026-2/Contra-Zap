@@ -46,7 +46,8 @@ tests/
     asyncapi.test.js     -> a spec cobre o protocolo inteiro (sem servidor, sem socket)
   e2e/                     (Playwright — navegador de verdade; fora do `npm test`)
     fixtures.js          -> Jogador: contexto isolado + login + criarSala/apostar/jogar pela UI
-    login.spec.js        -> fluxo em etapas, cadastro, senha errada
+                            (tela inicial/PopupLogin -> Lobby arcade -> mesa do meetfront2)
+    login.spec.js        -> PopupLogin: etapas, convidado, cadastro, senha errada
     sala.spec.js         -> 2 jogadores reais: roster nas duas telas, forçar início, sair
     partida.spec.js      -> 1 humano + 1 bot: mão, aposta só na vez, carta sai da mão
     reconexao.spec.js    -> F5 volta pro jogo; banner de rede
@@ -227,30 +228,33 @@ Regras extras, além das da API:
 
 - **Nada de `waitForTimeout`.** `expect(locator).toBeVisible()` já espera.
   Onde a vez de jogar importa, a fixture `Jogador` espera ela chegar
-  (`apostar()`, `jogarPrimeiraCarta()`).
-- **Seletores por acessibilidade** (`getByLabel`, `getByRole`). A interface
-  tem `<label>` de verdade e botões com texto — não precisou de
-  `data-testid`. Regex onde o texto tem parte variável ou pode ser
-  reescrito (`/Forçar início/`, `/^Sala [0-9A-F]{6}$/`).
-- **Cuidado com texto duplicado na tela.** O `<pre class="log">` de debug
-  repete o que o painel de status mostra ("X apostou 0" aparece nos dois).
-  Um `getByText` solto acha os dois e o Playwright falha por *strict mode*.
-  Aponte pro elemento que o jogador olha (`.status-jogador`) ou pro log
-  (`pre.log`) explicitamente.
+  (`apostar()`, `jogarUmaCarta()`).
+- **Seletores por acessibilidade** (`getByLabel`, `getByRole`). Os campos
+  do PopupLogin e da aposta têm `aria-label`, os seletores de "criar sala"
+  são `role="group"` com nome, e cada carta é `role="img"` com o nome
+  `"K de Espadas"` (ou `"Carta virada"`, ver `meetfront1/Carta.jsx`) — não
+  precisou de `data-testid`. Elemento novo sem nome acessível que o E2E
+  precise achar? Dê um nome a ele, não um testid. Regex onde o texto tem
+  parte variável (`/Forçar início/i`, `/^SALA [0-9A-F]{6}$/`).
+- **A vira tem duas faces no DOM.** Ela gira na chegada: verso e frente
+  existem ao mesmo tempo. Aponte pra `.mesa-exp-vira-face-frente`.
+- **No leque, clique a última carta.** As cartas se sobrepõem e a da
+  esquerda fica por baixo da seguinte; a última é a única sem vizinha por
+  cima (`jogarUmaCarta()`).
 - **Cenário só pela interface.** Um jogador é `Jogador.entrar(browser)`; a
   sala é `criarSala()`/`entrarNaSala()`. Nunca chame o servidor por fora do
   navegador pra "adiantar" — se um botão sumir, o E2E tem que quebrar.
-- **Use o build.** O E2E roda contra `public/dist` (versionado). Mexeu em
-  `public/app/src`? `npm run build` lá antes, senão está testando a
-  interface antiga.
 - **O front valida antes de mandar.** Nome curto desabilita "Continuar",
   senha curta desabilita "Cadastrar" (mínimos de `conexao/limites.js`).
   Códigos como `CONVIDADO_INVALIDO` não são mais alcançáveis pela
   interface — quem cobre isso é `tests/api/limites.test.js`. No E2E, teste
   que a barreira existe (`toBeDisabled`), não que o servidor recusa.
 - **A carta na tela não é a carta do protocolo.** O front desenha rank +
-  símbolo do naipe (`K♠`, ver `CartaGrande` em `Partida.jsx`); o protocolo
-  manda `[K de Espadas]`. Quem trava o formato do fio é a suíte de API.
+  símbolo do naipe e nomeia a carta `K de Espadas`; o protocolo manda
+  `[K de Espadas]`. Quem trava o formato do fio é a suíte de API.
+- **F5 volta pra tela inicial, não pras salas.** A sessão é retomada (o nome
+  aparece no topo), mas o destino não é guardado: pra ver o aviso de
+  reconectar, clique JOGAR de novo.
 - **`public/dist` não é versionado.** O `playwright.config.js` builda o
   front antes de subir o servidor — por isso o `timeout` do `webServer` é
   de 120s, não 30s.

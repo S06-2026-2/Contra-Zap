@@ -244,8 +244,11 @@ const ORDEM_RANKS = ['4', '5', '6', '7', 'Q', 'J', 'K', 'A', '2', '3'];
 export default function Carta({ rank, naipe, valorInt, manilha, efeitoManilha = false, virada = false, taxaRaios = 0, taxaRaiosTransicaoMs = 0, raiosPausados = false }) {
     const valorManilhaDaMesa = useContext(ManilhaContext);
     const zap = useAjustesZap();
+    // role="img" + aria-label: a carta é desenho (índice, pips), então quem
+    // lê a tela por acessibilidade (e o E2E) a acha pelo nome. A virada não
+    // diz qual é — na rodada cega nem o dono pode saber.
     if (virada) {
-        return <div className="carta-exp carta-exp-verso" />;
+        return <div className="carta-exp carta-exp-verso" role="img" aria-label="Carta virada" />;
     }
 
     const info = NAIPES[naipe] ?? { simbolo: '', cor: 'inherit' };
@@ -261,7 +264,11 @@ export default function Carta({ rank, naipe, valorInt, manilha, efeitoManilha = 
     const pips = PIPS[rank];
 
     return (
-        <div className={`carta-exp${ehManilha ? ' carta-exp-manilha' : ''}${classeMaterial ? ` ${classeMaterial}` : ''}${zap.brilhoFiltro ? '' : ' carta-exp-brilho-leve'}`}>
+        <div
+            className={`carta-exp${ehManilha ? ' carta-exp-manilha' : ''}${classeMaterial ? ` ${classeMaterial}` : ''}${zap.brilhoFiltro ? '' : ' carta-exp-brilho-leve'}`}
+            role="img"
+            aria-label={`${rank} de ${naipe}`}
+        >
             {/* Decoração por naipe, só quando é manilha — cada uma só
                 aparece na carta do próprio naipe (ver classeMaterial acima
                 escolhendo QUAL destas quatro classes entra). Abaixo do
