@@ -734,11 +734,15 @@
 }
 
 /* Assento no mobile: do tamanho da caixinha + a bandeja de fichas + o nome
-   embaixo (o de 280x190 do computador encavalaria uns nos outros). */
+   embaixo (o de 280x190 do computador encavalaria uns nos outros). A
+   caixinha passa por cima das cartas da mesa (jogadas 14, voando 17), mas
+   fica embaixo das fichas e cartas de vaza da bandeja (40/39) e de toda a
+   UI do topo (banner, chat, cabeçalho: 41/42). */
 .mf1.mf1-mobile .mesa-exp-assento {
     width: 130px;
     height: 150px;
     gap: 4px;
+    z-index: 38;
 }
 .mf1.mf1-mobile .mesa-exp-assento-legenda {
     font-size: 11px;
@@ -786,13 +790,23 @@
     z-index: 43;
 }
 
-/* Corações dos outros no mobile: menores, em coluna rente à borda da
-   caixinha (do lado oposto ao das fichas, ver ladoVida), centrados na
-   altura dela: o topo da caixa fica ~10px abaixo do topo do assento e ela
-   tem ~87px, então o meio cai em ~53px (o translateY(-50%) e o "pop" de
-   entrada são os de sempre). */
+/* Corações dos outros no mobile: em linha, centrados no fantasminha na
+   horizontal e montados na borda de cima da caixinha (o topo dela fica
+   ~10px abaixo do topo do assento). O "pop" de entrada é o de sempre, só
+   que com o centro nos dois eixos. As cartas de dano miram cada coração
+   pela posição medida dele (obterCentroCoracao), então seguem achando. */
 .mf1.mf1-mobile .mesa-exp-assento-vida {
-    top: 53px;
+    top: 12px;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    animation-name: mf1-assento-vida-entrada-mobile;
+}
+.mf1.mf1-mobile .mesa-exp-assento-vida .mesa-exp-coracoes {
+    flex-direction: row;
+}
+@keyframes mf1-assento-vida-entrada-mobile {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(.5); }
+    to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 .mf1.mf1-mobile .mesa-exp-assento-vida .mesa-exp-coracao {
     font-size: 14px;

@@ -13,48 +13,53 @@ export const ESCALA_CARTA_JOGADA_MOBILE = 0.6;
 
 export const ZONAS_POUSO_MOBILE = {
     2: [
-        { x: 49.3, y: 64.1, largura: 39, altura: 16.9 },
-        { x: 50.4, y: 28.7, largura: 31.3, altura: 12 },
+        { x: 50.1, y: 64, largura: 51.5, altura: 15.8 },
+        { x: 50.1, y: 31.6, largura: 55.8, altura: 15.9 },
     ],
     3: [
-        { x: 61.6, y: 63.5, largura: 38.3, altura: 16.8 },
-        { x: 25, y: 37.9, largura: 32.2, altura: 17.4 },
-        { x: 75.1, y: 38.4, largura: 32.2, altura: 17.2 },
+        { x: 50.9, y: 65, largura: 45.1, altura: 18.4 },
+        { x: 21, y: 42.2, largura: 31.9, altura: 22.7 },
+        { x: 80.9, y: 42.4, largura: 31.1, altura: 24 },
     ],
     4: [
-        { x: 49.7, y: 63.2, largura: 31.8, altura: 12.9 },
-        { x: 17.7, y: 47.5, largura: 25.4, altura: 12.1 },
-        { x: 49.5, y: 33.9, largura: 31.2, altura: 12.2 },
-        { x: 81.1, y: 47, largura: 24.9, altura: 12.3 },
+        { x: 49, y: 62.9, largura: 44.5, altura: 13.4 },
+        { x: 18.5, y: 48.3, largura: 30.6, altura: 16.9 },
+        { x: 48.6, y: 33.7, largura: 42.9, altura: 12.1 },
+        { x: 83.1, y: 49.1, largura: 28.8, altura: 16.6 },
     ],
     5: [
-        { x: 50.5, y: 62.1, largura: 29.4, altura: 19.5 },
-        { x: 16.6, y: 52.7, largura: 32.4, altura: 16.1 },
-        { x: 27.9, y: 32.7, largura: 34.7, altura: 16.2 },
-        { x: 73.2, y: 32.9, largura: 34.5, altura: 16.7 },
-        { x: 84.6, y: 53.2, largura: 31.1, altura: 15.4 },
+        { x: 51.3, y: 67.4, largura: 39.4, altura: 12.2 },
+        { x: 17.7, y: 54.3, largura: 29.5, altura: 11.1 },
+        { x: 24.9, y: 42.8, largura: 35, altura: 8.5 },
+        { x: 75.3, y: 42.8, largura: 32.5, altura: 8.7 },
+        { x: 82.2, y: 55, largura: 29, altura: 10.9 },
     ],
     6: [
-        { x: 50.7, y: 67.4, largura: 37, altura: 17.9 },
-        { x: 18.1, y: 52, largura: 34.3, altura: 16.4 },
-        { x: 21.8, y: 35.2, largura: 32, altura: 16.2 },
-        { x: 50.7, y: 29.5, largura: 29.2, altura: 15.6 },
-        { x: 77.4, y: 36.3, largura: 32, altura: 16.1 },
-        { x: 82.5, y: 52.4, largura: 33.3, altura: 16.4 },
+        { x: 51.4, y: 65.6, largura: 27.6, altura: 16.1 },
+        { x: 18.9, y: 56.6, largura: 31.2, altura: 10.7 },
+        { x: 18.4, y: 44.5, largura: 30.5, altura: 11.2 },
+        { x: 50.3, y: 32.4, largura: 20.9, altura: 17.2 },
+        { x: 81.7, y: 45.7, largura: 29.7, altura: 11 },
+        { x: 81.5, y: 57.1, largura: 27.6, altura: 11.2 },
     ],
 };
 
 // Onde as cartas meladas se juntam no mobile (o mesmo canto de
 // MELADA_CANTO_X/Y do computador, só que em % da tela): é a âncora do
 // primeiro grupo; os grupos seguintes vão pra direita dela.
-export const MELADA_POUSO_MOBILE = { x: 11.2, y: 67.8 };
+export const MELADA_POUSO_MOBILE = { x: 6.8, y: 47.4 };
 
 // Posição dos fantasminhas dos outros no mobile, por quantidade de
 // jogadores: centro de cada assento (caixinha + bandeja + nome) em % da
 // tela, na ordem dos assentos sem você (o primeiro é o assento 2).
 // Quantidade sem tabela aqui fica no triângulo calculado
 // (calcularAssentosMobile em MesaExperimento.jsx).
-export const ASSENTOS_MOBILE = {};
+export const ASSENTOS_MOBILE = {
+    3: [{ x: 17.1, y: 19.6 }, { x: 83.7, y: 19.2 }],
+    4: [{ x: 16.6, y: 19.9 }, { x: 50.3, y: 13.6 }, { x: 82.9, y: 20.1 }],
+    5: [{ x: 14.3, y: 29.8 }, { x: 30.7, y: 16.2 }, { x: 68.2, y: 16.5 }, { x: 83.9, y: 30.3 }],
+    6: [{ x: 15.8, y: 29.1 }, { x: 16.5, y: 16.2 }, { x: 49.8, y: 12.6 }, { x: 83.3, y: 16.7 }, { x: 84.4, y: 29.4 }],
+};
 
 // Ponto sorteado dentro da zona, em % da tela.
 export function sortearPontoNaZona(zona) {
@@ -62,4 +67,32 @@ export function sortearPontoNaZona(zona) {
         x: zona.x + (Math.random() - 0.5) * zona.largura,
         y: zona.y + (Math.random() - 0.5) * zona.altura,
     };
+}
+
+// Bloco de código com as zonas, a escala, o canto das meladas e os
+// assentos, no formato deste arquivo (é o que o lab de pouso mostra pra
+// copiar, ver meetfront2/LabPouso.jsx).
+export function gerarCodigoZonas(zonas, escala, melada, assentos) {
+    const arred = (v) => Math.round(v * 10) / 10;
+    const linhas = [`export const ESCALA_CARTA_JOGADA_MOBILE = ${Math.round(escala * 100) / 100};`, '', 'export const ZONAS_POUSO_MOBILE = {'];
+    for (const quantidade of Object.keys(zonas).sort((a, b) => a - b)) {
+        linhas.push(`    ${quantidade}: [`);
+        for (const z of zonas[quantidade]) {
+            linhas.push(`        { x: ${arred(z.x)}, y: ${arred(z.y)}, largura: ${arred(z.largura)}, altura: ${arred(z.altura)} },`);
+        }
+        linhas.push('    ],');
+    }
+    linhas.push('};', '', `export const MELADA_POUSO_MOBILE = { x: ${arred(melada.x)}, y: ${arred(melada.y)} };`, '');
+    const quantidadesAssentos = Object.keys(assentos).sort((a, b) => a - b);
+    if (quantidadesAssentos.length === 0) {
+        linhas.push('export const ASSENTOS_MOBILE = {};');
+    } else {
+        linhas.push('export const ASSENTOS_MOBILE = {');
+        for (const quantidade of quantidadesAssentos) {
+            const pontos = assentos[quantidade].map((p) => `{ x: ${arred(p.x)}, y: ${arred(p.y)} }`).join(', ');
+            linhas.push(`    ${quantidade}: [${pontos}],`);
+        }
+        linhas.push('};');
+    }
+    return linhas.join('\n');
 }

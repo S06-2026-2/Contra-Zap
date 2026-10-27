@@ -127,7 +127,7 @@ function esperar(ms) {
 }
 
 // Mesmo valor de `this.hp = 3` em game/PlayerGame.js.
-const VIDA_MAXIMA = 3;
+export const VIDA_MAXIMA = 3;
 const VIDA_TEMPORARIA_MS = 1500;
 // Popup "Aposta: N · Fez: M" que aparece sozinho perto do jogador quando ele
 // aposta e quando uma vaza pousa na pilha dele (ver mostrarInfoTemporaria).
@@ -901,7 +901,7 @@ const CORACAO_ESTILHACOS = [
     { ex: 2, ey: 30, giro: 200 },
 ];
 
-function Coracoes({ vida, assentoIndice, registrarRef, coracaoImpactado, arco }) {
+export function Coracoes({ vida, assentoIndice, registrarRef, coracaoImpactado, arco }) {
     const id = useId().replace(/[^a-zA-Z0-9_-]/g, '');
     const idEsmalte = `coracao-esmalte-${id}`;
     const idOuro = `coracao-ouro-${id}`;
@@ -1185,7 +1185,7 @@ function TimerNome({ prazo }) {
 // de baixo, à direita da barra de fichas — madeira com aro dourado e
 // filete tracejado, e o sulco escuro com fio dourado, com os corações em
 // linha. Na sua vez o aro acende.
-function VidaRetangulo({ prazo, destaque, ...propsCoracoes }) {
+export function VidaRetangulo({ prazo, destaque, ...propsCoracoes }) {
     return (
         <div className={`mf1-vida-retangulo${prazo ? ' mf1-vida-retangulo-vez' : ''}${destaque ? ' mesa-exp-coracoes-destaque' : ''}`}>
             <div className="mf1-vida-retangulo-sulco">
@@ -1993,7 +1993,7 @@ function TelaEspera({ estado, acoes }) {
 // sala/senha); true traz de volta.
 const MOSTRAR_LOGO_TITULO = false;
 
-function TituloMesa({ salaId, senha }) {
+export function TituloMesa({ salaId, senha }) {
     return (
         <div className="mesa-exp-cabecalho-titulo">
             {MOSTRAR_LOGO_TITULO && <span className="mesa-exp-logo">CONTRA ZAP</span>}
@@ -2005,7 +2005,7 @@ function TituloMesa({ salaId, senha }) {
 
 // `comTitulo` false: o título vai na primeira linha da mesa, à direita da
 // bola do chat (ver .mf1-topo), e não no canto fixo de sempre.
-function CabecalhoMesa({ salaId, senha, rodada, comTitulo = true, children }) {
+export function CabecalhoMesa({ salaId, senha, rodada, comTitulo = true, children }) {
     return (
         <>
             {comTitulo && <TituloMesa salaId={salaId} senha={senha} />}
@@ -2032,7 +2032,7 @@ const BANNER_FONTE_MAX_PX = 20;
 const BANNER_FONTE_MAX_MOBILE_PX = 14;
 const BANNER_FONTE_MIN_PX = 9;
 
-function BannerVez({ texto, mobile = false }) {
+export function BannerVez({ texto, mobile = false }) {
     const ref = useRef(null);
     useLayoutEffect(() => {
         const el = ref.current;
