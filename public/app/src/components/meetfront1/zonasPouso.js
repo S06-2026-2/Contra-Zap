@@ -47,7 +47,7 @@ export const ZONAS_POUSO_MOBILE = {
 // Onde as cartas meladas se juntam no mobile (o mesmo canto de
 // MELADA_CANTO_X/Y do computador, só que em % da tela): é a âncora do
 // primeiro grupo; os grupos seguintes vão pra direita dela.
-export const MELADA_POUSO_MOBILE = { x: 6.8, y: 47.4 };
+export const MELADA_POUSO_MOBILE = { x: 11.2, y: 67.8 };
 
 // Posição dos fantasminhas dos outros no mobile, por quantidade de
 // jogadores: centro de cada assento (caixinha + bandeja + nome) em % da

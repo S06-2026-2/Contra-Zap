@@ -736,7 +736,7 @@
 /* Assento no mobile: do tamanho da caixinha + a bandeja de fichas + o nome
    embaixo (o de 280x190 do computador encavalaria uns nos outros). A
    caixinha passa por cima das cartas da mesa (jogadas 14, voando 17), mas
-   fica embaixo das fichas e cartas de vaza da bandeja (40/39) e de toda a
+   fica embaixo das fichas e cartas de vaza da bandeja (45/44) e de toda a
    UI do topo (banner, chat, cabeçalho: 41/42). */
 .mf1.mf1-mobile .mesa-exp-assento {
     width: 130px;
@@ -766,11 +766,16 @@
     border-radius: 6px;
     box-shadow: inset 0 2px 5px rgba(0, 0, 0, .8), 0 4px 10px rgba(0, 0, 0, .45);
 }
+/* Fichas e cartas de vaza da bandeja acima do assento mesmo quando ele
+   sobe pro popup (43, ver .mf1-assento-com-popup): a carta de vaza (44)
+   fica embaixo da ficha (45), e as duas abaixo da revelação de vaza (46+). */
 .mf1.mf1-mobile .mf1-ficha-bandeja {
     transform: translate(-50%, -50%) scale(.3);
+    z-index: 45;
 }
 .mf1.mf1-mobile .mf1-vaza-bandeja {
     transform: translate(-50%, -50%) scale(.2);
+    z-index: 44;
 }
 
 /* Popup "Aposta: N · Fez: M" dos outros no mobile: em cima da caixinha (o
@@ -791,12 +796,12 @@
 }
 
 /* Corações dos outros no mobile: em linha, centrados no fantasminha na
-   horizontal e montados na borda de cima da caixinha (o topo dela fica
+   horizontal, logo abaixo da borda de cima da caixinha (o topo dela fica
    ~10px abaixo do topo do assento). O "pop" de entrada é o de sempre, só
    que com o centro nos dois eixos. As cartas de dano miram cada coração
    pela posição medida dele (obterCentroCoracao), então seguem achando. */
 .mf1.mf1-mobile .mesa-exp-assento-vida {
-    top: 12px;
+    top: 20px;
     left: 50%;
     transform: translate(-50%, -50%);
     animation-name: mf1-assento-vida-entrada-mobile;
@@ -809,7 +814,7 @@
     to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 .mf1.mf1-mobile .mesa-exp-assento-vida .mesa-exp-coracao {
-    font-size: 14px;
+    font-size: 16.8px;
 }
 
 /* Grão leve (ver GraoLeve em FiltroTela.jsx): ladrilho de ruído repetido,
