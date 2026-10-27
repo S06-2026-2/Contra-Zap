@@ -45,7 +45,7 @@ export function DefsFiltro({ f }) {
                 <feBlend mode="soft-light" in="grFinal" in2="SourceGraphic" result="grMix" />
                 <feComposite in="grMix" in2="SourceGraphic" operator="in" />
             </filter>
-            {/* CRT — mesmo encadeamento do novo/Partida.jsx: aberração separa
+            {/* CRT: aberração separa
                 R/B em px inteiros, curvatura é um feDisplacementMap em barril. */}
             <filter id="cz-crt" x="-8%" y="-8%" width="116%" height="116%" colorInterpolationFilters="sRGB">
                 {f.aberracao > 0 && (

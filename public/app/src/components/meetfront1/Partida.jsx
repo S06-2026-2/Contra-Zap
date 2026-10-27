@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { socket, chamar } from '../../socket.js';
 import { assinarSessaoRetomada } from '../../sessao.js';
-import MesaExperimento from './MesaExperimento.jsx';
 import FiltroTela from './FiltroTela.jsx';
 import { guardarInfoSala, lerInfoSala } from '../arcade/salasInfo.js';
 import { tocarSom } from '../arcade/somArcade.js';
@@ -33,10 +32,10 @@ import { CHAT_COOLDOWN_MS } from '../../../../../conexao/chat/mensagensChat.js';
 // ver quem levou. Cancelada na hora se a partida andar antes disso.
 const PAUSA_VAZA_MS = 1600;
 
-// `Mesa` (opcional): troca o componente da mesa pelo de outra frente com a
-// mesma interface `estado`/`acoes` — é assim que o meetfront2 reaproveita
-// esta Partida com a mesa dele (components/meetfront2/MesaExperimento.jsx).
-export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, reconexao, chatAberto, senha, meuNome, onSairDaSala, onSairDaPartida, onEntrouNaSala, Mesa = MesaExperimento }) {
+// `Mesa`: o componente da mesa, com a interface `estado`/`acoes` — é assim
+// que o meetfront2 usa esta Partida com a mesa dele
+// (components/meetfront2/MesaExperimento.jsx).
+export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, reconexao, chatAberto, senha, meuNome, onSairDaSala, onSairDaPartida, onEntrouNaSala, Mesa }) {
     // Semeado do ack de criarSala/entrarSala (ou de reconectar, no caminho de
     // reconexão — o ack de reconectar não dispara listaJogadores), não do
     // broadcast de listaJogadores — o primeiro broadcast sai antes desta tela

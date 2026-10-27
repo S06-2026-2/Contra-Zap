@@ -12,7 +12,6 @@ import {
     INTEIRO_FPS, INTEIRO_COLUNAS, INTEIRO_LINHAS, INTEIRO_QUADROS,
     caixaDoFogo, desenharFogueiras, prepararBitmapsFogo, bitmapsFogoProntos, prepararFogoInteiro, fogosInteirosProntos,
 } from './fogoInteiro.js';
-import { marcarFase } from './medidorDesempenho.js';
 
 // Sandbox isolada (pedido do Henrique 2026-09-21): a mesma "sala" visual
 // de MesaExperimento.jsx, mas só fundo+mesa — sem fantasminhas, cartas,
@@ -1165,11 +1164,6 @@ function CartaCopasSimulada({ mesaRef, onCarbonizar, onFim, origem: origemFixa, 
     // invisível e parado, e na pulsada só acende.
     const montarFogoAntes = copas.fogo === 'flipbook' && copas.fogoMontarAntes;
 
-    // Demo de desempenho: cada etapa da jogada vira uma fase da medição.
-    useEffect(() => {
-        marcarFase(`copas: ${fase === 'jogando' ? 'voando' : fase}`);
-    }, [fase]);
-
     useEffect(() => {
         let cancelado = false;
         async function coreografia() {
@@ -2087,11 +2081,6 @@ function CartaPausSimulada({ mesaRef, onImpacto, onFim, origem: origemFixa, pous
     const empurraoRef = useRef({ x: 0, y: 0 });
     const wrapperRef = useRef(null);
     const mioloRef = useRef(null);
-
-    // Demo de desempenho: cada etapa da jogada vira uma fase da medição.
-    useEffect(() => {
-        marcarFase(`zap: ${fase === 'jogando' ? 'voando' : fase}`);
-    }, [fase]);
 
     useEffect(() => {
         let cancelado = false;

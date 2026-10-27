@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom';
 
-// Modal da frente arcade. Vai por portal pro <body> — fora da div da casca,
+// Modal da casca arcade. Vai por portal pro <body> — fora da div da casca,
 // que pode estar com `filter`/`transform` do painel de filtro de tela: com
 // qualquer um dos dois ligado, `position: fixed` dentro dela passaria a ser
 // relativo à página inteira (e o modal sumiria lá embaixo), não à viewport.

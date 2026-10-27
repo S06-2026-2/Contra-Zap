@@ -8,9 +8,6 @@
 // Índice 0 é você; os outros seguem a ordem dos assentos (da esquerda pra
 // direita no arco de cima). Quantidade sem tabela aqui cai no pouso do
 // computador (calcularAlvoJogada em MesaExperimento.jsx).
-//
-// Os valores saem do lab de pouso (LabPouso.jsx, botão no Login): ajustar
-// lá, copiar o bloco gerado e colar no lugar deste.
 
 export const ESCALA_CARTA_JOGADA_MOBILE = 0.6;
 
@@ -65,20 +62,4 @@ export function sortearPontoNaZona(zona) {
         x: zona.x + (Math.random() - 0.5) * zona.largura,
         y: zona.y + (Math.random() - 0.5) * zona.altura,
     };
-}
-
-// Bloco de código com as zonas, a escala, o canto das meladas e os
-// assentos, no formato deste arquivo (é o que o lab mostra pra copiar).
-export function gerarCodigoZonas(zonas, escala, melada, assentos) {
-    const arred = (v) => Math.round(v * 10) / 10;
-    const linhas = [`export const ESCALA_CARTA_JOGADA_MOBILE = ${Math.round(escala * 100) / 100};`, '', 'export const ZONAS_POUSO_MOBILE = {'];
-    for (const quantidade of Object.keys(zonas).sort((a, b) => a - b)) {
-        linhas.push(`    ${quantidade}: [`);
-        for (const z of zonas[quantidade]) {
-            linhas.push(`        { x: ${arred(z.x)}, y: ${arred(z.y)}, largura: ${arred(z.largura)}, altura: ${arred(z.altura)} },`);
-        }
-        linhas.push('    ],');
-    }
-    linhas.push('};', '', `export const MELADA_POUSO_MOBILE = { x: ${arred(melada.x)}, y: ${arred(melada.y)} };`);
-    return linhas.join('\n');
 }

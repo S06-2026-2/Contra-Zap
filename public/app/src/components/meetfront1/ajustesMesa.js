@@ -3,7 +3,7 @@ import { useModoMobile } from './modoMobile.js';
 
 // Ajustes de desempenho do resto da mesa (fora das manilhas), do pente fino
 // de 2026-10-12. Mesmo esquema de ajustesZap.js/ajustesCopas.js: a demo de
-// desempenho (DemoBeta.jsx) troca peça por peça pra medir; o jogo usa
+// desempenho (DemoBeta.jsx, na branch StashedFronts) troca peça por peça pra medir; o jogo usa
 // ajustesMesaDoJogo (ver MESA_OTIMIZADA).
 //
 // - timerLeve: o pavio do seu timer (PavioReto) e o disco dos outros

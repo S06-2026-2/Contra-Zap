@@ -27,7 +27,7 @@ const FILTRO_PADRAO_MF1 = {
 // de ruído pronta por cima da tela (mesma mistura soft-light das scanlines)
 // e a aberração só liga durante o choque da manilha. true = filtro ANTIGO:
 // grão (feTurbulence) e aberração como `filter: url(...)` SVG na camada da
-// tela inteira, o tempo todo — a demo de desempenho (DemoBeta.jsx) mostrou
+// tela inteira, o tempo todo — a demo de desempenho (DemoBeta.jsx, na branch StashedFronts) mostrou
 // que isso derruba o fps no celular sempre que uma carta atravessa a tela
 // (S20 FE: ~42 fps com ele, ~47 sem). Guardado pra comparar com o grupo.
 // O leve ignora `efeito` e `curvatura` (os dois só existem como filtro);
@@ -234,7 +234,7 @@ function GraoLeve({ opacidade, animado, colorido }) {
 }
 
 // `sobrescrita`/`semChoque`/`semGrao`/`antigo`/`choqueModo`: só a demo de
-// desempenho (DemoBeta.jsx) muda — desliga peças do filtro por cima do
+// desempenho (DemoBeta.jsx, na branch StashedFronts) mudava — desliga peças do filtro por cima do
 // ajuste salvo, sem gravar, escolhe entre o filtro leve e o antigo e o
 // jeito do choque.
 export default function FiltroTela({ children, sobrescrita = null, semChoque = false, semGrao = !GRAO_NA_PARTIDA, antigo = FILTRO_ANTIGO_SVG, choqueModo = CHOQUE_MODO }) {

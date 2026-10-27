@@ -26,44 +26,33 @@ O código do front fica todo em `public/app/src`:
 - `socket.js` — conexão com o back-end via socket.io-client.
 - `sessao.js` — persistência da sessão (sessionStorage) e retomada depois de
   reconexão/F5.
-- `components/SeletorFrente.jsx` — escolhe entre as frentes. Não tem mais
-  botão no jogo: abre só pela rota **`/front`** (ver `ROTA_FRENTE` no
-  `App.jsx`). Escolhendo (ou voltando), a URL volta pra `/` e segue pra
-  primeira tela da frente (tela inicial no meetfront2; Login ou salas nas
-  outras, conforme já havia sessão). A escolha fica no
-  `localStorage` (chave `contrazap-frente-v2`), padrão **`meetfront2`**.
-  Todas falam com o mesmo `socket.js`/`sessao.js`:
-  - `components/arcade/` — Login, Lobby e Partida arcade. Login e Lobby
-    são usados por todas as frentes menos a debugging.
-  - `components/novo/` — mesa com fantasminhas (`MesaExperimento.jsx`).
-  - `components/meetfront1/` — cópia da mesa do novo com as mudanças do
-    encontro com o grupo e o layout de celular. CSS próprio em
-    `meetfront1.css`, escopado em `.mf1`.
-  - `components/meetfront2/` — a frente padrão, com as mudanças do segundo
-    encontro (só no computador; o celular é o do meetfront1). Usa a
-    Partida do meetfront1 com a própria cópia do `MesaExperimento.jsx`
-    (prop `Mesa`), que importa o resto de `meetfront1/`. CSS próprio em
-    `meetfront2.css`, escopado em `.mf2`.
-    No lugar do Login tem a tela inicial (`Inicio.jsx`): **JOGAR** (salas)
-    e **CUSTOMIZAÇÃO** (`Customizacao.jsx`, placeholder por enquanto). Sem
-    sessão, os dois abrem o pop-up de login (`PopupLogin.jsx`: fluxo em
-    etapas do Login da arcade + convidado direto, com nome do campo ou
-    `Fantasma####` sorteado). Com sessão, o topo da tela inicial tem
-    **SAIR** (limpa a sessão e recarrega); as salas têm **◀ INÍCIO**.
-    A customização é a loja (cor no círculo pastel, chapéus), com o
-    saldo de fichas no topo; o aviso "+N FICHAS" (`AvisoFichas.jsx`)
-    aparece em qualquer tela assim que você sai da partida. A mesa usa a
-    cor/chapéu que vêm do servidor (`chapeuPorId`/`tom` em `visual.js`).
+- Sem rotas além de `/lab` (lab do cérebro do bot, ver `main.jsx`): tela
+  inicial, customização, salas e partida são estado do `App.jsx`.
+- `components/meetfront2/` — a tela inicial (`Inicio.jsx`): **JOGAR**
+  (salas) e **CUSTOMIZAÇÃO** (`Customizacao.jsx`). Sem sessão, os dois
+  abrem o pop-up de login (`PopupLogin.jsx`: fluxo em etapas + convidado
+  direto, com nome do campo ou `Fantasma####` sorteado). Com sessão, o topo
+  da tela inicial tem **SAIR** (limpa a sessão e recarrega); as salas têm
+  **◀ INÍCIO**. A customização é a loja (cor no círculo pastel, chapéus),
+  com o saldo de fichas no topo; o aviso "+N FICHAS" (`AvisoFichas.jsx`)
+  aparece em qualquer tela assim que você sai da partida. A Partida usa a
+  do meetfront1 com a própria `MesaExperimento.jsx` (prop `Mesa`), que
+  importa o resto de `meetfront1/`. CSS próprio em `meetfront2.css`,
+  escopado em `.mf2`. A mesa usa a cor/chapéu que vêm do servidor
+  (`chapeuPorId`/`tom` em `visual.js`).
+- `components/meetfront1/` — a Partida (socket/estado) e as peças da mesa
+  (cartas, fantasminhas, manilhas, filtro de tela, layout de celular).
+  CSS próprio em `meetfront1.css`, escopado em `.mf1`.
+- `components/arcade/` — a casca das telas fora da partida (`Casca.jsx`,
+  `Modal.jsx`, som, filtro) e a lista de salas (`Lobby.jsx`).
 - **Fichas e loja** — regras em `conexao/loja.js` (compartilhado com o
   front), carteira em `conexao/carteira.js` (conta no banco, convidado em
   memória). Contrato em `conexao/PROTOCOLO.md`, seção "Carteira e loja".
-  - `components/mescla/` — arcade com a mesa oval e os fantasminhas;
-    serve de referência visual pro meetfront2.
-  - `components/Login.jsx`, `Lobby.jsx`, `Partida.jsx` — a frente
-    debugging (HTML cru, mostra tudo).
-- Labs e demos (pouso, mão, demo de desempenho, vitrine do fantasminha)
-  abrem por botões no `arcade/Login.jsx`, escondidos pelas flags
-  `MOSTRAR_*` no topo do arquivo.
+
+As outras frentes (debugging, arcade, novo, meetfront1 e mescla como
+frentes completas, o seletor `/front`, os labs de pouso/mão, a demo de
+desempenho e a vitrine do fantasminha) ficaram só na branch
+**`StashedFronts`**, como referência.
 
 Pra testar sozinho, crie uma sala com o resto dos assentos em bot (ex.:
 `numberPlayers: 2, botNumber: 1`) — a partida roda inteira só com você.
@@ -150,9 +139,9 @@ Legenda: 🔴 atrapalha jogar / bug · 🟡 falta informação, robustez · 🟢
 
 - [ ] 🟡 **Compor a tela com 5 e 6 jogadores** — hoje está mal resolvida no
       celular (fantasminhas, zonas de pouso e meladas brigando por espaço).
-      Posições em `calcularAssentosMobile` (`meetfront1/MesaExperimento.jsx`)
-      e zonas em `meetfront1/zonasPouso.js`; o lab de pouso (escondido por
-      `MOSTRAR_LAB_POUSO` no `arcade/Login.jsx`) arrasta os dois.
+      Posições em `calcularAssentosMobile` (`meetfront2/MesaExperimento.jsx`)
+      e zonas em `meetfront1/zonasPouso.js`; o lab de pouso que arrastava os
+      dois (`LabPouso.jsx`) ficou na branch `StashedFronts`.
 - [ ] 🟢 **Polir o coração do mobile** (vida).
 - [ ] 🟡 Animações contra manilha.
 - [ ] 🔴 Em partidas longas a destruição da mesa buga.
@@ -192,16 +181,16 @@ Legenda: 🔴 atrapalha jogar / bug · 🟡 falta informação, robustez · 🟢
       a partida para na rodada 4) — desde a espera das animações do front
       (`_esperarDistribuicao`/`game/animacoesFront.js`). Provável que o teste
       precise fixar `duracaoDistribuicaoMs`, mas não foi investigado.
+- [ ] 🔴 **E2E (`tests/e2e/`) escrito pra frente debugging** — a
+      `fixtures.js` fixa `contrazap-frente-v2 = debugging` no localStorage e
+      os specs procuram os elementos daquela interface, que não existe mais.
+      Reescrever os specs pra tela inicial/salas/mesa atuais.
 
 ### Código
 
-- [ ] 🟡 **Frentes duplicadas** — debugging, arcade, novo, meetfront1,
-      meetfront2 e mescla; o meetfront1 é cópia do novo e a mesa do
-      meetfront2 é cópia da do meetfront1. Com o meetfront2 de padrão,
-      decidir quais frentes ficam antes de as cópias divergirem mais.
-- [ ] 🟢 Labs e demo (pouso, mão, demo de desempenho, vitrine) vão dentro do
-      bundle de produção, só escondidos por flag — o build já avisa chunk
-      acima de 500 kB. Carregar sob demanda (`import()`) ou tirar do build.
+- [ ] 🟢 **Nome das pastas** — `components/arcade/` e `components/meetfront1/`
+      viraram só peças usadas pelo meetfront2; dá pra juntar/renomear quando
+      for mexer no front de novo.
 
 ### PIN — só mexer se alguém reclamar
 
@@ -237,12 +226,11 @@ não parece compensar o ganho agora.
 
 ---
 
-## Front da mesa (novo + meetfront1) — o que falta na Partida
+## Front da mesa — o que falta na Partida
 
-Comparação da tela de partida do **novo** e do **meetfront1** (que é cópia
-dele — o que vale pra um vale pro outro) com o **arcade**
-(`components/arcade/Partida.jsx`). Só entra aqui o que o arcade mostra e a
-mesa não.
+Comparação da tela de partida atual com a do **arcade**
+(`components/arcade/Partida.jsx`, na branch `StashedFronts`). Só entra aqui
+o que o arcade mostrava e a mesa não.
 
 Legenda: 🔴 falta e atrapalha jogar · 🟡 falta informação/feedback · 🟢 extra/polimento.
 
@@ -259,7 +247,7 @@ histórico), cabeçalho (sala, senha, rodada, nome, sair), tela de vitória
 com "Jogar de novo" (só adm) e convite de revanche, ressincronizar depois
 de queda de rede, banner global de conexão perdida. Tela de espera inteira
 (contagem regressiva, forçar início só pro dono, vagas, dono/bots, chips de
-regra, visual ardósia). Layout de celular no meetfront1 (`modoMobile.js`).
+regra, visual ardósia). Layout de celular (`meetfront1/modoMobile.js`).
 
 ### Durante a partida
 

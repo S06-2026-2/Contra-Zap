@@ -21,16 +21,6 @@ body {
     padding: 24px 16px 64px;
 }
 
-.cartao {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.cartao-larga {
-    max-width: none;
-}
-
 h1 { font-size: 28px; margin: 0; }
 h2 { font-size: 18px; margin: 0 0 8px; color: var(--texto); }
 h3 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--texto-fraco); margin: 16px 0 8px; }
@@ -92,23 +82,6 @@ button.secundario {
     font-size: 14px;
 }
 
-.lista-salas {
-    list-style: none;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.lista-salas li {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border: 1px solid var(--borda);
-    border-radius: 6px;
-    padding: 8px 12px;
-}
-
 .mesa, .mao {
     display: flex;
     flex-wrap: wrap;
@@ -140,193 +113,9 @@ button.secundario {
     display: inline-block;
 }
 
-.carta-grande-face {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    line-height: 0.9;
-}
-
-.carta-grande-rank {
-    font-size: 44px;
-    font-weight: 800;
-    letter-spacing: -0.04em;
-}
-
-.carta-grande-naipe {
-    font-size: 20px;
-    margin-top: 4px;
-}
-
-.carta-clicavel {
-    color: var(--texto);
-    font-weight: 400;
-}
-
-.carta-clicavel:not(:disabled) {
-    border-color: var(--acento);
-    cursor: pointer;
-}
-
-/* Vaza recém-encerrada: a vencedora ganha contorno verde e a mesa fica
-   congelada ~1,6s (PAUSA_VAZA_MS em Partida.jsx) antes de limpar. */
-.carta-vencedora {
-    border-color: #3fbf6f;
-    box-shadow: 0 0 0 2px #3fbf6f, 0 0 14px rgba(63, 191, 111, 0.45);
-}
-
-.vaza-resultado {
-    margin: 8px 0 0;
-    font-size: 14px;
-    font-weight: 600;
-    color: #3fbf6f;
-}
-
-/* Painel flutuante pra tacar filtro CSS/SVG na tela toda. Fica num portal
-   pro <body> (fora do #root) pra não ser afetado pelo próprio filtro. */
-.experimentos {
-    position: fixed;
-    right: 12px;
-    bottom: 12px;
-    z-index: 9999;
-    width: 220px;
-    border: 1px solid var(--borda);
-    border-radius: 8px;
-    padding: 8px 12px;
-    background: #1f2028;
-    color: var(--texto);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-}
-
-.experimentos summary {
-    cursor: pointer;
-    font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--texto-fraco);
-}
-
-.experimentos-corpo {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-top: 10px;
-}
-
-.experimentos-corpo select {
-    background: #1f2028;
-    border: 1px solid var(--borda);
-    border-radius: 6px;
-    color: var(--texto);
-    padding: 6px 8px;
-    font-size: 14px;
-}
-
-.experimentos-corpo input[type="range"] {
-    width: 100%;
-}
-
-/* Linhas de checkbox do painel (grão colorido / animar) — o label padrão
-   é coluna, aqui vira linha com o check ao lado do texto. */
-.experimentos-corpo .linha-check {
-    flex-direction: row;
-    align-items: center;
-    gap: 6px;
-    color: var(--texto);
-    font-size: 13px;
-}
-
-.experimentos-corpo .linha-check input {
-    width: auto;
-}
-
-.experimentos-sep {
-    width: 100%;
-    border: none;
-    border-top: 1px solid var(--borda);
-    margin: 2px 0;
-}
-
-/* Overlay de scanlines do filtro CRT — linhas escuras, multiply por cima
-   da tela toda. Fica dentro do #root (não num portal) de propósito: assim
-   curva/pixela junto quando os filtros SVG estão ligados.
-   --sl-op = opacidade da linha; --sl-periodo = altura de um ciclo
-   linha+vão (metade escura, metade transparente): maior = linhas mais
-   grossas e menos numerosas. */
-.fx-scanlines {
-    position: fixed;
-    inset: 0;
-    z-index: 40;
-    pointer-events: none;
-    mix-blend-mode: multiply;
-    background: repeating-linear-gradient(
-        to bottom,
-        rgba(0, 0, 0, var(--sl-op, 0.3)) 0,
-        rgba(0, 0, 0, var(--sl-op, 0.3)) calc(var(--sl-periodo, 3px) * 0.5),
-        rgba(0, 0, 0, 0) calc(var(--sl-periodo, 3px) * 0.5),
-        rgba(0, 0, 0, 0) var(--sl-periodo, 3px)
-    );
-}
-
-/* Só guarda o <filter> — não deve ocupar espaço nem capturar clique. */
-.fx-defs {
-    position: absolute;
-    width: 0;
-    height: 0;
-    pointer-events: none;
-}
-
 .vazio {
     color: var(--texto-fraco);
     font-size: 13px;
-}
-
-.status-jogadores {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 16px;
-}
-
-.status-jogador {
-    border: 1px solid var(--borda);
-    border-radius: 999px;
-    padding: 6px 12px;
-    background: #1f2028;
-    font-size: 13px;
-}
-
-.status-jogador-morto {
-    border-color: var(--erro);
-    color: var(--erro);
-}
-
-.status-jogador-bot {
-    border-color: var(--acento);
-    color: var(--acento);
-}
-
-/* Popup básico pra pedir a senha de uma sala 🔒 (ver Lobby.jsx). Clique fora
-   fecha; dentro do .modal-caixa é abafado (stopPropagation) pra não fechar
-   ao clicar no form. */
-.modal-fundo {
-    position: fixed;
-    inset: 0;
-    z-index: 100;
-    background: rgba(0, 0, 0, 0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-}
-
-.modal-caixa {
-    width: min(320px, 100%);
-    border: 1px solid var(--borda);
-    border-radius: 8px;
-    padding: 20px;
-    background: var(--bg);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
 .banner-conexao {
@@ -336,17 +125,6 @@ button.secundario {
     background: var(--erro);
     color: #1a1a1a;
     font-size: 13px;
-    font-weight: 600;
-    text-align: center;
-}
-
-.badge-frente {
-    margin-bottom: 16px;
-    padding: 6px 12px;
-    border-radius: 8px;
-    background: var(--acento);
-    color: #1a1a1a;
-    font-size: 12px;
     font-weight: 600;
     text-align: center;
 }
@@ -361,89 +139,6 @@ button.secundario {
     font-size: 12px;
     white-space: pre-wrap;
     word-break: break-word;
-}
-
-/* Tela de partida: chat fixo à esquerda + o cartão do jogo à direita. O
-   bloco transborda o #root (720px) pros lados até onde a viewport deixar. */
-.partida-layout {
-    display: flex;
-    align-items: flex-start;
-    gap: 16px;
-    width: min(1080px, 100vw - 24px);
-    position: relative;
-    left: 50%;
-    transform: translateX(-50%);
-}
-
-.partida-layout > .cartao {
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.chat-painel {
-    flex: 0 0 200px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    position: sticky;
-    top: 24px;
-}
-
-.chat-painel h3 { margin: 0; }
-
-.chat-prontas {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.chat-prontas button {
-    width: 100%;
-    text-align: left;
-    font-size: 13px;
-}
-
-.chat-feed {
-    border: 1px solid var(--borda);
-    border-radius: 6px;
-    background: #0f1015;
-    padding: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    /* height 0 + flex-grow: o feed não conta na altura do histórico, então
-       quem manda na altura da linha é só o painel ao lado (o histórico
-       estica até ela) — senão, com mensagens suficientes, o histórico
-       passava do topo do painel. O feed ocupa o que sobra e rola. */
-    flex-grow: 1;
-    height: 0;
-    overflow-y: auto;
-    font-size: 13px;
-}
-
-.chat-msg { word-break: break-word; }
-.chat-msg-sistema { opacity: 0.65; font-size: 0.9em; text-align: center; }
-
-.chat-livre {
-    display: flex;
-    gap: 6px;
-}
-
-.chat-livre input { flex: 1 1 auto; min-width: 0; }
-
-@media (max-width: 860px) {
-    .partida-layout {
-        flex-direction: column;
-        width: 100%;
-        left: 0;
-        transform: none;
-    }
-    .chat-painel {
-        flex-basis: auto;
-        width: 100%;
-        position: static;
-    }
-    .chat-feed { height: 140px; }
 }
 
 /* Experimento MesaExperimento (componentes/novo) — sandbox de layout pra
@@ -515,21 +210,6 @@ button.secundario {
     display: flex;
     align-items: center;
     gap: 10px;
-}
-
-.mesa-exp-cabecalho-nome {
-    max-width: 160px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font: 400 16px Silkscreen, monospace;
-    color: #8d93a6;
-}
-
-.mesa-exp-cabecalho-senha {
-    color: #f1e6d2;
-    font-size: 14px;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, .6);
 }
 
 .mesa-exp-fechar {
@@ -610,196 +290,6 @@ button.secundario {
     width: 100%;
     max-width: 760px;
     margin: auto;
-}
-
-.mesa-exp-fantasma-taca {
-    position: fixed;
-    top: 100px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-fantasma-dano {
-    position: fixed;
-    top: 144px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-fantasma-fala {
-    position: fixed;
-    top: 188px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-fantasma-bot {
-    position: fixed;
-    top: 232px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-perder-vida {
-    position: fixed;
-    top: 276px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-restaurar-vida {
-    position: fixed;
-    top: 320px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-finalizar-rodada {
-    position: fixed;
-    top: 364px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-alternar-rodada-cega {
-    position: fixed;
-    top: 408px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-vencer-jogo {
-    position: fixed;
-    top: 452px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-matar-fantasma {
-    position: fixed;
-    top: 496px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-reviver-fantasmas {
-    position: fixed;
-    top: 540px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-fantasma-aposta {
-    position: fixed;
-    top: 584px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-avancar-turno {
-    position: fixed;
-    top: 628px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-finalizar-vaza {
-    position: fixed;
-    top: 672px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-alternar-monitor-bot {
-    position: fixed;
-    top: 716px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-alternar-iniciada {
-    position: fixed;
-    top: 760px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-alternar-chat-aberto {
-    position: fixed;
-    top: 804px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-alternar-aposta-vez {
-    position: fixed;
-    top: 848px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-resetar-aposta {
-    position: fixed;
-    top: 892px;
-    left: 16px;
-    z-index: 40;
-}
-
-.mesa-exp-controle {
-    position: fixed;
-    top: 56px;
-    right: 16px;
-    z-index: 40;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: rgba(0, 0, 0, .35);
-    padding: 8px 14px;
-    border-radius: 8px;
-    color: #f1e6d2;
-    font-family: system-ui, sans-serif;
-    font-size: 14px;
-}
-
-.mesa-exp-controle .botoes {
-    display: flex;
-    gap: 6px;
-}
-
-.mesa-exp-controle-cartas-teste {
-    top: 102px; /* logo abaixo do .mesa-exp-controle de quantidade, mesmo canto */
-}
-
-.mesa-exp-rolar-chapeus {
-    position: fixed;
-    top: 56px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 40;
-}
-
-.mesa-exp-dar-cartas {
-    position: fixed;
-    top: 100px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 40;
-}
-
-.mesa-exp-ver-ranks {
-    position: fixed;
-    top: 144px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 40;
-}
-
-.mesa-exp-virar-carta {
-    position: fixed;
-    top: 188px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 40;
 }
 
 /* Chat — bola colada embaixo do banner de vez (.mesa-exp-turno-banner, que
@@ -938,15 +428,9 @@ button.secundario {
     font-size: 12px;
 }
 
-.mesa-exp-chat-cooldown {
-    font-size: 12px;
-    color: var(--texto-fraco);
-}
-
 /* Histórico: mesmo tipo de superfície do painel embaixo, com o feed rolável
-   (mesma ideia de .chat-feed no Partida.jsx antigo) — mensagem de sistema
-   (entrar/sair, ver aumentarJogadores/diminuirJogadores) em itálico e mais
-   apagada, igual ao .chat-msg-sistema de lá. */
+   — mensagem de sistema (entrar/sair, ver
+   aumentarJogadores/diminuirJogadores) em itálico e mais apagada. */
 .mesa-exp-chat-historico {
     display: flex;
     flex-direction: column;
@@ -1691,33 +1175,6 @@ button.secundario {
     transform: translate(-50%, -50%) scale(0.34);
 }
 
-/* Galeria de revisão (ver GaleriaRanks em MesaExperimento.jsx) — troca a
-   mesa inteira por uma grade de todos os ranks do baralho, grandes, lado a
-   lado, só pra decidir mudanças de design nas cartas. */
-.mesa-exp-galeria-ranks {
-    position: fixed;
-    inset: 0;
-    background: var(--bg);
-    overflow: auto;
-    padding: 80px 24px 24px;
-}
-
-.mesa-exp-galeria-ranks-grade {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 28px;
-    justify-content: center;
-}
-
-.mesa-exp-galeria-ranks-item {
-    transform: scale(1.8);
-    transform-origin: top center;
-    /* Margem extra embaixo pra compensar o scale (senão os itens da grade
-       ficam colados/sobrepostos verticalmente — scale não empurra layout
-       junto). */
-    margin-bottom: 90px;
-}
-
 /* Mesa em formato "estádio" (como as mesas de poker de verdade): lados
    compridos RETOS, só as pontas arredondadas — não uma elipse cheia. O
    truque é o border-radius valer EXATAMENTE metade da altura (em px, via
@@ -2437,8 +1894,7 @@ button.secundario {
 }
 
 /* Marcador de bot (ver botPorAssento/alternarBotFantasma em
-   MesaExperimento.jsx) — mesma cor de acento que .status-jogador-bot usa
-   no Partida.jsx antigo, pra já nascer consistente com aquele front. */
+   MesaExperimento.jsx). */
 .mesa-exp-assento-bot-tag {
     color: var(--acento);
     font-weight: 700;
@@ -2584,66 +2040,6 @@ button.secundario {
     font-size: 26px;
 }
 
-/* A SUA — medalhão em quarto de círculo encostado no canto inferior
-   direito da tela (ver MedalhaoVida: tamanho e posição dos corações vêm
-   de lá). O medalhão é desenhado num SVG de fundo; os corações são
-   posicionados um a um no trilho curvo (.mesa-exp-coracoes-arco). */
-.mesa-exp-coracoes-suas {
-    position: fixed;
-    right: 0;
-    bottom: 0;
-    z-index: 43;
-    transform-origin: 100% 100%;
-}
-.mesa-exp-medalhao {
-    position: absolute;
-    inset: 0;
-    overflow: visible;
-    filter: drop-shadow(-4px -4px 14px rgba(0, 0, 0, .55));
-}
-.mesa-exp-medalhao-aro {
-    fill: none;
-    stroke-width: 3;
-    transition: filter .4s ease;
-}
-.mesa-exp-medalhao-filete {
-    fill: none;
-    stroke: rgba(255, 215, 94, .22);
-    stroke-width: 1;
-    stroke-dasharray: 2 5;
-}
-/* Sulco dos corações: o mesmo trilho escuro com fio dourado do pavio. */
-.mesa-exp-medalhao-sulco {
-    fill: none;
-    stroke: #120b06;
-    stroke-width: 13;
-    stroke-linecap: round;
-}
-.mesa-exp-medalhao-sulco-fio {
-    fill: none;
-    stroke: rgba(255, 215, 94, .28);
-    stroke-width: 1;
-}
-/* Cubo do "relógio", no canto: o centro comum dos três arcos. */
-.mesa-exp-medalhao-cubo {
-    fill: #1a1009;
-    stroke-width: 2;
-}
-.mesa-exp-medalhao-cubo-miolo {
-    fill: none;
-    stroke: rgba(255, 215, 94, .3);
-    stroke-width: 1;
-}
-.mesa-exp-medalhao-naipe {
-    fill: rgba(224, 36, 63, .55);
-    font: 700 14px system-ui, sans-serif;
-}
-
-/* Na sua vez o aro acende junto com o pavio. */
-.mesa-exp-coracoes-suas-vez .mesa-exp-medalhao-aro {
-    filter: drop-shadow(0 0 3px rgba(255, 215, 94, .8)) drop-shadow(0 0 8px rgba(255, 170, 40, .45));
-}
-
 /* As SUAS fichas — barra de madeira rente à borda de baixo, saindo da borda
    esquerda (ver BarraFichas; largura/altura inline). Aro dourado em cima e
    na ponta direita (degradê no border-box, como a bola do chat).
@@ -2723,23 +2119,6 @@ button.secundario {
     font-size: inherit;
 }
 
-/* Anel de timer do seu turno (ver AnelTimer/ArcoTimer em
-   MesaExperimento.jsx) — pavio dourado queimando em volta dos seus
-   corações, ancorado no canto inferior direito da caixa deles. Trilho =
-   sulco escuro com fio dourado, no espírito da borda de madeira da mesa;
-   o traço restante e a brasa são posicionados por JS a cada quadro. */
-.mesa-exp-anel-timer {
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    overflow: visible;
-    pointer-events: none;
-    animation: mesa-exp-anel-entrar .35s ease-out;
-}
-@keyframes mesa-exp-anel-entrar {
-    from { opacity: 0; transform: scale(.94); }
-    to   { opacity: 1; transform: scale(1); }
-}
 /* Borda, trilha e traço restante são faixas preenchidas que afinam do
    topo pra ficha (ver faixaAfinando) — a cor vem do fill do grupo.
    Opacidade no grupo, não no fill, pra não somar onde o círculo da ponta
@@ -2751,10 +2130,6 @@ button.secundario {
 }
 .mesa-exp-anel-trilha {
     fill: #1c120a;
-}
-.mesa-exp-anel-eixo {
-    fill: none;
-    stroke: none;
 }
 .mesa-exp-anel-marca {
     fill: rgba(255, 215, 94, .45);
@@ -2905,14 +2280,6 @@ button.secundario {
     flex-direction: column;
 }
 
-.mesa-exp-assento-vida-direita {
-    right: 8%;
-}
-
-.mesa-exp-assento-vida-esquerda {
-    left: 8%;
-}
-
 /* Balão de fala (ver mostrarBolhaFala/bolhasFala em MesaExperimento.jsx) —
    filho do .mesa-exp-assento (que já é position:absolute), ancorado em cima
    da própria hitbox: funciona igual pra assento no topo ou embaixo da mesa,
@@ -2965,7 +2332,7 @@ button.secundario {
     100% { opacity: 0; transform: translateX(-50%) translateY(-4px) scale(.96); }
 }
 
-/* Corpo do fantasminha (ver components/novo/Fantasminha.jsx) — só o
+/* Corpo do fantasminha (ver components/meetfront1/Fantasminha.jsx) — só o
    flutuar fica aqui em CSS puro; cor e o timing (duração/atraso) vêm do
    componente, sorteados por instância via style inline. */
 .fantasminha-flutuante {
@@ -3156,20 +2523,6 @@ button.secundario {
     height: 100%;
     overflow: visible;
     font: 800 52px Archivo, system-ui, sans-serif;
-}
-.fantasminha-interrogacao-grande {
-    left: 8%;
-    bottom: 0;
-    width: 60%;
-    height: 90%;
-}
-.fantasminha-interrogacao-pequena {
-    right: 4%;
-    top: -6%;
-    width: 42%;
-    height: 63%;
-    animation-delay: .18s, .9s;
-    animation-duration: .5s, 1.1s;
 }
 @keyframes fantasminha-interrogacao-subir {
     from { opacity: 0; translate: 0 18px; }
@@ -3406,7 +2759,7 @@ button.secundario {
     to   { transform: translateY(-50%) rotate(0deg); }
 }
 
-/* Carta (ver components/novo/Carta.jsx) — bege claro clássico de baralho
+/* Carta (ver components/meetfront1/Carta.jsx) — bege claro clássico de baralho
    de verdade (não o fundo escuro do .carta de Partida.jsx), com nome
    prefixado "carta-exp-" pra não colidir com aquele. position:relative pra
    .carta-exp-indice se ancorar no canto (ver mais abaixo). */
@@ -3848,7 +3201,7 @@ button.secundario {
     border-color: #2a2a2a;
 }
 
-/* Ficha (ver components/novo/Ficha.jsx) — borda preta e branca clássica de
+/* Ficha (ver components/meetfront1/Ficha.jsx) — borda preta e branca clássica de
    ficha de cassino (era dourado/dorado/vinho antes), portada do
    experimento arquivado (public/_intro/index.html, .ficha) mas
    "caprichada": anel externo de tracinhos alternados (repeating-conic-
@@ -4201,24 +3554,6 @@ button.secundario {
     position: fixed;
     z-index: 14;
 }
-.mesa-exp-luz-vez-esquerda,
-.mesa-exp-luz-vez-direita {
-    width: 520px;
-    height: 640px;
-    translate: 0 -50%;
-}
-.mesa-exp-luz-vez-esquerda {
-    left: -260px;
-}
-.mesa-exp-luz-vez-direita {
-    right: -260px;
-}
-.mesa-exp-luz-vez-topo {
-    top: -260px;
-    width: 640px;
-    height: 520px;
-    translate: -50% 0;
-}
 .mesa-exp-luz-sua-vez {
     position: fixed;
     left: 50%;
@@ -4410,131 +3745,5 @@ button.secundario {
 .mesa-exp-carta-jogada-legenda .mesa-exp-carta-jogada-legenda-melada {
     color: #cfcfcf;
     font-weight: 600;
-}
-
-/* Vitrine do fantasminha (ver novo/VitrineFantasminha.jsx): painel de
-   botões na esquerda, fantasminha ampliado no meio. Mesmo fundo e
-   painel ardósia do front arcade. */
-.vitrine-tela {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    background: radial-gradient(120% 90% at 50% 0%, #1b1d26 0%, #0c0d11 65%);
-    color: #f3ead6;
-    font-family: Silkscreen, monospace;
-    user-select: none;
-}
-
-.vitrine-painel {
-    box-sizing: border-box;
-    width: 250px;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    padding: 16px;
-    overflow-y: auto;
-    background: linear-gradient(180deg, #1a1c25, #14161d);
-    border-right: 2px solid #262935;
-}
-
-.vitrine-grupo {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.vitrine-rotulo {
-    font-size: 11px;
-    color: #6f7488;
-    text-transform: uppercase;
-}
-
-.vitrine-linha {
-    display: flex;
-    gap: 6px;
-}
-.vitrine-linha .vitrine-btn {
-    flex: 1;
-}
-
-.vitrine-btn {
-    box-sizing: border-box;
-    min-height: 34px;
-    margin: 0;
-    padding: 0 10px;
-    font: 400 11px Silkscreen, monospace;
-    text-align: left;
-    color: #cfd3de;
-    background: #171922;
-    border: 2px solid #262935;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: border-color .12s ease, color .12s ease, background .12s ease;
-}
-.vitrine-linha .vitrine-btn {
-    text-align: center;
-}
-.vitrine-btn:not(:disabled):hover {
-    border-color: #4a4f60;
-    color: #f3ead6;
-}
-.vitrine-btn:disabled {
-    opacity: .4;
-    cursor: default;
-}
-.vitrine-btn-ligado {
-    border-color: #7dd3fc;
-    color: #7dd3fc;
-}
-.vitrine-btn-perigo:not(:disabled):hover {
-    background: #ff4b3e;
-    border-color: #ff4b3e;
-    color: #fff2ef;
-}
-.vitrine-voltar {
-    align-self: flex-start;
-}
-
-/* Trilho do slider pinta o círculo de matiz inteiro; o polegar mostra a
-   cor atual (mesma fórmula do corpo em Fantasminha.jsx). */
-.vitrine-slider {
-    width: 100%;
-    height: 12px;
-    margin: 4px 0;
-    appearance: none;
-    border-radius: 6px;
-    background: linear-gradient(90deg, hsl(0, 80%, 82%), hsl(60, 80%, 82%), hsl(120, 80%, 82%), hsl(180, 80%, 82%), hsl(240, 80%, 82%), hsl(300, 80%, 82%), hsl(360, 80%, 82%));
-    outline: none;
-}
-.vitrine-slider::-webkit-slider-thumb {
-    appearance: none;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: hsl(var(--vitrine-hue), 80%, 82%);
-    border: 3px solid #0c0d11;
-    cursor: pointer;
-}
-.vitrine-slider::-moz-range-thumb {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: hsl(var(--vitrine-hue), 80%, 82%);
-    border: 3px solid #0c0d11;
-    cursor: pointer;
-}
-
-.vitrine-palco {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-}
-
-/* Ampliado pra estudar detalhe (o de verdade tem 180px na mesa). */
-.vitrine-escala {
-    transform: scale(2);
 }
 

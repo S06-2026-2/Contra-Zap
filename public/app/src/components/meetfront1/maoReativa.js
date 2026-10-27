@@ -2,8 +2,7 @@
 // com poucas cartas o leque é sempre o mesmo; passando do `limiar`, cada
 // carta a mais encolhe a mão um pouco e o leque se fecha pra caber na tela
 // sem tampar a mesa. Dois conjuntos de ajustes: o do computador e o do
-// mobile (ver modoMobile.js), que sai do lab do leque (LabMao.jsx, botão no
-// Login).
+// mobile (ver modoMobile.js).
 
 export const MAO_REATIVA_PADRAO = {
     escalaBase: 1,               // multiplica o 1.5 base das cartas da mão
@@ -72,15 +71,4 @@ export function calcularLayoutMao(quantidade, larguraDisponivel, ajustes = MAO_R
         }
     }
     return { escala, subida, angulo, deslocamento };
-}
-
-// Bloco de código do MAO_REATIVA_MOBILE (é o que o lab mostra pra copiar).
-export function gerarCodigoMao(ajustes) {
-    const arred = (v) => Math.round(v * 1000) / 1000;
-    const linhas = ['export const MAO_REATIVA_MOBILE = {'];
-    for (const chave of Object.keys(MAO_REATIVA_MOBILE)) {
-        linhas.push(`    ${chave}: ${arred(ajustes[chave])},`);
-    }
-    linhas.push('};');
-    return linhas.join('\n');
 }

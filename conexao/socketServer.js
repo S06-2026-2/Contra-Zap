@@ -26,7 +26,7 @@ class ErroProtocolo extends Error {
 
 // Teto de tentativas de verificarNome por IP — esse evento roda
 // pré-autenticação (não tem player.id pra chavear) e sem limite é oráculo de
-// enumeração de contas. Generoso pra uso real: Login.jsx só chama isso uma
+// enumeração de contas. Generoso pra uso real: PopupLogin.jsx só chama isso uma
 // vez por clique em "Continuar", nunca por tecla digitada. Injetável
 // (segundo parâmetro de registrarSocketServer) pra testes conseguirem
 // afrouxar sem mexer no default.

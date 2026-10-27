@@ -65,7 +65,7 @@
     transform-origin: top center;
 }
 
-/* Barra do jogador, no visual da placa da mescla: ardósia, faixa de cima
+/* Barra do jogador, em ardósia, com a faixa de cima
    na cor do fantasminha. Largura = BANDEJA_DESKTOP.largura em
    MesaExperimento.jsx (a fila de fichas é calculada a partir dela). */
 .mf2 .mf2-barra {

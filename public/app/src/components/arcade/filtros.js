@@ -1,12 +1,10 @@
-// Estado e montagem do "FILTRO DE TELA" da frente arcade — mesma lógica do
-// painel de components/novo/Partida.jsx (mesmas chaves de FILTROS, mesmo
-// grão via feTurbulence e mesma CRT via feDisplacementMap/feOffset), só que
-// aplicada na casca arcade (ver Casca.jsx) em vez do #root, e lembrada no
+// Estado e montagem do "FILTRO DE TELA" (grão via feTurbulence e CRT via
+// feDisplacementMap/feOffset), aplicado na casca arcade (ver Casca.jsx) e
+// na mesa (ver meetfront1/FiltroTela.jsx), e lembrado no
 // localStorage pra sobreviver à troca Lobby -> Partida (cada tela monta a
 // própria casca). 100% local: não toca no servidor nem no protocolo.
 import { useEffect, useState } from 'react';
 
-// Mesmas chaves de FILTROS em components/novo/Partida.jsx.
 export const FILTROS = {
     nenhum:    '',
     pixelado:  'url(#cz-pixelar)',
@@ -44,8 +42,8 @@ function lerFiltroSalvo(chave, padrao) {
     }
 }
 
-// Mapa de deslocamento pra curvatura CRT — cópia de mapaCurvatura em
-// components/novo/Partida.jsx (gradiente em "S" num eixo só; 128 = parado).
+// Mapa de deslocamento pra curvatura CRT (gradiente em "S" num eixo só;
+// 128 = parado).
 function mapaCurvatura(eixo) {
     const stops = [[0, 0], [0.15, 30], [0.35, 85], [0.5, 128], [0.65, 171], [0.85, 225], [1, 255]];
     const paradas = stops
@@ -60,10 +58,10 @@ function mapaCurvatura(eixo) {
 export const MAPA_CURV_X = mapaCurvatura('x');
 export const MAPA_CURV_Y = mapaCurvatura('y');
 
-// `chave`/`padrao`: outra frente pode ter o próprio filtro, lembrado à
+// `chave`/`padrao`: a mesa tem o próprio filtro, lembrado à
 // parte e com outro ponto de partida (ver meetfront1/FiltroTela.jsx).
 // `sobrescrita`: campos aplicados por cima do ajuste salvo sem gravar nada
-// (a demo de desempenho do meetfront1 desliga peças do filtro por ela).
+// (a demo de desempenho (DemoBeta.jsx, na branch StashedFronts) desligava peças do filtro por ela).
 // `animarSemente: false` desliga o re-semear do grão (o grão leve do
 // meetfront1 anima por conta própria, ver GraoLeve em FiltroTela.jsx).
 export function useFiltros(chave = CHAVE_FILTRO, padrao = FILTRO_PADRAO, sobrescrita = null, { animarSemente = true } = {}) {
@@ -81,8 +79,8 @@ export function useFiltros(chave = CHAVE_FILTRO, padrao = FILTRO_PADRAO, sobresc
     const efetivo = sobrescrita ? { ...estado, ...sobrescrita } : estado;
     const { efeito, pixel, grao, graoColorido, graoAnimado, curvatura, scanlines, scanlinePasso, aberracao } = efetivo;
 
-    // "Ferve" o grão re-semeando o feTurbulence a ~15fps (mesmo capado baixo
-    // de propósito do novo/Partida.jsx — feTurbulence é caro).
+    // "Ferve" o grão re-semeando o feTurbulence a ~15fps (capado baixo de
+    // propósito — feTurbulence é caro).
     useEffect(() => {
         if (!animarSemente || grao <= 0 || !graoAnimado) return;
         let raf;
@@ -121,7 +119,7 @@ export function useFiltros(chave = CHAVE_FILTRO, padrao = FILTRO_PADRAO, sobresc
         filtroCss,
         usaPixel: USA_PIXEL.has(efeito),
         resumo: ativos.length ? ativos.join(' + ') : 'off',
-        // feComponentTransfer linear em torno de 0.5 (ver novo/Partida.jsx).
+        // feComponentTransfer linear em torno de 0.5.
         grK: (grao / 100) * 2,
         grC: 0.5 - grao / 100,
         abInt: aberracao > 0 ? Math.max(1, Math.round((aberracao / 100) * 8)) : 0,

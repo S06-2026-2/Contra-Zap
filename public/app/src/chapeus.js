@@ -1,6 +1,6 @@
 // Sprites de chapéu extraídos de uma planilha de referência de chapéus do
 // Stardew Valley (ver assets/chapeus/) — experimento visual em cima do
-// fantasminha (ver components/novo/Fantasminha.jsx), sem ligação nenhuma
+// fantasminha (ver components/meetfront1/Fantasminha.jsx), sem ligação nenhuma
 // com o jogo de verdade. Dos 117 originais, só ficaram os que passaram na
 // validação manual (ver assets/chapeus/calibracao-chapeus.csv, gerado pelo
 // Calibrador de chapéus que já foi removido) — cada um com um ajuste

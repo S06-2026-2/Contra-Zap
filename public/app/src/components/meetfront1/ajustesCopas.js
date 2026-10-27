@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react';
 
 // Como a jogada da manilha de Copas é desenhada (CartaCopasSimulada e
 // MarcaCarbonizada em MesaDanificada.jsx). Mesmo esquema de ajustesZap.js:
-// a demo de desempenho (DemoBeta.jsx) troca peça por peça pra medir; o jogo
+// a demo de desempenho (DemoBeta.jsx, na branch StashedFronts) troca peça por peça pra medir; o jogo
 // usa AJUSTES_COPAS_PADRAO.
 //
 // - fogo: 'original' = FogueiraCodepen com as bolinhas animadas em blend

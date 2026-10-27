@@ -1,4 +1,4 @@
-// Singleton do motor de som da frente arcade (ver arcade/som.js). Uma
+// Singleton do motor de som da casca arcade (ver arcade/som.js). Uma
 // instância só pro app inteiro — as três telas (Login/Lobby/Partida) tocam
 // pelo mesmo `tocarSom`, e o SOM ON/OFF da barra de cima vale pra todas.
 //
