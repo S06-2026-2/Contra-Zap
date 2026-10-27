@@ -14,8 +14,7 @@ import { avisarSessaoRetomada, lerSessaoSalva, limparSessaoSalva, salvarSessao }
 //
 // Tela inicial (`Inicio`: JOGAR e CUSTOMIZAÇÃO, com pop-up de login quando
 // precisa) e `Customizacao` vêm de components/meetfront2/; as salas são a
-// Lobby da casca arcade (components/arcade/, ver
-// design_handoff_frente_arcade/README.md); a Partida é a do meetfront2.
+// Lobby da casca arcade (components/arcade/); a Partida é a do meetfront2.
 
 // Máquina de estado bem simples. Sessão (nome + token) fica em memória
 // aqui (`player`) mas é espelhada em sessionStorage (ver sessao.js) — o

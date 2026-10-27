@@ -1,6 +1,5 @@
-/* Frente "arcade" do Contra Zap — ver design_handoff_frente_arcade/README.md.
-   Tudo prefixado `az-` (classes) e `cz-` (@keyframes, copiados verbatim do
-   protótipo no fim deste arquivo). Fontes carregadas em public/app/index.html.
+/* Casca "arcade" do Contra Zap (tela inicial, salas, espera).
+   Tudo prefixado `az-` (classes) e `cz-` (@keyframes, no fim deste arquivo). Fontes carregadas em public/app/index.html.
 
    Botões: o index.css estiliza `button`/`input` globalmente (fundo roxo,
    padding, peso 600...). Todo botão daqui leva `az-b` (zera tudo isso) e
