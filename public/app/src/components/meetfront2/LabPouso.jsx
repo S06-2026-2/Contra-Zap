@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Fantasminha from '../meetfront1/Fantasminha.jsx';
 import Carta from '../meetfront1/Carta.jsx';
-import { BannerVez, CabecalhoMesa, CaixaFantasma, Coracoes, TituloMesa, VIDA_MAXIMA, VidaRetangulo, calcularAssentosMobile, deslocamentoMelada, medirMesa } from './MesaExperimento.jsx';
+import { BannerVez, CabecalhoMesa, CaixaFantasma, Coracoes, MaoEmLeque, PopupMobile, TimerNome, TituloMesa, VIDA_MAXIMA, VidaRetangulo, calcularAssentosMobile, deslocamentoMelada, medirMesa } from './MesaExperimento.jsx';
 import { useModoMobile } from '../meetfront1/modoMobile.js';
 import { ASSENTOS_MOBILE, ESCALA_CARTA_JOGADA_MOBILE, MELADA_POUSO_MOBILE, ZONAS_POUSO_MOBILE, gerarCodigoZonas, sortearPontoNaZona } from '../meetfront1/zonasPouso.js';
+import './meetfront2.css';
 import './labPouso.css';
 
 // Lab das zonas de pouso do mobile (rota /lab-pouso, ver main.jsx): a mesa
@@ -18,7 +19,9 @@ import './labPouso.css';
 // (na partida só aparecem no hover e no fim da rodada), com a vida
 // escolhida no painel valendo pra todo mundo. O topo da partida (rodada,
 // sair, banner de vez, bola do chat e sala/senha) também fica, parado, pra
-// ver se nada cai em cima dele. O ajuste fica
+// ver se nada cai em cima dele. "Popups" liga, em todo mundo, o popup de
+// nome/aposta, o timer da caixinha e a mão revelada da primeira rodada. O
+// ajuste fica
 // salvo neste navegador e sai como código pronto no painel, no formato de
 // zonasPouso.js. Abrir com a janela estreita (modo mobile), senão a
 // geometria não é a do celular.
@@ -41,6 +44,10 @@ const BARALHO = [
 const ESCALA_BARALHO = 0.55;
 // Topo de exemplo: sala/senha e nome compridos, o pior caso de largura.
 const SALA_EXEMPLO = { id: '1234', senha: 'ABCD', rodada: 12, banner: 'Vez de Fantasma1234' };
+// Popup e mão revelada de exemplo (ver "Popups" no painel).
+const POPUP_EXEMPLO = { nome: 'Fantasma1234', aposta: 2, feitas: 1 };
+const MAO_REVELADA_EXEMPLO = [{ rank: '7', naipe: 'Copas' }];
+const PRAZO_EXEMPLO_MS = 30000;
 // Meladas de exemplo: grupo, posição no grupo e carta.
 const MELADAS_EXEMPLO = [
     { grupo: 0, indice: 0, rank: '7', naipe: 'Copas', rot: -14 },
@@ -101,6 +108,7 @@ export default function LabPouso() {
     const [mostrarZonas, setMostrarZonas] = useState(true);
     const [corDono, setCorDono] = useState(false);
     const [vida, setVida] = useState(VIDA_MAXIMA);
+    const [prazoExemplo, setPrazoExemplo] = useState(null);
     const [painelAberto, setPainelAberto] = useState(true);
     const [copiado, setCopiado] = useState(false);
     const [mesa, setMesa] = useState(null);
@@ -279,6 +287,7 @@ export default function LabPouso() {
     const zonasAtuais = zonas[quantidade];
 
     return (
+        <div className="mf2">
         <div className="mesa-exp-tela mf1 mf1-mobile mf1-lab-pouso">
             <CabecalhoMesa salaId={SALA_EXEMPLO.id} senha={SALA_EXEMPLO.senha} rodada={SALA_EXEMPLO.rodada} comTitulo={false}>
                 <button type="button" className="mesa-exp-sair">Sair da partida</button>
@@ -305,14 +314,21 @@ export default function LabPouso() {
                         style={{ left: `${assento.x}%`, top: `${assento.y}%` }}
                         onPointerDown={(e) => comecarArraste(e, i, 'assento')}
                     >
-                        <CaixaFantasma ativa>
-                            <Fantasminha hue={hueDoAssento(i, quantidade)} />
+                        <CaixaFantasma ativa sobre={prazoExemplo && (
+                            <span className="mf1-caixa-fantasma-timer">
+                                <TimerNome key={prazoExemplo.inicio} prazo={prazoExemplo} />
+                            </span>
+                        )}>
+                            <Fantasminha hue={hueDoAssento(i, quantidade)}>
+                                {prazoExemplo && <MaoEmLeque quantidade={1} cartas={MAO_REVELADA_EXEMPLO} />}
+                            </Fantasminha>
                         </CaixaFantasma>
                         <div className="mf1-bandeja-fichas" />
                         <span className="mesa-exp-assento-legenda" style={{ color: corDoAssento(i, quantidade) }}>{i + 1}</span>
                         <div className={`mesa-exp-assento-vida mesa-exp-assento-vida-${assento.x < 50 ? 'direita' : 'esquerda'}`}>
                             <Coracoes vida={vida} assentoIndice={i} />
                         </div>
+                        {prazoExemplo && <PopupMobile {...POPUP_EXEMPLO} mostrarFeitas />}
                     </div>
                 )))}
                 <div className="mesa-exp-baralho" style={{ left: '50%', top: '50%', transform: `scale(${ESCALA_BARALHO})` }}>
@@ -413,6 +429,13 @@ export default function LabPouso() {
                         <label className="mf1-lab-check">
                             <input type="checkbox" checked={corDono} onChange={(e) => setCorDono(e.target.checked)} /> Cor do dono
                         </label>
+                        <label className="mf1-lab-check">
+                            <input
+                                type="checkbox"
+                                checked={!!prazoExemplo}
+                                onChange={(e) => setPrazoExemplo(e.target.checked ? { inicio: Date.now(), tempoMs: PRAZO_EXEMPLO_MS } : null)}
+                            /> Popups
+                        </label>
                         <button type="button" className="mf1-lab-btn" onClick={restaurarDoArquivo}>Restaurar {quantidade}</button>
                         <button type="button" className="mf1-lab-btn" onClick={restaurarMelada}>Restaurar meladas</button>
                     </div>
@@ -453,6 +476,7 @@ export default function LabPouso() {
             ) : (
                 <button type="button" className="mf1-lab-btn mf1-lab-abrir" onClick={() => setPainelAberto(true)}>Lab</button>
             )}
+        </div>
         </div>
     );
 }

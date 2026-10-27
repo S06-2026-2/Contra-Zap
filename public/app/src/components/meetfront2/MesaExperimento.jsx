@@ -1087,6 +1087,27 @@ function TextoAposta({ aposta, feitas, mostrarFeitas }) {
     );
 }
 
+// Popup dos outros no mobile: o nome (que no mobile só aparece aqui) e,
+// embaixo, "Aposta: N · Fez: M" quando já apostou. Aparece no toque, na
+// aposta, na vaza e no dano (ver mostrarInfoTemporaria); `temporario`
+// liga o pulinho/fade de INFO_TEMPORARIA_MS, sem ele fica parado (toque
+// ainda em cima). `id` reinicia a animação se outro chegar antes.
+export function PopupMobile({ nome, bot, aposta, feitas, mostrarFeitas, temporario, id }) {
+    return (
+        <span key={id} className={`mesa-exp-assento-aposta-legenda mf1-popup-mobile${temporario ? ' mf1-info-temporaria' : ''}`}>
+            <span className="mf1-popup-mobile-nome">
+                {nome}
+                {bot && <span className="mesa-exp-assento-bot-tag"> 🤖</span>}
+            </span>
+            {aposta != null && (
+                <span className="mf1-popup-mobile-aposta">
+                    <TextoAposta aposta={aposta} feitas={feitas} mostrarFeitas={mostrarFeitas} />
+                </span>
+            )}
+        </span>
+    );
+}
+
 // `infoTemporaria`: popup temporário em curso, { id, tipo } (ver
 // mostrarInfoTemporaria) — mostra a legenda sem hover; o id como key
 // reinicia a animação se outro chegar antes deste sumir. Popup de aposta
@@ -1143,7 +1164,7 @@ function caminhoFatia(c, r, fracao) {
     return `M${c},${c} L${c},${c - r} A${r},${r} 0 ${fracao > 0.5 ? 1 : 0},1 ${x.toFixed(2)},${y.toFixed(2)} Z`;
 }
 
-function TimerNome({ prazo }) {
+export function TimerNome({ prazo }) {
     const { timerLeve } = useAjustesMesa();
     const restoRef = useRef(null);
     const lado = (TIMER_NOME_RAIO + 2) * 2;
@@ -1669,11 +1690,14 @@ function EscalaFantasma({ ativa, children }) {
     );
 }
 
-export function CaixaFantasma({ ativa, children }) {
+// `sobre`: o que vai por cima do fantasminha, preso na caixa (o timer no
+// canto de baixo à esquerda, ver .mf1-caixa-fantasma-timer).
+export function CaixaFantasma({ ativa, sobre, children }) {
     if (!ativa) return children;
     return (
         <div className="mf1-caixa-fantasma">
             <div className="mf1-caixa-fantasma-miolo">{children}</div>
+            {sobre}
         </div>
     );
 }
@@ -2784,6 +2808,7 @@ export default function MesaExperimento({ estado, acoes }) {
             if (linha.diferenca > 0) {
                 temCartasDeDano = true;
                 dispararCartasDeDano(indice, linha, antes);
+                if (indice !== 0 && mobile) mostrarInfoTemporaria(indice, 'dano');
                 duracaoRevelacao = Math.max(
                     duracaoRevelacao,
                     linha.diferenca * DANO_CARTA_ATRASO_ENTRE_MS + DANO_CARTA_VOO_DURACAO_MS + CORACAO_IMPACTO_DURACAO_MS + 400
@@ -3713,7 +3738,8 @@ export default function MesaExperimento({ estado, acoes }) {
 
     // Mostra o popup "Aposta: N · Fez: M" do assento por INFO_TEMPORARIA_MS.
     // `tipo` é o que disparou: 'aposta' (só "Aposta: N", mesmo que a fase
-    // de apostas feche no meio do popup) ou 'vaza'. Se outro chegar antes
+    // de apostas feche no meio do popup), 'vaza', 'dano' ou 'toque' (estes
+    // dois só no mobile, onde o popup também leva o nome, ver PopupMobile). Se outro chegar antes
     // de este sumir, recomeça do zero (id novo), e o timer do antigo não
     // apaga o novo.
     function mostrarInfoTemporaria(indice, tipo) {
@@ -4235,6 +4261,8 @@ export default function MesaExperimento({ estado, acoes }) {
                     const prazoDele = !assento.eVoce && nomeAssento != null && estado.prazoTurno?.jogador === nomeAssento ? estado.prazoTurno : null;
                     const infoTemporaria = infoTemporariaPorAssento[i] ?? null;
                     const vidaVisivel = assentoEmHoverIndex === i || assentosVidaTemporaria.includes(i);
+                    const popupMobileVisivel = mobile && !assento.eVoce && (infoTemporaria || assentoEmHoverIndex === i);
+                    const comPopup = mobile ? popupMobileVisivel : infoTemporaria && apostaDele != null;
                     const legendaNome = (
                         <span className="mesa-exp-assento-legenda">
                             {/* Vaga do timer sempre no DOM: abre de 0 até a largura
@@ -4251,10 +4279,11 @@ export default function MesaExperimento({ estado, acoes }) {
                         <div
                             key={i}
                             ref={(el) => { assentoRefs.current[i] = el; }}
-                            className={`mesa-exp-assento${assento.eVoce ? ' mesa-exp-assento-voce' : ''}${assentosLancando.includes(i) ? ' mf1-assento-lancou' : ''}${infoTemporaria && apostaDele != null ? ' mf1-assento-com-popup' : ''}`}
+                            className={`mesa-exp-assento${assento.eVoce ? ' mesa-exp-assento-voce' : ''}${assentosLancando.includes(i) ? ' mf1-assento-lancou' : ''}${comPopup ? ' mf1-assento-com-popup' : ''}`}
                             style={{ left: `${assento.x}%`, top: `${assento.y}%` }}
                             onMouseEnter={() => !assento.eVoce && setAssentoEmHoverIndex(i)}
                             onMouseLeave={() => !assento.eVoce && setAssentoEmHoverIndex(null)}
+                            onClick={() => mobile && !assento.eVoce && mostrarInfoTemporaria(i, 'toque')}
                         >
                             {bolha && (
                                 <div
@@ -4269,7 +4298,11 @@ export default function MesaExperimento({ estado, acoes }) {
                                 <span className="mesa-exp-assento-eliminado">💀<br />Eliminado</span>
                             ) : (
                                 <>
-                                    <CaixaFantasma ativa={mobile}>
+                                    <CaixaFantasma ativa={mobile} sobre={prazoDele && (
+                                        <span className="mf1-caixa-fantasma-timer">
+                                            <TimerNome key={prazoDele.inicio} prazo={prazoDele} />
+                                        </span>
+                                    )}>
                                     <EscalaFantasma ativa={!mobile}>
                                     <Fantasminha destacado={destacado} danoVersao={danoPorAssento[i] ?? 0} bot={ehBot} monitor hue={huesPorAssento[i]} chapeu={chapeusPorAssento[i].src} ajusteChapeuPct={chapeusPorAssento[i].ajuste} naVez={naVez} estadoMorte={estadoMorte}>
                                         {/* `maos[i] > 0` é o que já chegou de VERDADE (via
@@ -4289,7 +4322,10 @@ export default function MesaExperimento({ estado, acoes }) {
                                     {mobile ? (
                                         <>
                                             <div ref={(el) => { bandejaRefs.current[i] = el; }} className="mf1-bandeja-fichas" />
-                                            {legendaNome}
+                                            {/* O nome no mobile só aparece no popup (PopupMobile);
+                                                a linha dele continua reservada pra caixinha e a
+                                                bandeja não mudarem de lugar. */}
+                                            <span className="mesa-exp-assento-legenda mf1-legenda-reservada" aria-hidden="true">&nbsp;</span>
                                         </>
                                     ) : (
                                         // Barra embaixo do fantasminha: nome em cima (corações
@@ -4315,7 +4351,17 @@ export default function MesaExperimento({ estado, acoes }) {
                                     {/* O popup temporário (aposta/vaza) passa na frente do
                                         "Vez de": quem acabou de apostar ou de levar a vaza
                                         quase sempre é também quem joga em seguida. */}
-                                    {infoTemporaria && apostaDele != null ? (
+                                    {mobile ? (popupMobileVisivel && (
+                                        <PopupMobile
+                                            id={infoTemporaria?.id}
+                                            nome={rotuloAssento}
+                                            bot={ehBot}
+                                            aposta={apostaDele}
+                                            feitas={estado.vazasFeitas?.[nomeAssento] ?? 0}
+                                            mostrarFeitas={!apostasEmAndamento && infoTemporaria?.tipo !== 'aposta'}
+                                            temporario={!!infoTemporaria && assentoEmHoverIndex !== i}
+                                        />
+                                    )) : infoTemporaria && apostaDele != null ? (
                                         <span key={infoTemporaria.id} className={`mesa-exp-assento-aposta-legenda${assentoEmHoverIndex === i ? '' : ' mf1-info-temporaria'}`}>
                                             <TextoAposta aposta={apostaDele} feitas={estado.vazasFeitas?.[nomeAssento] ?? 0} mostrarFeitas={!apostasEmAndamento && infoTemporaria.tipo !== 'aposta'} />
                                         </span>

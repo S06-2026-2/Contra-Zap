@@ -778,19 +778,46 @@
     z-index: 44;
 }
 
-/* Popup "Aposta: N · Fez: M" dos outros no mobile: em cima da caixinha (o
-   topo dela fica ~10px abaixo do topo do assento), menor. Só o `top` muda:
-   o translate(-50%, -50%) continua, que é o que a animação de
-   .mf1-info-temporaria usa. Sem "Vez de" no mobile (ver naVez no JSX). */
+/* Popup dos outros no mobile (ver PopupMobile): o nome e, embaixo, a
+   aposta. Fica na altura do leque de cartas do fantasminha, um pouco
+   abaixo do meio dele (a caixinha começa ~8px abaixo do topo do assento e
+   o leque vai de ~20px a ~67px). Só o `top` muda: o translate(-50%, -50%)
+   continua, que é o que a animação de .mf1-info-temporaria usa. Sem
+   "Vez de" no mobile (ver naVez no JSX). */
 .mf1.mf1-mobile .mesa-exp-assento-aposta-legenda {
-    top: -4px;
+    top: 50px;
     font-size: 12px;
     padding: 3px 7px;
 }
+.mf1.mf1-mobile .mf1-popup-mobile {
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+}
+.mf1.mf1-mobile .mf1-popup-mobile-nome {
+    color: #f1e6d2;
+}
+.mf1.mf1-mobile .mf1-legenda-reservada {
+    visibility: hidden;
+}
+
+/* Timer dos outros no mobile (ver TimerNome): mesmo tamanho do do nome,
+   preso no canto de baixo à esquerda da caixinha, por dentro dela, então
+   nunca desce até a bandeja de fichas. */
+.mf1 .mf1-caixa-fantasma-timer {
+    position: absolute;
+    left: 3px;
+    bottom: 3px;
+    z-index: 1;
+    display: flex;
+}
 /* O popup fica dentro do assento, e o assento (transform) é um contexto de
    empilhamento próprio: sem subir o assento inteiro, o banner de vez (41) e
-   o topo (42) passam na frente do popup dos fantasminhas de cima. 43 fica
-   abaixo das revelações/vitória (44+). Só enquanto o popup está na tela. */
+   o topo (42) passam na frente do popup dos fantasminhas de cima, e ele
+   fica por cima de todas as outras caixinhas (38). 43 fica abaixo das
+   revelações/vitória (46+). Só enquanto o popup está na tela. */
 .mf1.mf1-mobile .mesa-exp-assento.mf1-assento-com-popup {
     z-index: 43;
 }
