@@ -4262,7 +4262,9 @@ export default function MesaExperimento({ estado, acoes }) {
                     const estadoMorte = estadoMortePorAssento[i] ?? null;
                     const prazoDele = !assento.eVoce && nomeAssento != null && estado.prazoTurno?.jogador === nomeAssento ? estado.prazoTurno : null;
                     const infoTemporaria = infoTemporariaPorAssento[i] ?? null;
-                    const vidaVisivel = assentoEmHoverIndex === i || assentosVidaTemporaria.includes(i);
+                    // No mobile o toque mostra os corações junto com o popup de
+                    // nome/aposta (some junto com ele, ver mostrarInfoTemporaria).
+                    const vidaVisivel = assentoEmHoverIndex === i || assentosVidaTemporaria.includes(i) || (mobile && infoTemporaria?.tipo === 'toque');
                     const popupMobileVisivel = mobile && !assento.eVoce && (infoTemporaria || assentoEmHoverIndex === i);
                     const comPopup = mobile ? popupMobileVisivel : infoTemporaria && apostaDele != null;
                     const legendaNome = (
