@@ -311,6 +311,63 @@ test('jogarCarta', async (t) => {
     });
 });
 
+test('timerTurno', async (t) => {
+    // É por este evento que o front desenha a contagem regressiva. Ele sai
+    // logo depois do setTimeout do turno, então `tempoMs` é exatamente o que
+    // falta pro automático agir — não uma estimativa que a tela precise
+    // corrigir.
+    const TEMPO_DE_TURNO = 8_000;
+    const ATRASO_DO_BOT = 40;
+    const servidor = await subirServidor({ tempoTurnoMs: TEMPO_DE_TURNO, atrasoBotMs: ATRASO_DO_BOT });
+    t.after(() => servidor.fechar());
+
+    await t.test('acompanha o turno de aposta, com o tempo que o jogador tem', async () => {
+        const { salaId, clientes } = await partidaEmAndamento(servidor, { humanos: 2 });
+
+        const turno = await clientes[0].esperar(EventosServidor.TURNO_APOSTA);
+        const timer = await clientes[0].esperar(
+            EventosServidor.TIMER_TURNO,
+            { filtro: dados => dados.jogador === turno.jogador },
+        );
+
+        assert.equal(timer.salaId, salaId);
+        assert.equal(timer.tipo, 'aposta');
+        assert.equal(timer.tempoMs, TEMPO_DE_TURNO);
+        assert.ok(timer.id, 'o id vem junto — é por ele que a tela acha o assento');
+        assert.equal(timer.jogador, turno.jogador, 'o timer tem que ser do mesmo turno anunciado');
+    });
+
+    await t.test('na fase de carta o tipo muda para jogada', async () => {
+        const { salaId, clientes } = await partidaEmAndamento(servidor, { humanos: 2 });
+        const parar = clientes.map(cliente => jogarSozinho(cliente, salaId));
+        t.after(() => parar.forEach(fn => fn()));
+
+        const timer = await clientes[0].esperar(
+            EventosServidor.TIMER_TURNO,
+            { filtro: dados => dados.tipo === 'jogada', timeoutMs: 20_000 },
+        );
+        assert.equal(timer.salaId, salaId);
+        assert.equal(timer.tempoMs, TEMPO_DE_TURNO);
+    });
+
+    await t.test('para o bot, tempoMs é a pausa dele — não o prazo de um humano', async () => {
+        // Bot não tem prazo pra perder: o que o timer anuncia é o atrasoBotMs,
+        // a pausa cosmética antes de ele decidir. Uma tela que usasse
+        // tempoTurnoMs aqui desenharia 8 segundos de contagem para algo que
+        // acontece em 40ms.
+        const { salaId, adm } = await partidaEmAndamento(servidor, { humanos: 1, botNumber: 1 });
+
+        const timerDoBot = await adm.esperar(
+            EventosServidor.TIMER_TURNO,
+            { filtro: dados => dados.jogador !== adm.nome, timeoutMs: 20_000 },
+        );
+
+        assert.equal(timerDoBot.salaId, salaId);
+        assert.equal(timerDoBot.tempoMs, ATRASO_DO_BOT);
+        assert.ok(['aposta', 'jogada'].includes(timerDoBot.tipo));
+    });
+});
+
 test('partida até o fim', async (t) => {
     const servidor = await subirServidor(TURNO_FOLGADO);
     t.after(() => servidor.fechar());
