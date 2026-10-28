@@ -734,14 +734,26 @@
 }
 
 /* Assento no mobile: do tamanho da caixinha + a bandeja de fichas + o nome
-   embaixo (o de 280x190 do computador encavalaria uns nos outros). */
+   embaixo (o de 280x190 do computador encavalaria uns nos outros). A
+   caixinha passa por cima das cartas pousadas na mesa (14), mas
+   fica embaixo das fichas e cartas de vaza da bandeja (45/44) e de toda a
+   UI do topo (banner, chat, cabeçalho: 41/42). */
 .mf1.mf1-mobile .mesa-exp-assento {
     width: 130px;
     height: 150px;
     gap: 4px;
+    z-index: 38;
 }
 .mf1.mf1-mobile .mesa-exp-assento-legenda {
     font-size: 11px;
+}
+/* Carta em voo no mobile (distribuição e jogada, ver CartaVoando) passa
+   por cima das caixinhas (38); quando para, quem fica é a carta pousada
+   (14, embaixo delas) ou o leque na mão. Abaixo da UI do topo (41/42) e
+   do popup do assento (43). */
+.mf1.mf1-mobile .mesa-exp-carta-voando,
+.mf1.mf1-mobile .mf1-voo-trilho {
+    z-index: 39;
 }
 
 /* Bandeja de fichas dos outros no mobile (ver BANDEJA_MOBILE em
@@ -762,40 +774,77 @@
     border-radius: 6px;
     box-shadow: inset 0 2px 5px rgba(0, 0, 0, .8), 0 4px 10px rgba(0, 0, 0, .45);
 }
+/* Fichas e cartas de vaza da bandeja acima do assento mesmo quando ele
+   sobe pro popup (43, ver .mf1-assento-com-popup): a carta de vaza (44)
+   fica embaixo da ficha (45), e as duas abaixo da revelação de vaza (46+). */
 .mf1.mf1-mobile .mf1-ficha-bandeja {
     transform: translate(-50%, -50%) scale(.3);
+    z-index: 45;
 }
 .mf1.mf1-mobile .mf1-vaza-bandeja {
     transform: translate(-50%, -50%) scale(.2);
+    z-index: 44;
 }
 
-/* Popup "Aposta: N · Fez: M" dos outros no mobile: em cima da caixinha (o
-   topo dela fica ~10px abaixo do topo do assento), menor. Só o `top` muda:
-   o translate(-50%, -50%) continua, que é o que a animação de
-   .mf1-info-temporaria usa. Sem "Vez de" no mobile (ver naVez no JSX). */
+/* Popups dos outros no mobile (ver PopupMobile). "Aposta: N · Fez: M" em
+   cima da caixinha (o topo dela fica ~8px abaixo do topo do assento),
+   menor. Só o `top` muda: o translate(-50%, -50%) continua, que é o que a
+   animação de .mf1-info-temporaria usa. Sem "Vez de" no mobile (ver naVez
+   no JSX). */
 .mf1.mf1-mobile .mesa-exp-assento-aposta-legenda {
     top: -4px;
     font-size: 12px;
     padding: 3px 7px;
 }
+/* O nome, com a base encostada na base da caixinha (~99px do topo do
+   assento: 8px + 87px + aro), logo antes da bandeja de fichas. */
+.mf1.mf1-mobile .mf1-popup-mobile-nome {
+    top: 89px;
+    color: #f1e6d2;
+}
+.mf1.mf1-mobile .mf1-legenda-reservada {
+    visibility: hidden;
+}
+
+/* Timer dos outros no mobile (ver TimerNome): mesmo tamanho do do nome,
+   preso no canto de baixo à esquerda da caixinha, por dentro dela, então
+   nunca desce até a bandeja de fichas. */
+.mf1 .mf1-caixa-fantasma-timer {
+    position: absolute;
+    left: 3px;
+    bottom: 3px;
+    z-index: 1;
+    display: flex;
+}
 /* O popup fica dentro do assento, e o assento (transform) é um contexto de
    empilhamento próprio: sem subir o assento inteiro, o banner de vez (41) e
-   o topo (42) passam na frente do popup dos fantasminhas de cima. 43 fica
-   abaixo das revelações/vitória (44+). Só enquanto o popup está na tela. */
+   o topo (42) passam na frente do popup dos fantasminhas de cima, e ele
+   fica por cima de todas as outras caixinhas (38). 43 fica abaixo das
+   revelações/vitória (46+). Só enquanto o popup está na tela. */
 .mf1.mf1-mobile .mesa-exp-assento.mf1-assento-com-popup {
     z-index: 43;
 }
 
-/* Corações dos outros no mobile: menores, em coluna rente à borda da
-   caixinha (do lado oposto ao das fichas, ver ladoVida), centrados na
-   altura dela: o topo da caixa fica ~10px abaixo do topo do assento e ela
-   tem ~87px, então o meio cai em ~53px (o translateY(-50%) e o "pop" de
-   entrada são os de sempre). */
+/* Corações dos outros no mobile: em linha, centrados no fantasminha na
+   horizontal, logo abaixo da borda de cima da caixinha (o topo dela fica
+   ~10px abaixo do topo do assento). O "pop" de entrada é o de sempre, só
+   que com o centro nos dois eixos. As cartas de dano miram cada coração
+   pela posição medida dele (obterCentroCoracao), então seguem achando. */
 .mf1.mf1-mobile .mesa-exp-assento-vida {
-    top: 53px;
+    top: 20px;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    animation-name: mf1-assento-vida-entrada-mobile;
+}
+.mf1.mf1-mobile .mesa-exp-assento-vida .mesa-exp-coracoes {
+    flex-direction: row;
+}
+@keyframes mf1-assento-vida-entrada-mobile {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(.5); }
+    to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 .mf1.mf1-mobile .mesa-exp-assento-vida .mesa-exp-coracao {
-    font-size: 14px;
+    font-size: 16.8px;
 }
 
 /* Grão leve (ver GraoLeve em FiltroTela.jsx): ladrilho de ruído repetido,

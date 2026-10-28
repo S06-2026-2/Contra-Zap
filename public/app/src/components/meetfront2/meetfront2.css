@@ -170,16 +170,20 @@
 }
 
 /* Mão revelada dos outros (primeira rodada, cega): maior, pra dar pra ler
-   as cartas no fantasminha reduzido (o do computador e o da caixinha do
-   mobile). `scale` separado do transform do leque, que é dele
-   (centralização e o tranco do dano). O scale cresce a partir do topo do
+   as cartas no fantasminha reduzido do computador. `scale` separado do
+   transform do leque, que é dele (centralização e o tranco do dano). O scale cresce a partir do topo do
    leque, então o translate sobe o tanto que a carta cresceu pra baixo
    (base dela, ~105px abaixo do topo, x 0.35): a base fica onde estava, sem
    descer pra trás da barra. */
-.mf2 .mf2-fantasma .mf2-leque-revelado,
-.mf2 .mf1-caixa-fantasma .mf2-leque-revelado {
+.mf2 .mf2-fantasma .mf2-leque-revelado {
     scale: 1.35;
     translate: 0 -37px;
+}
+/* Na caixinha do mobile (só existe lá), bem maior, subindo o tanto que
+   cresceu pra base não sair da caixa. */
+.mf2 .mf1-caixa-fantasma .mf2-leque-revelado {
+    scale: 2.55;
+    translate: 0 -178px;
 }
 
 /* ---------- A sua caixa no computador (ver SuaCaixa) ---------- */

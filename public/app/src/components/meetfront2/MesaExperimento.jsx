@@ -127,7 +127,7 @@ function esperar(ms) {
 }
 
 // Mesmo valor de `this.hp = 3` em game/PlayerGame.js.
-const VIDA_MAXIMA = 3;
+export const VIDA_MAXIMA = 3;
 const VIDA_TEMPORARIA_MS = 1500;
 // Popup "Aposta: N · Fez: M" que aparece sozinho perto do jogador quando ele
 // aposta e quando uma vaza pousa na pilha dele (ver mostrarInfoTemporaria).
@@ -901,7 +901,7 @@ const CORACAO_ESTILHACOS = [
     { ex: 2, ey: 30, giro: 200 },
 ];
 
-function Coracoes({ vida, assentoIndice, registrarRef, coracaoImpactado, arco }) {
+export function Coracoes({ vida, assentoIndice, registrarRef, coracaoImpactado, arco }) {
     const id = useId().replace(/[^a-zA-Z0-9_-]/g, '');
     const idEsmalte = `coracao-esmalte-${id}`;
     const idOuro = `coracao-ouro-${id}`;
@@ -1087,6 +1087,29 @@ function TextoAposta({ aposta, feitas, mostrarFeitas }) {
     );
 }
 
+// Popups dos outros no mobile: o nome (que no mobile só aparece aqui),
+// encostado na base da caixinha, e "Aposta: N · Fez: M" em cima dela
+// quando já apostou. Aparecem no toque, na aposta, na vaza e no dano (ver
+// mostrarInfoTemporaria); `temporario` liga o pulinho/fade de
+// INFO_TEMPORARIA_MS, sem ele ficam parados (toque ainda em cima). `id`
+// reinicia a animação se outro chegar antes.
+export function PopupMobile({ nome, bot, aposta, feitas, mostrarFeitas, temporario, id }) {
+    const animacao = temporario ? ' mf1-info-temporaria' : '';
+    return (
+        <>
+            <span key={`nome-${id}`} className={`mesa-exp-assento-aposta-legenda mf1-popup-mobile-nome${animacao}`}>
+                {nome}
+                {bot && <span className="mesa-exp-assento-bot-tag"> 🤖</span>}
+            </span>
+            {aposta != null && (
+                <span key={`aposta-${id}`} className={`mesa-exp-assento-aposta-legenda${animacao}`}>
+                    <TextoAposta aposta={aposta} feitas={feitas} mostrarFeitas={mostrarFeitas} />
+                </span>
+            )}
+        </>
+    );
+}
+
 // `infoTemporaria`: popup temporário em curso, { id, tipo } (ver
 // mostrarInfoTemporaria) — mostra a legenda sem hover; o id como key
 // reinicia a animação se outro chegar antes deste sumir. Popup de aposta
@@ -1143,7 +1166,7 @@ function caminhoFatia(c, r, fracao) {
     return `M${c},${c} L${c},${c - r} A${r},${r} 0 ${fracao > 0.5 ? 1 : 0},1 ${x.toFixed(2)},${y.toFixed(2)} Z`;
 }
 
-function TimerNome({ prazo }) {
+export function TimerNome({ prazo }) {
     const { timerLeve } = useAjustesMesa();
     const restoRef = useRef(null);
     const lado = (TIMER_NOME_RAIO + 2) * 2;
@@ -1185,7 +1208,7 @@ function TimerNome({ prazo }) {
 // de baixo, à direita da barra de fichas — madeira com aro dourado e
 // filete tracejado, e o sulco escuro com fio dourado, com os corações em
 // linha. Na sua vez o aro acende.
-function VidaRetangulo({ prazo, destaque, ...propsCoracoes }) {
+export function VidaRetangulo({ prazo, destaque, ...propsCoracoes }) {
     return (
         <div className={`mf1-vida-retangulo${prazo ? ' mf1-vida-retangulo-vez' : ''}${destaque ? ' mesa-exp-coracoes-destaque' : ''}`}>
             <div className="mf1-vida-retangulo-sulco">
@@ -1669,11 +1692,14 @@ function EscalaFantasma({ ativa, children }) {
     );
 }
 
-export function CaixaFantasma({ ativa, children }) {
+// `sobre`: o que vai por cima do fantasminha, preso na caixa (o timer no
+// canto de baixo à esquerda, ver .mf1-caixa-fantasma-timer).
+export function CaixaFantasma({ ativa, sobre, children }) {
     if (!ativa) return children;
     return (
         <div className="mf1-caixa-fantasma">
             <div className="mf1-caixa-fantasma-miolo">{children}</div>
+            {sobre}
         </div>
     );
 }
@@ -1993,7 +2019,7 @@ function TelaEspera({ estado, acoes }) {
 // sala/senha); true traz de volta.
 const MOSTRAR_LOGO_TITULO = false;
 
-function TituloMesa({ salaId, senha }) {
+export function TituloMesa({ salaId, senha }) {
     return (
         <div className="mesa-exp-cabecalho-titulo">
             {MOSTRAR_LOGO_TITULO && <span className="mesa-exp-logo">CONTRA ZAP</span>}
@@ -2005,7 +2031,7 @@ function TituloMesa({ salaId, senha }) {
 
 // `comTitulo` false: o título vai na primeira linha da mesa, à direita da
 // bola do chat (ver .mf1-topo), e não no canto fixo de sempre.
-function CabecalhoMesa({ salaId, senha, rodada, comTitulo = true, children }) {
+export function CabecalhoMesa({ salaId, senha, rodada, comTitulo = true, children }) {
     return (
         <>
             {comTitulo && <TituloMesa salaId={salaId} senha={senha} />}
@@ -2032,7 +2058,7 @@ const BANNER_FONTE_MAX_PX = 20;
 const BANNER_FONTE_MAX_MOBILE_PX = 14;
 const BANNER_FONTE_MIN_PX = 9;
 
-function BannerVez({ texto, mobile = false }) {
+export function BannerVez({ texto, mobile = false }) {
     const ref = useRef(null);
     useLayoutEffect(() => {
         const el = ref.current;
@@ -2784,6 +2810,7 @@ export default function MesaExperimento({ estado, acoes }) {
             if (linha.diferenca > 0) {
                 temCartasDeDano = true;
                 dispararCartasDeDano(indice, linha, antes);
+                if (indice !== 0 && mobile) mostrarInfoTemporaria(indice, 'dano');
                 duracaoRevelacao = Math.max(
                     duracaoRevelacao,
                     linha.diferenca * DANO_CARTA_ATRASO_ENTRE_MS + DANO_CARTA_VOO_DURACAO_MS + CORACAO_IMPACTO_DURACAO_MS + 400
@@ -3713,7 +3740,8 @@ export default function MesaExperimento({ estado, acoes }) {
 
     // Mostra o popup "Aposta: N · Fez: M" do assento por INFO_TEMPORARIA_MS.
     // `tipo` é o que disparou: 'aposta' (só "Aposta: N", mesmo que a fase
-    // de apostas feche no meio do popup) ou 'vaza'. Se outro chegar antes
+    // de apostas feche no meio do popup), 'vaza', 'dano' ou 'toque' (estes
+    // dois só no mobile, onde o popup também leva o nome, ver PopupMobile). Se outro chegar antes
     // de este sumir, recomeça do zero (id novo), e o timer do antigo não
     // apaga o novo.
     function mostrarInfoTemporaria(indice, tipo) {
@@ -4234,7 +4262,11 @@ export default function MesaExperimento({ estado, acoes }) {
                     const estadoMorte = estadoMortePorAssento[i] ?? null;
                     const prazoDele = !assento.eVoce && nomeAssento != null && estado.prazoTurno?.jogador === nomeAssento ? estado.prazoTurno : null;
                     const infoTemporaria = infoTemporariaPorAssento[i] ?? null;
-                    const vidaVisivel = assentoEmHoverIndex === i || assentosVidaTemporaria.includes(i);
+                    // No mobile o toque mostra os corações junto com o popup de
+                    // nome/aposta (some junto com ele, ver mostrarInfoTemporaria).
+                    const vidaVisivel = assentoEmHoverIndex === i || assentosVidaTemporaria.includes(i) || (mobile && infoTemporaria?.tipo === 'toque');
+                    const popupMobileVisivel = mobile && !assento.eVoce && (infoTemporaria || assentoEmHoverIndex === i);
+                    const comPopup = mobile ? popupMobileVisivel : infoTemporaria && apostaDele != null;
                     const legendaNome = (
                         <span className="mesa-exp-assento-legenda">
                             {/* Vaga do timer sempre no DOM: abre de 0 até a largura
@@ -4251,10 +4283,11 @@ export default function MesaExperimento({ estado, acoes }) {
                         <div
                             key={i}
                             ref={(el) => { assentoRefs.current[i] = el; }}
-                            className={`mesa-exp-assento${assento.eVoce ? ' mesa-exp-assento-voce' : ''}${assentosLancando.includes(i) ? ' mf1-assento-lancou' : ''}${infoTemporaria && apostaDele != null ? ' mf1-assento-com-popup' : ''}`}
+                            className={`mesa-exp-assento${assento.eVoce ? ' mesa-exp-assento-voce' : ''}${assentosLancando.includes(i) ? ' mf1-assento-lancou' : ''}${comPopup ? ' mf1-assento-com-popup' : ''}`}
                             style={{ left: `${assento.x}%`, top: `${assento.y}%` }}
                             onMouseEnter={() => !assento.eVoce && setAssentoEmHoverIndex(i)}
                             onMouseLeave={() => !assento.eVoce && setAssentoEmHoverIndex(null)}
+                            onClick={() => mobile && !assento.eVoce && mostrarInfoTemporaria(i, 'toque')}
                         >
                             {bolha && (
                                 <div
@@ -4269,7 +4302,11 @@ export default function MesaExperimento({ estado, acoes }) {
                                 <span className="mesa-exp-assento-eliminado">💀<br />Eliminado</span>
                             ) : (
                                 <>
-                                    <CaixaFantasma ativa={mobile}>
+                                    <CaixaFantasma ativa={mobile} sobre={prazoDele && (
+                                        <span className="mf1-caixa-fantasma-timer">
+                                            <TimerNome key={prazoDele.inicio} prazo={prazoDele} />
+                                        </span>
+                                    )}>
                                     <EscalaFantasma ativa={!mobile}>
                                     <Fantasminha destacado={destacado} danoVersao={danoPorAssento[i] ?? 0} bot={ehBot} monitor hue={huesPorAssento[i]} chapeu={chapeusPorAssento[i].src} ajusteChapeuPct={chapeusPorAssento[i].ajuste} naVez={naVez} estadoMorte={estadoMorte}>
                                         {/* `maos[i] > 0` é o que já chegou de VERDADE (via
@@ -4289,7 +4326,10 @@ export default function MesaExperimento({ estado, acoes }) {
                                     {mobile ? (
                                         <>
                                             <div ref={(el) => { bandejaRefs.current[i] = el; }} className="mf1-bandeja-fichas" />
-                                            {legendaNome}
+                                            {/* O nome no mobile só aparece no popup (PopupMobile);
+                                                a linha dele continua reservada pra caixinha e a
+                                                bandeja não mudarem de lugar. */}
+                                            <span className="mesa-exp-assento-legenda mf1-legenda-reservada" aria-hidden="true">&nbsp;</span>
                                         </>
                                     ) : (
                                         // Barra embaixo do fantasminha: nome em cima (corações
@@ -4315,7 +4355,17 @@ export default function MesaExperimento({ estado, acoes }) {
                                     {/* O popup temporário (aposta/vaza) passa na frente do
                                         "Vez de": quem acabou de apostar ou de levar a vaza
                                         quase sempre é também quem joga em seguida. */}
-                                    {infoTemporaria && apostaDele != null ? (
+                                    {mobile ? (popupMobileVisivel && (
+                                        <PopupMobile
+                                            id={infoTemporaria?.id}
+                                            nome={rotuloAssento}
+                                            bot={ehBot}
+                                            aposta={apostaDele}
+                                            feitas={estado.vazasFeitas?.[nomeAssento] ?? 0}
+                                            mostrarFeitas={!apostasEmAndamento && infoTemporaria?.tipo !== 'aposta'}
+                                            temporario={!!infoTemporaria && assentoEmHoverIndex !== i}
+                                        />
+                                    )) : infoTemporaria && apostaDele != null ? (
                                         <span key={infoTemporaria.id} className={`mesa-exp-assento-aposta-legenda${assentoEmHoverIndex === i ? '' : ' mf1-info-temporaria'}`}>
                                             <TextoAposta aposta={apostaDele} feitas={estado.vazasFeitas?.[nomeAssento] ?? 0} mostrarFeitas={!apostasEmAndamento && infoTemporaria.tipo !== 'aposta'} />
                                         </span>
