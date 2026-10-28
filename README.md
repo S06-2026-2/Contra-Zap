@@ -76,7 +76,7 @@ Saúde do servidor: `curl http://localhost:3000/health`.
 ## Testes
 
 ```
-npm test              # API, bots e contrato — ~270 testes, ~30s
+npm test              # API, bots e contrato — ~280 testes, ~30s
 npm run test:e2e      # E2E no navegador — 19 testes, ~40s
 npm run test:watch    # re-roda a cada arquivo salvo
 ```

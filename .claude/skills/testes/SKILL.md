@@ -42,6 +42,7 @@ tests/
                             JA_EM_PARTIDA, desistir x sairDaPartida, teto de salas
   bots/
     modelosBot.test.js   -> catálogo de bots x arquivos em bots/models/
+    mesaGrande.test.js   -> o bot não abandona a rede em mesa de 5/6 (vigia o console.warn)
   docs/
     asyncapi.test.js     -> a spec cobre o protocolo inteiro (sem servidor, sem socket)
   e2e/                     (Playwright — navegador de verdade; fora do `npm test`)
