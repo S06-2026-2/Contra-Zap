@@ -1087,24 +1087,26 @@ function TextoAposta({ aposta, feitas, mostrarFeitas }) {
     );
 }
 
-// Popup dos outros no mobile: o nome (que no mobile só aparece aqui) e,
-// embaixo, "Aposta: N · Fez: M" quando já apostou. Aparece no toque, na
-// aposta, na vaza e no dano (ver mostrarInfoTemporaria); `temporario`
-// liga o pulinho/fade de INFO_TEMPORARIA_MS, sem ele fica parado (toque
-// ainda em cima). `id` reinicia a animação se outro chegar antes.
+// Popups dos outros no mobile: o nome (que no mobile só aparece aqui),
+// encostado na base da caixinha, e "Aposta: N · Fez: M" em cima dela
+// quando já apostou. Aparecem no toque, na aposta, na vaza e no dano (ver
+// mostrarInfoTemporaria); `temporario` liga o pulinho/fade de
+// INFO_TEMPORARIA_MS, sem ele ficam parados (toque ainda em cima). `id`
+// reinicia a animação se outro chegar antes.
 export function PopupMobile({ nome, bot, aposta, feitas, mostrarFeitas, temporario, id }) {
+    const animacao = temporario ? ' mf1-info-temporaria' : '';
     return (
-        <span key={id} className={`mesa-exp-assento-aposta-legenda mf1-popup-mobile${temporario ? ' mf1-info-temporaria' : ''}`}>
-            <span className="mf1-popup-mobile-nome">
+        <>
+            <span key={`nome-${id}`} className={`mesa-exp-assento-aposta-legenda mf1-popup-mobile-nome${animacao}`}>
                 {nome}
                 {bot && <span className="mesa-exp-assento-bot-tag"> 🤖</span>}
             </span>
             {aposta != null && (
-                <span className="mf1-popup-mobile-aposta">
+                <span key={`aposta-${id}`} className={`mesa-exp-assento-aposta-legenda${animacao}`}>
                     <TextoAposta aposta={aposta} feitas={feitas} mostrarFeitas={mostrarFeitas} />
                 </span>
             )}
-        </span>
+        </>
     );
 }
 

@@ -735,7 +735,7 @@
 
 /* Assento no mobile: do tamanho da caixinha + a bandeja de fichas + o nome
    embaixo (o de 280x190 do computador encavalaria uns nos outros). A
-   caixinha passa por cima das cartas da mesa (jogadas 14, voando 17), mas
+   caixinha passa por cima das cartas pousadas na mesa (14), mas
    fica embaixo das fichas e cartas de vaza da bandeja (45/44) e de toda a
    UI do topo (banner, chat, cabeçalho: 41/42). */
 .mf1.mf1-mobile .mesa-exp-assento {
@@ -746,6 +746,14 @@
 }
 .mf1.mf1-mobile .mesa-exp-assento-legenda {
     font-size: 11px;
+}
+/* Carta em voo no mobile (distribuição e jogada, ver CartaVoando) passa
+   por cima das caixinhas (38); quando para, quem fica é a carta pousada
+   (14, embaixo delas) ou o leque na mão. Abaixo da UI do topo (41/42) e
+   do popup do assento (43). */
+.mf1.mf1-mobile .mesa-exp-carta-voando,
+.mf1.mf1-mobile .mf1-voo-trilho {
+    z-index: 39;
 }
 
 /* Bandeja de fichas dos outros no mobile (ver BANDEJA_MOBILE em
@@ -778,25 +786,20 @@
     z-index: 44;
 }
 
-/* Popup dos outros no mobile (ver PopupMobile): o nome e, embaixo, a
-   aposta. Fica na altura do leque de cartas do fantasminha, um pouco
-   abaixo do meio dele (a caixinha começa ~8px abaixo do topo do assento e
-   o leque vai de ~20px a ~67px). Só o `top` muda: o translate(-50%, -50%)
-   continua, que é o que a animação de .mf1-info-temporaria usa. Sem
-   "Vez de" no mobile (ver naVez no JSX). */
+/* Popups dos outros no mobile (ver PopupMobile). "Aposta: N · Fez: M" em
+   cima da caixinha (o topo dela fica ~8px abaixo do topo do assento),
+   menor. Só o `top` muda: o translate(-50%, -50%) continua, que é o que a
+   animação de .mf1-info-temporaria usa. Sem "Vez de" no mobile (ver naVez
+   no JSX). */
 .mf1.mf1-mobile .mesa-exp-assento-aposta-legenda {
-    top: 50px;
+    top: -4px;
     font-size: 12px;
     padding: 3px 7px;
 }
-.mf1.mf1-mobile .mf1-popup-mobile {
-    z-index: 2;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1px;
-}
+/* O nome, com a base encostada na base da caixinha (~99px do topo do
+   assento: 8px + 87px + aro), logo antes da bandeja de fichas. */
 .mf1.mf1-mobile .mf1-popup-mobile-nome {
+    top: 89px;
     color: #f1e6d2;
 }
 .mf1.mf1-mobile .mf1-legenda-reservada {
