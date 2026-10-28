@@ -26,8 +26,10 @@ O código do front fica todo em `public/app/src`:
 - `socket.js` — conexão com o back-end via socket.io-client.
 - `sessao.js` — persistência da sessão (sessionStorage) e retomada depois de
   reconexão/F5.
-- Sem rotas além dos labs (ver `main.jsx`): `/lab` (cérebro do bot) e
-  `/lab-pouso` (zonas de pouso e assentos do mobile). Tela inicial,
+- Sem rotas além dos labs (ver `main.jsx`): `/lab` (cérebro do bot) e os
+  labs temporários de `labsTemporarios/` (`LabNome.jsx` vira `/lab-nome`).
+  Esses ficam só nas branches de trabalho: depois do merge, a pasta é
+  apagada na `main` à mão e a branch fica guardada com ela. Tela inicial,
   customização, salas e partida são estado do `App.jsx`.
 - `components/meetfront2/` — a tela inicial (`Inicio.jsx`): **JOGAR**
   (salas) e **CUSTOMIZAÇÃO** (`Customizacao.jsx`). Sem sessão, os dois
@@ -141,9 +143,7 @@ Legenda: 🔴 atrapalha jogar / bug · 🟡 falta informação, robustez · 🟢
 - [ ] 🟡 **Compor a tela com 5 e 6 jogadores** — hoje está mal resolvida no
       celular (fantasminhas, zonas de pouso e meladas brigando por espaço).
       Posições em `calcularAssentosMobile` (`meetfront2/MesaExperimento.jsx`)
-      e zonas em `meetfront1/zonasPouso.js`. Lab em `/lab-pouso`
-      (`meetfront2/LabPouso.jsx`): arrasta fantasminhas, zonas e meladas,
-      corações sempre à mostra, e gera o código pra colar no `zonasPouso.js`.
+      e zonas em `meetfront1/zonasPouso.js`.
 - [ ] 🟢 **Polir o coração do mobile** (vida).
 - [ ] 🟡 Animações contra manilha.
 - [ ] 🔴 Em partidas longas a destruição da mesa buga.
@@ -240,6 +240,8 @@ ouros muito bugado no pc
 card quando você morre some web
 
 Z DAS DESTRUIÇÕES DEPOIS DE MUITO TEMPO
+
+tamanho carta 1 rodada , web
 
 
 Comparação da tela de partida atual com a do **arcade**

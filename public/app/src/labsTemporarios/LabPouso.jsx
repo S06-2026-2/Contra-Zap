@@ -1,14 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import Fantasminha from '../meetfront1/Fantasminha.jsx';
-import Carta from '../meetfront1/Carta.jsx';
-import { BannerVez, CabecalhoMesa, CaixaFantasma, Coracoes, MaoEmLeque, PopupMobile, TimerNome, TituloMesa, VIDA_MAXIMA, VidaRetangulo, calcularAssentosMobile, deslocamentoMelada, medirMesa } from './MesaExperimento.jsx';
-import { useModoMobile } from '../meetfront1/modoMobile.js';
-import { ASSENTOS_MOBILE, ESCALA_CARTA_JOGADA_MOBILE, MELADA_POUSO_MOBILE, ZONAS_POUSO_MOBILE, gerarCodigoZonas, sortearPontoNaZona } from '../meetfront1/zonasPouso.js';
-import './meetfront2.css';
-import './labPouso.css';
+import Fantasminha from '../components/meetfront1/Fantasminha.jsx';
+import Carta from '../components/meetfront1/Carta.jsx';
+import { BannerVez, CabecalhoMesa, CaixaFantasma, Coracoes, MaoEmLeque, PopupMobile, TimerNome, TituloMesa, VIDA_MAXIMA, VidaRetangulo, calcularAssentosMobile, deslocamentoMelada, medirMesa } from '../components/meetfront2/MesaExperimento.jsx';
+import { useModoMobile } from '../components/meetfront1/modoMobile.js';
+import { ASSENTOS_MOBILE, ESCALA_CARTA_JOGADA_MOBILE, MELADA_POUSO_MOBILE, ZONAS_POUSO_MOBILE, sortearPontoNaZona } from '../components/meetfront1/zonasPouso.js';
+import '../components/meetfront2/meetfront2.css';
+import './labs.css';
 
-// Lab das zonas de pouso do mobile (rota /lab-pouso, ver main.jsx): a mesa
-// mobile com os fantasminhas nas posições de verdade e, por cima, a zona de
+// Lab das zonas de pouso do mobile (rota /lab-pouso, ver main.jsx; lab
+// temporário, não vai pra main): a mesa mobile com os fantasminhas nas posições de verdade e, por cima, a zona de
 // cada assento como um retângulo na cor dele — arrasta pra mover, puxa o
 // canto de baixo à direita pra redimensionar. "Tacar" joga cartas sorteadas
 // dentro das zonas pra ver se dá pra ler quem jogou o quê. As meladas de
@@ -55,6 +55,34 @@ const MELADAS_EXEMPLO = [
     { grupo: 1, indice: 0, rank: 'Q', naipe: 'Ouros', rot: 22 },
     { grupo: 1, indice: 1, rank: 'Q', naipe: 'Espadas', rot: -6 },
 ];
+
+// Bloco de código com as zonas, a escala, o canto das meladas e os
+// assentos, no formato de zonasPouso.js (é o que o painel mostra pra
+// copiar).
+function gerarCodigoZonas(zonas, escala, melada, assentos) {
+    const arred = (v) => Math.round(v * 10) / 10;
+    const linhas = [`export const ESCALA_CARTA_JOGADA_MOBILE = ${Math.round(escala * 100) / 100};`, '', 'export const ZONAS_POUSO_MOBILE = {'];
+    for (const quantidade of Object.keys(zonas).sort((a, b) => a - b)) {
+        linhas.push(`    ${quantidade}: [`);
+        for (const z of zonas[quantidade]) {
+            linhas.push(`        { x: ${arred(z.x)}, y: ${arred(z.y)}, largura: ${arred(z.largura)}, altura: ${arred(z.altura)} },`);
+        }
+        linhas.push('    ],');
+    }
+    linhas.push('};', '', `export const MELADA_POUSO_MOBILE = { x: ${arred(melada.x)}, y: ${arred(melada.y)} };`, '');
+    const quantidadesAssentos = Object.keys(assentos).sort((a, b) => a - b);
+    if (quantidadesAssentos.length === 0) {
+        linhas.push('export const ASSENTOS_MOBILE = {};');
+    } else {
+        linhas.push('export const ASSENTOS_MOBILE = {');
+        for (const quantidade of quantidadesAssentos) {
+            const pontos = assentos[quantidade].map((p) => `{ x: ${arred(p.x)}, y: ${arred(p.y)} }`).join(', ');
+            linhas.push(`    ${quantidade}: [${pontos}],`);
+        }
+        linhas.push('};');
+    }
+    return linhas.join('\n');
+}
 
 function copiarTabela(tabela) {
     return Object.fromEntries(Object.entries(tabela).map(([q, zonas]) => [q, zonas.map((z) => ({ ...z }))]));

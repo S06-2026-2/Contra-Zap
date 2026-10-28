@@ -1,4 +1,5 @@
-/* Lab de pouso do mobile (ver LabPouso.jsx, rota /lab-pouso). */
+/* Labs temporários do mobile (ver LabPouso.jsx em /lab-pouso e LabLeque.jsx
+   em /lab-leque). */
 
 /* Camadas das cartas tacadas e das zonas: a tela inteira, em % dela — o
    mesmo sistema das zonas em zonasPouso.js. As cartas (e meladas) ficam no
@@ -181,4 +182,25 @@
     color: #cfd3dc;
     font: 11px ui-monospace, Consolas, monospace;
     user-select: text;
+}
+
+/* Lab do leque revelado (ver LabLeque.jsx): o tamanho e a altura vêm do
+   painel por variável, por cima da regra do meetfront2.css. Os controles
+   em grade: rótulo, slider, valor. */
+.mf2 .mf1-lab-leque .mf1-caixa-fantasma .mf2-leque-revelado {
+    scale: var(--lab-leque-escala);
+    translate: 0 var(--lab-leque-y);
+}
+.mf1 .mf1-lab-controle {
+    display: grid;
+    grid-template-columns: 7em 1fr 3.5em;
+    align-items: center;
+    gap: 6px;
+}
+.mf1 .mf1-lab-controle input {
+    width: 100%;
+    min-width: 0;
+}
+.mf1 .mf1-lab-controle-rotulo {
+    font-size: 12px;
 }

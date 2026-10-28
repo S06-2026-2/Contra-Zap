@@ -69,30 +69,3 @@ export function sortearPontoNaZona(zona) {
     };
 }
 
-// Bloco de código com as zonas, a escala, o canto das meladas e os
-// assentos, no formato deste arquivo (é o que o lab de pouso mostra pra
-// copiar, ver meetfront2/LabPouso.jsx).
-export function gerarCodigoZonas(zonas, escala, melada, assentos) {
-    const arred = (v) => Math.round(v * 10) / 10;
-    const linhas = [`export const ESCALA_CARTA_JOGADA_MOBILE = ${Math.round(escala * 100) / 100};`, '', 'export const ZONAS_POUSO_MOBILE = {'];
-    for (const quantidade of Object.keys(zonas).sort((a, b) => a - b)) {
-        linhas.push(`    ${quantidade}: [`);
-        for (const z of zonas[quantidade]) {
-            linhas.push(`        { x: ${arred(z.x)}, y: ${arred(z.y)}, largura: ${arred(z.largura)}, altura: ${arred(z.altura)} },`);
-        }
-        linhas.push('    ],');
-    }
-    linhas.push('};', '', `export const MELADA_POUSO_MOBILE = { x: ${arred(melada.x)}, y: ${arred(melada.y)} };`, '');
-    const quantidadesAssentos = Object.keys(assentos).sort((a, b) => a - b);
-    if (quantidadesAssentos.length === 0) {
-        linhas.push('export const ASSENTOS_MOBILE = {};');
-    } else {
-        linhas.push('export const ASSENTOS_MOBILE = {');
-        for (const quantidade of quantidadesAssentos) {
-            const pontos = assentos[quantidade].map((p) => `{ x: ${arred(p.x)}, y: ${arred(p.y)} }`).join(', ');
-            linhas.push(`    ${quantidade}: [${pontos}],`);
-        }
-        linhas.push('};');
-    }
-    return linhas.join('\n');
-}
