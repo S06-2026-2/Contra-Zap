@@ -2448,6 +2448,19 @@ export default function MesaExperimento({ estado, acoes }) {
     const [apostaErro, setApostaErro] = useState(null);
     const [apostaEnviando, setApostaEnviando] = useState(false);
 
+    // Se a vez de apostar sair de você com o popup aberto (o prazo do turno
+    // estourou e o servidor apostou por você, ou a rodada andou), fecha o
+    // popup e esquece o erro: senão ele ficava aberto e confirmar só dava
+    // NAO_E_SUA_VEZ. Só reage quando a vez NÃO é sua, então nunca fecha
+    // durante a sua própria vez. Vale pro desktop e pro mobile/6 jogadores
+    // (é o mesmo popup, só muda o CSS).
+    useEffect(() => {
+        if (apostaPopupAberto && estado.jogadorDaVezAposta !== estado.meuNome) {
+            setApostaPopupAberto(false);
+            setApostaErro(null);
+        }
+    }, [apostaPopupAberto, estado.jogadorDaVezAposta, estado.meuNome]);
+
     const [assentoEmHoverIndex, setAssentoEmHoverIndex] = useState(null);
     // Assentos cuja caixinha está acesa por ter acabado de lançar uma carta
     // (só no mobile, ver CAIXA_LANCOU_MS).
