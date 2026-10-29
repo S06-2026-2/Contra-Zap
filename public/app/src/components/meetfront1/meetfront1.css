@@ -737,11 +737,15 @@
    embaixo (o de 280x190 do computador encavalaria uns nos outros). A
    caixinha passa por cima das cartas pousadas na mesa (14), mas
    fica embaixo das fichas e cartas de vaza da bandeja (45/44) e de toda a
-   UI do topo (banner, chat, cabeçalho: 41/42). */
+   UI do topo (banner, chat, cabeçalho: 41/42). O seu assento fica de fora:
+   ele é vazio, mas está embaixo, em cima da placa "Apostar" (21), e com 38
+   engoliria o toque nela. */
 .mf1.mf1-mobile .mesa-exp-assento {
     width: 130px;
     height: 150px;
     gap: 4px;
+}
+.mf1.mf1-mobile .mesa-exp-assento:not(.mesa-exp-assento-voce) {
     z-index: 38;
 }
 .mf1.mf1-mobile .mesa-exp-assento-legenda {
