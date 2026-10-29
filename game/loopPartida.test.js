@@ -3,7 +3,6 @@
 // por rodada até o fim da partida), agora é um while raso em _rodarPartida.
 // Estes testes travam o comportamento observável: a partida termina, os
 // eventos saem na mesma cadência de antes, e destruir() no meio para tudo.
-// Local, fora do git (ver .gitignore).
 //
 // Roda com: npm test  (node --test)
 import { test } from 'node:test';
@@ -14,9 +13,10 @@ import { Bot } from '../bots/Bot.js';
 
 // Mesa 100% de bots (decidem na hora, sem esperar timeout). `hp` controla
 // quão longa a partida fica. Devolve o controller já rodando + um coletor de
-// eventos.
+// eventos. As pausas entre vazas/rodadas (pro front animar) ficam zeradas:
+// com os padrões (1,6 s / 2 s) a partida não cabe no timeout dos testes.
 function partidaDeBots({ jogadores = 3, roundStart = 1, maxDeck = 2, hp = 3 } = {}) {
-    const c = new GameController({ numberPlayers: jogadores, roundStart, maxDeck, atrasoBotMs: 0, tempoTurnoMs: 50 });
+    const c = new GameController({ numberPlayers: jogadores, roundStart, maxDeck, atrasoBotMs: 0, tempoTurnoMs: 50, pausaVazaMs: 0, pausaRodadaMs: 0 });
     for (let i = 0; i < jogadores; i++) c.entrarNaSala(new Bot());
     for (const j of c.jogadores) j.hp = hp;
 
