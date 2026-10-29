@@ -1206,10 +1206,23 @@ button.secundario {
    border-radius:inherit (mesmo raio que .mesa-exp-mesa acabou de
    calcular em --altura-mesa) garantem que nada aqui dentro vaze pro lado
    de fora do contorno oval. pointer-events:none — é decoração pura, nunca
-   deve roubar clique de nada por baixo. */
+   deve roubar clique de nada por baixo.
+   isolation:isolate + z-index:1 (bug 4.1): cada camada de manilha recebe
+   zIndex = geração (só cresce, ver DanosDaMesa), e sem um contexto de
+   empilhamento próprio aqui esse número competia direto com o resto da
+   mesa — a partir da ~14ª manilha a cratera passava por cima da vira
+   (12), do baralho (13), das cartas (14), dos assentos (15/16)... e, no
+   mobile (.mesa-exp-mesa sem contexto próprio), até da tela inteira. Agora
+   as gerações só se ordenam ENTRE SI aqui dentro (mais nova por cima) e o
+   bloco todo fica no 1, que é o que as primeiras gerações já tinham:
+   acima do feltro, empatando com a carta pousada (Z_CARTA_SIMULADA_POUSADA
+   = 1, vem depois no DOM, então ganha) e abaixo do pavio (5) e de tudo
+   mais. */
 .mesa-exp-danos {
     position: absolute;
     inset: 0;
+    z-index: 1;
+    isolation: isolate;
     overflow: hidden;
     border-radius: inherit;
     pointer-events: none;
