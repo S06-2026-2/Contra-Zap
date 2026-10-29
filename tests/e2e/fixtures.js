@@ -143,22 +143,40 @@ export class Jogador {
     }
 }
 
+// A tela de cada jogador no fim do teste, anexada ao resultado — a galeria
+// "testado no navegador de verdade" do relatório de qualidade
+// (tests/relatorio/gerar.js liga RELATORIO_TELAS). Fora dele não custa nada.
+// Nunca derruba o teste: um print que falhou não é um bug do jogo.
+async function registrarTela(testInfo, jogador, rotulo) {
+    if (process.env.RELATORIO_TELAS !== '1') return;
+    try {
+        const corpo = await jogador.page.screenshot({ type: 'jpeg', quality: 70 });
+        await testInfo.attach(`tela: ${rotulo}`, { body: corpo, contentType: 'image/jpeg' });
+    } catch {
+        // página já fechada pelo próprio teste
+    }
+}
+
 // `jogador`: um jogador já logado. `jogadores(n)`: vários, em paralelo — pra
 // sala com gente de verdade dos dois lados. Os dois fecham tudo no fim.
 export const test = base.extend({
-    jogador: async ({ browser }, use) => {
+    jogador: async ({ browser }, use, testInfo) => {
         const jogador = await Jogador.entrar(browser);
         await use(jogador);
+        await registrarTela(testInfo, jogador, 'jogador');
         await jogador.fechar();
     },
 
-    jogadores: async ({ browser }, use) => {
+    jogadores: async ({ browser }, use, testInfo) => {
         const criados = [];
         await use(async (quantidade) => {
             const novos = await Promise.all(Array.from({ length: quantidade }, () => Jogador.entrar(browser)));
             criados.push(...novos);
             return novos;
         });
+        for (const [i, jogador] of criados.entries()) {
+            await registrarTela(testInfo, jogador, `jogador ${i + 1}`);
+        }
         await Promise.all(criados.map(jogador => jogador.fechar()));
     },
 });

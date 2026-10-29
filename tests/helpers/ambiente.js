@@ -33,7 +33,18 @@ process.env.JWT_SECRET ??= 'segredo-de-teste-contra-zap';
 
 // Inclui os arquivos -wal e -shm que o journal_mode = WAL cria ao lado do
 // banco (ver conexao/db.js).
-process.on('exit', () => rmSync(DIRETORIO, { recursive: true, force: true }));
+//
+// No Windows o arquivo do SQLite ainda está aberto no 'exit' e o rmSync
+// estoura EPERM — o que derrubava o arquivo de teste inteiro como falho
+// mesmo com todos os testes verdes. Sobrar uma pasta no %TEMP% é inofensivo;
+// reprovar a suíte por isso não é.
+process.on('exit', () => {
+    try {
+        rmSync(DIRETORIO, { recursive: true, force: true });
+    } catch {
+        // o sistema limpa o %TEMP%
+    }
+});
 
 // Usuários que `banco.json` semeia em todo banco novo — é a fixture de conta
 // já existente pros testes de login. Reexportado daqui pra nenhum teste
