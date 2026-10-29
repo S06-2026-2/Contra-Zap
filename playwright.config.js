@@ -49,9 +49,11 @@ export default defineConfig({
 
     use: {
         baseURL: `http://localhost:${PORTA}`,
-        // Evidência só quando falha — o relatório fica leve e útil.
+        // Evidência só quando falha — o relatório fica leve e útil. A exceção
+        // é o relatório de qualidade (tests/relatorio/gerar.js), que mostra a
+        // tela de todo teste, verde ou não.
         trace: 'retain-on-failure',
-        screenshot: 'only-on-failure',
+        screenshot: process.env.RELATORIO_TELAS === '1' ? 'on' : 'only-on-failure',
         locale: 'pt-BR',
     },
 
