@@ -99,6 +99,14 @@ jobs:
           echo "$RESP" | jq .
           echo "$RESP" | jq -e '.data.projectToken.projectId' >/dev/null \
             || { echo "::error::O Railway não reconhece esse valor como Project Token"; exit 1; }
+          # Lista os serviços do projeto: o valor de RAILWAY_SERVICE tem que ser
+          # exatamente um destes nomes (ou o id).
+          PROJETO=$(echo "$RESP" | jq -r '.data.projectToken.projectId')
+          curl -sS https://backboard.railway.com/graphql/v2 \
+            -H "Project-Access-Token: $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\":\"{ project(id: \\\"$PROJETO\\\") { name services { edges { node { id name } } } } }\"}" \
+            | jq '.data.project | {projeto: .name, servicos: [.services.edges[].node]}'
 
       - name: Deploy no Railway
         id: deploy
