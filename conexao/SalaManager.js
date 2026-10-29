@@ -168,6 +168,13 @@ class Sala {
             // sentido reusar a antiga numa sala que é literalmente outra.
             privada: this.privada,
         };
+        // salaId da sala que terminou e originou esta via "jogar de novo"
+        // (null pra sala criada do zero). Mora na sala NOVA, não na antiga,
+        // de propósito: a antiga é descartada assim que esvazia (ver
+        // encerrarSeFinalizadaEVazia), e o vínculo precisa sobreviver a isso
+        // pra um jogarDeNovo repetido achar a revanche já criada (ver
+        // SalaManager.jogarDeNovo) — e some sozinho junto com a sala nova.
+        this.revancheDe = null;
     }
 
     get numberPlayers() { return this.controller.numberPlayers; }
@@ -345,7 +352,17 @@ export class SalaManager {
     // cliente. Quem mais estava na sala antiga é avisado por fora daqui (ver
     // EventosServidor.CONVITE_REVANCHE em socketServer.js) — este método só
     // cuida de criar a sala nova.
+    //
+    // Idempotente: um segundo jogarDeNovo pra mesma sala antiga (duplo
+    // clique, retry de rede) devolve a revanche que esse adm já criou e
+    // ainda espera gente, em vez de abrir outra sala órfã. Isso é conferido
+    // ANTES de procurar a sala antiga porque ela pode já ter sido descartada
+    // pelo primeiro chamado (se o adm era o último socket nela). Nesse caso
+    // aoNascer NÃO roda — o socket já está na room da revanche.
     jogarDeNovo(salaAntigaId, player, aoNascer) {
+        const revancheExistente = this._revancheDoAdm(salaAntigaId, player);
+        if (revancheExistente) return revancheExistente;
+
         const salaAntiga = this.salas.get(salaAntigaId);
         if (!salaAntiga) {
             throw new ErroSala(CodigosErro.SALA_NAO_ENCONTRADA, `Sala "${salaAntigaId}" não existe.`);
@@ -357,7 +374,23 @@ export class SalaManager {
             throw new ErroSala(CodigosErro.NAO_AUTORIZADO, 'Só quem criou a sala pode chamar pra jogar de novo.');
         }
 
-        return this.criarSala(player, salaAntiga.configOriginal, aoNascer);
+        const novaSala = this.criarSala(player, salaAntiga.configOriginal, aoNascer);
+        novaSala.revancheDe = salaAntigaId;
+        return novaSala;
+    }
+
+    // Revanche já criada a partir de `salaAntigaId` em que `player` continua
+    // adm e que ainda não começou — a única situação em que reaproveitar faz
+    // sentido (se ele saiu dela ou ela já começou, um novo jogarDeNovo segue
+    // as regras normais). Varre as salas: só roda em jogarDeNovo, e o total
+    // é limitado por MAX_SALAS.
+    _revancheDoAdm(salaAntigaId, player) {
+        for (const sala of this.salas.values()) {
+            if (sala.revancheDe === salaAntigaId && !sala.iniciada && sala.controller.jogadorEhAdm(player.id)) {
+                return sala;
+            }
+        }
+        return null;
     }
 
     // Coloca um jogador numa sala existente, validando as regras de entrada.

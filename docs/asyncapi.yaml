@@ -477,6 +477,8 @@ operations:
     description: |
       Só o adm da sala terminada. Quem ficou recebe `convidadoParaRevanche`
       com o id da sala nova. O `salaId` do ack já é o da sala **nova**.
+      Idempotente: repetir com o mesmo `salaId` enquanto a revanche espera
+      gente (e o adm segue nela) devolve a mesma sala, sem novo convite.
       Erros: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`, `SALA_NAO_FINALIZADA`,
       `NAO_AUTORIZADO`.
     messages: [{ $ref: '#/channels/jogarDeNovo/messages/pedido' }]

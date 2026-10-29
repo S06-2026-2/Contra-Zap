@@ -421,11 +421,19 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
         socket.on(EventosCliente.JOGAR_DE_NOVO, ({ salaId } = {}, ack) => {
             responder(ack, () => {
                 const player = exigirJogadorComVisual();
+                let criada = false;
                 const novaSala = salaManager.jogarDeNovo(salaId, player, (salaCriada) => {
+                    criada = true;
                     socket.join(salaCriada.salaId);
                     salaPorSocket.set(socket.id, salaCriada.salaId);
                     ligarControllerASala(io, salaManager, salaCriada, socketPorJogador, salaPorSocket);
                 });
+                // Repetição (duplo clique): o SalaManager devolveu a revanche
+                // que este adm já tinha criado, sem chamar aoNascer. Saída da
+                // sala antiga, limpeza e convite já rolaram no primeiro
+                // chamado — refazer só duplicaria o convidadoParaRevanche.
+                // Basta repetir o ack, igual ao primeiro.
+                if (!criada) return respostaRevanche(novaSala);
                 // Quem chamou jogarDeNovo sai de verdade da sala que
                 // terminou — o socket não deve mais receber nada dela
                 // (nem o próprio convidadoParaRevanche abaixo, que é pra
@@ -447,14 +455,7 @@ export function registrarSocketServer(io, salaManager = new SalaManager(), {
                     novaSalaId: novaSala.salaId,
                     jogador: player.nome,
                 });
-                return {
-                    salaId: novaSala.salaId,
-                    numberPlayers: novaSala.numberPlayers,
-                    jogadores: resumoJogadores(novaSala),
-                    segundosParaIniciar: novaSala.controller.inicioAgendado ? novaSala.controller.segundosParaIniciar : null,
-                    chatAberto: novaSala.chatAberto,
-                    modeloBot: novaSala.modeloBot,
-                };
+                return respostaRevanche(novaSala);
             });
         });
 
@@ -656,6 +657,20 @@ function notificarSala(io, sala) {
         salaId: sala.salaId,
         jogadores: resumoJogadores(sala),
     });
+}
+
+// Ack de jogarDeNovo — mesmo formato de criarSala/entrarSala, montado num
+// lugar só porque sai tanto da revanche recém-criada quanto da reaproveitada
+// (chamado repetido, ver SalaManager.jogarDeNovo).
+function respostaRevanche(sala) {
+    return {
+        salaId: sala.salaId,
+        numberPlayers: sala.numberPlayers,
+        jogadores: resumoJogadores(sala),
+        segundosParaIniciar: sala.controller.inicioAgendado ? sala.controller.segundosParaIniciar : null,
+        chatAberto: sala.chatAberto,
+        modeloBot: sala.modeloBot,
+    };
 }
 
 // Uma sala com partida já finalizada (GameController.finalizada) não serve

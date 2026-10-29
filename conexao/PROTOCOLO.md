@@ -447,6 +447,12 @@ qualquer sala nova.
 Além do ack, todo mundo que ainda estava na sala antiga (broadcast em
 `salaId`, a sala que terminou) recebe `convidadoParaRevanche` com o
 `salaId` da sala nova — ver seção de eventos do servidor abaixo.
+Idempotente: chamar de novo com o mesmo `salaId` (duplo clique, retry)
+enquanto o adm continua adm da revanche e ela ainda não começou devolve o
+**mesmo** ack apontando pra revanche já criada — não abre outra sala nem
+reenvia `convidadoParaRevanche`. Vale até depois de a sala antiga ter sido
+descartada (ver "Limpeza de sala após o fim da partida"). Se o adm saiu da
+revanche ou ela já começou, segue as regras normais acima.
 Erros possíveis: `NAO_IDENTIFICADO`, `SALA_NAO_ENCONTRADA`,
 `SALA_NAO_FINALIZADA` (a partida dessa sala ainda não acabou),
 `NAO_AUTORIZADO` (quem chamou não é o adm da sala original).

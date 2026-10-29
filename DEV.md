@@ -167,10 +167,6 @@ Legenda: 🔴 atrapalha jogar / bug · 🟡 falta informação, robustez · 🟢
       `tests/**/*.test.js`, então `game/*.test.js` e `conexao/*.test.js`
       não rodam no CI. Rodar na mão:
       `node --test game/*.test.js conexao/*.test.js`.
-- [ ] 🔴 **`game/loopPartida.test.js` falhando** (3 testes estouram o tempo:
-      a partida para na rodada 4) — desde a espera das animações do front
-      (`_esperarDistribuicao`/`game/animacoesFront.js`). Provável que o teste
-      precise fixar `duracaoDistribuicaoMs`, mas não foi investigado.
 
 ### Código
 
