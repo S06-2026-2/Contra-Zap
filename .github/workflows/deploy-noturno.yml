@@ -7,7 +7,7 @@
 # Actions ("Run workflow").
 #
 # Precisa do secret RAILWAY_TOKEN (Project Token do Railway) e, opcionalmente,
-# das variáveis RAILWAY_SERVICE e RAILWAY_ENVIRONMENT.
+# da variável RAILWAY_SERVICE (já tem o ID do serviço como padrão).
 name: Deploy noturno (Railway)
 
 on:
@@ -113,12 +113,16 @@ jobs:
         if: (steps.novidade.outputs.mudou == 'true' && steps.ci.outputs.verde == 'true') || inputs.forcar
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          SERVICO: ${{ vars.RAILWAY_SERVICE || 'contra-zap' }}
-          AMBIENTE: ${{ vars.RAILWAY_ENVIRONMENT || 'production' }}
+          # ID do serviço "Contra-Zap" (não é segredo). A variável RAILWAY_SERVICE,
+          # se existir, tem prioridade.
+          SERVICO: ${{ vars.RAILWAY_SERVICE || '829834e1-ed55-4535-b350-7659c8322830' }}
         run: |
           test -n "$RAILWAY_TOKEN" || { echo "::error::Secret RAILWAY_TOKEN não configurado"; exit 1; }
+          echo "serviço alvo: $SERVICO"
+          # O Project Token já fixa projeto e ambiente, então NÃO se passa
+          # --environment (com token de projeto isso pode dar "Service not found").
           # --ci: acompanha o build e falha o job se o deploy falhar.
-          railway up --service "$SERVICO" --environment "$AMBIENTE" --ci
+          railway up --service "$SERVICO" --ci
 
       - name: Marcar commit como deployado
         if: steps.deploy.outcome == 'success'
