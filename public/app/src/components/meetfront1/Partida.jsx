@@ -92,6 +92,12 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
     );
     const [ultimoPlacar, setUltimoPlacar] = useState(reconexao?.ultimoPlacar ?? []);
     const [vencedor, setVencedor] = useState(reconexao?.vencedor ?? null);
+    // Espelho de `vencedor` pros handlers de socket (registrados uma vez só,
+    // enxergariam o valor velho do state): o jogadorExpulsoPorInatividade
+    // precisa saber se a partida já acabou pra não armar o "reconectar" da
+    // Lobby pra uma sala que vai sumir (ver sair() mais abaixo).
+    const vencedorRef = useRef(vencedor);
+    vencedorRef.current = vencedor;
     // { novaSalaId, jogador } quando o adm da sala chama jogarDeNovo depois
     // do fim da partida — ver convidadoParaRevanche em PROTOCOLO.md. null
     // enquanto ninguém chamou (ou depois que este jogador já respondeu).
@@ -330,7 +336,13 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
                 setDesconectados((anterior) => (anterior.includes(p.jogador) ? anterior : [...anterior, p.jogador]));
                 if (p.jogador === meuNome) {
                     registrar('⏱️ Você foi desconectado da sala por inatividade');
-                    onSairDaPartida(salaId);
+                    // Partida já encerrada (caso típico: o próprio sair() da
+                    // tela de vitória, ou o "Não" do convite — o servidor
+                    // emite este evento antes do ack): não há vaga pra
+                    // reconectar, a sala é descartada quando esvazia. Sair
+                    // como de uma sala comum, sem armar a faixa da Lobby.
+                    if (vencedorRef.current) onSairDaSala();
+                    else onSairDaPartida(salaId);
                 } else {
                     registrar(`🤖 ${p.jogador} desconectou — um bot assumiu o lugar dele até reconectar`);
                 }
@@ -571,12 +583,27 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
     // de jogadorExpulsoPorInatividade quando o evento chega — chamar aqui
     // cobre o caso de a resposta demorar/falhar, e a dupla chamada é
     // idempotente (mesmo salaId, mesmo setSala(null)).
+    // Exceção: partida JÁ encerrada (vencedor definido — tela de vitória,
+    // "Não" no convite de revanche). Aí não existe vaga pra voltar: a sala
+    // é descartada assim que esvazia (encerrarSeFinalizadaEVazia), e o
+    // RECONECTAR da Lobby só daria SALA_NAO_ENCONTRADA. Ainda chama
+    // sairDaPartida (é ele que tira o socket da room e deixa o servidor
+    // descartar a sala), mas volta pelo onSairDaSala, sem armar a faixa.
     async function sair() {
         if (!iniciada) {
             try {
                 await chamar('sairSala', { salaId });
             } catch {
                 // melhor esforço — se a partida começou bem nesse meio tempo, cai no caso abaixo
+            }
+            onSairDaSala();
+            return;
+        }
+        if (vencedor) {
+            try {
+                await chamar('sairDaPartida', { salaId });
+            } catch {
+                // melhor esforço — a partida já terminou, o assento não importa mais
             }
             onSairDaSala();
             return;
