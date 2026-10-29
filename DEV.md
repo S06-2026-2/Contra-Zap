@@ -140,24 +140,12 @@ Legenda: 🔴 atrapalha jogar / bug · 🟡 falta informação, robustez · 🟢
 
 ### Mobile (meetfront1)
 
-- [ ] 🟡 **Compor a tela com 5 e 6 jogadores** — hoje está mal resolvida no
-      celular (fantasminhas, zonas de pouso e meladas brigando por espaço).
-      Posições em `calcularAssentosMobile` (`meetfront2/MesaExperimento.jsx`)
-      e zonas em `meetfront1/zonasPouso.js`.
-- [ ] 🟢 **Polir o coração do mobile** (vida).
 - [ ] 🟡 Animações contra manilha.
 - [ ] 🔴 Em partidas longas a destruição da mesa buga.
 
 ### Desempenho
 
-- [ ] 🟢 **Perfil de qualidade por aparelho** — medir o aparelho do usuário e
-      ligar as animações pesadas só se ele aguentar. Tudo que saiu do padrão
-      ficou atrás de flag pra isso (`ajustesZap.js`, `ajustesCopas.js`,
-      `ajustesMesa.js`, `FILTRO_ANTIGO_SVG`/`GRAO_NA_PARTIDA`/`CHOQUE_MODO` no
-      `FiltroTela.jsx`).
-- [ ] 🟢 Impacto do zap ainda trava ~115 ms mesmo sem efeitos (clarão,
-      cratera, tremor, empurrão) — nunca medidos separados.
-
+- [ ] 🟢 Colocar skills relevantes de otimização
 ### Motor, bots e produção
 
 - [ ] 🟡 **Rede de RL só treinou com 4 assentos** (`bots/BotBrain.js`,
