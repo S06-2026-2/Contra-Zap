@@ -84,6 +84,22 @@ jobs:
         if: (steps.novidade.outputs.mudou == 'true' && steps.ci.outputs.verde == 'true') || inputs.forcar
         run: npm install -g @railway/cli
 
+      - name: Validar RAILWAY_TOKEN (diagnóstico)
+        if: (steps.novidade.outputs.mudou == 'true' && steps.ci.outputs.verde == 'true') || inputs.forcar
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          # Pergunta direto pra API do Railway de quem é o token. Project Token
+          # responde com projectId/environmentId; qualquer outro tipo dá erro.
+          echo "tamanho do token: ${#RAILWAY_TOKEN} caracteres"
+          RESP=$(curl -sS https://backboard.railway.com/graphql/v2 \
+            -H "Project-Access-Token: $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"query":"{ projectToken { projectId environmentId } }"}')
+          echo "$RESP" | jq .
+          echo "$RESP" | jq -e '.data.projectToken.projectId' >/dev/null \
+            || { echo "::error::O Railway não reconhece esse valor como Project Token"; exit 1; }
+
       - name: Deploy no Railway
         id: deploy
         if: (steps.novidade.outputs.mudou == 'true' && steps.ci.outputs.verde == 'true') || inputs.forcar
