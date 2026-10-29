@@ -467,6 +467,46 @@ test('jogarDeNovo', async (t) => {
         await outro.ok(EventosCliente.ENTRAR_SALA, { salaId: convite.novaSalaId });
     });
 
+    // Duplo clique em "Jogar de novo": antes abria duas salas, com o adm nas
+    // duas (uma órfã). O segundo chamado tem que devolver a mesma revanche
+    // e não pode convidar de novo quem ficou.
+    await t.test('chamar de novo devolve a mesma revanche, sem segundo convite', async () => {
+        const { salaId, adm, clientes } = await partidaTerminada();
+        const outro = clientes.find(cliente => cliente !== adm);
+
+        const primeira = await adm.ok(EventosCliente.JOGAR_DE_NOVO, { salaId });
+        const segunda = await adm.ok(EventosCliente.JOGAR_DE_NOVO, { salaId });
+
+        assert.equal(segunda.salaId, primeira.salaId);
+        assert.deepEqual(segunda.jogadores.map(j => j.nome), [adm.nome]);
+        const revanches = [...servidor.salaManager.salas.values()].filter(sala => sala.revancheDe === salaId);
+        assert.equal(revanches.length, 1);
+
+        // O convite do primeiro chamado chega; um segundo não. Sem sleep:
+        // o convite sai de dentro do handler, antes do ack, então depois do
+        // segundo ack qualquer convite repetido já estaria a caminho — o
+        // ping/pong de um ack do PRÓPRIO `outro` (mesma conexão, ordem
+        // garantida) fecha a janela antes de contar.
+        await outro.esperar(EventosServidor.CONVITE_REVANCHE);
+        await outro.emitir(EventosCliente.LISTAR_SALAS);
+        assert.equal(outro.recebidos(EventosServidor.CONVITE_REVANCHE).length, 1);
+    });
+
+    // Adm sozinho com bots: o primeiro jogarDeNovo já descarta a sala antiga
+    // (ele era o último socket nela). O repetido ainda acha a revanche.
+    await t.test('chamar de novo depois da sala antiga ser descartada ainda devolve a revanche', async () => {
+        const { salaId, adm } = await partidaEmAndamento(servidor, { humanos: 1, botNumber: 1 });
+        const parar = jogarSozinho(adm, salaId);
+        await adm.esperar(EventosServidor.JOGO_FINALIZADO, { timeoutMs: 60_000 });
+        parar();
+
+        const primeira = await adm.ok(EventosCliente.JOGAR_DE_NOVO, { salaId });
+        assert.equal(servidor.salaManager.obterSala(salaId), null, 'a sala antiga devia ter sido descartada');
+        const segunda = await adm.ok(EventosCliente.JOGAR_DE_NOVO, { salaId });
+
+        assert.equal(segunda.salaId, primeira.salaId);
+    });
+
     await t.test('NAO_AUTORIZADO por quem não é o adm da sala que terminou', async () => {
         const { salaId, adm, clientes } = await partidaTerminada();
         const outro = clientes.find(cliente => cliente !== adm);

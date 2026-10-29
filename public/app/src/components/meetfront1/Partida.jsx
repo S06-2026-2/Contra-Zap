@@ -103,6 +103,11 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
     // enquanto ninguém chamou (ou depois que este jogador já respondeu).
     const [conviteRevanche, setConviteRevanche] = useState(null);
     const [criandoRevanche, setCriandoRevanche] = useState(false);
+    // Trava síncrona do jogarDeNovo: o state acima só desabilita o botão no
+    // PRÓXIMO render, e um duplo clique cai inteiro antes disso — cada clique
+    // virava uma sala de revanche nova (o servidor agora também devolve a
+    // mesma, mas não precisa nem chegar a pedir duas vezes).
+    const criandoRevancheRef = useRef(false);
     const [log, setLog] = useState([]);
     const [erro, setErro] = useState(null);
     // Espelha apostaFeita/jogadoresEliminados num formato fácil de olhar na
@@ -534,6 +539,8 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
     // uma sala nova com a mesma config da que acabou e já entra nela; quem
     // mais estava aqui recebe o convite (convidadoParaRevanche) por fora.
     async function jogarDeNovo() {
+        if (criandoRevancheRef.current) return;
+        criandoRevancheRef.current = true;
         setErro(null);
         setCriandoRevanche(true);
         try {
@@ -542,6 +549,7 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
             onEntrouNaSala(resposta.salaId, resposta.jogadores, resposta.segundosParaIniciar, resposta.chatAberto);
         } catch (erroDaChamada) {
             setErro(erroDaChamada.message);
+            criandoRevancheRef.current = false;
             setCriandoRevanche(false);
         }
     }
@@ -639,7 +647,7 @@ export default function Partida({ salaId, jogadoresIniciais, segundosIniciais, r
                 mao, cartasRodada, numeroRodada, maosReveladas,
                 mesa, vira, jogadorDaVez, jogadorDaVezAposta, apostas, vazasFeitas,
                 eliminados, desconectados, ultimoPlacar, vencedor,
-                vazaResultado, mensagensChat, conviteRevanche,
+                vazaResultado, mensagensChat, conviteRevanche, criandoRevanche,
             }}
             acoes={{
                 jogar: jogarCartaClicada,

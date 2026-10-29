@@ -4725,8 +4725,13 @@ export default function MesaExperimento({ estado, acoes }) {
                         <strong>
                             {(jogoVencedorIndice === 0 ? 'Você' : ordemAssentos[jogoVencedorIndice]?.nome)} VENCEU!
                         </strong>
+                        {/* Travado enquanto a revanche está sendo criada (ver
+                            criandoRevanche em meetfront1/Partida.jsx): sem
+                            isso, duplo clique abria duas salas. */}
                         {acoes?.jogarDeNovo && (
-                            <button type="button" onClick={acoes.jogarDeNovo}>Jogar de novo</button>
+                            <button type="button" onClick={acoes.jogarDeNovo} disabled={estado.criandoRevanche}>
+                                {estado.criandoRevanche ? 'Criando...' : 'Jogar de novo'}
+                            </button>
                         )}
                         {/* O "Sair da partida" do cabeçalho fica coberto pelo
                             .mesa-exp-vitoria (z-index acima dele) — no mobile E
