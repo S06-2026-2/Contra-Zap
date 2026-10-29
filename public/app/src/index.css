@@ -1061,6 +1061,18 @@ button.secundario {
     font-size: 16px;
 }
 
+/* "Jogar de novo" e "Voltar às salas" empilhados com a mesma largura
+   (senão cada um fica do tamanho do próprio texto e a coluna parece torta).
+   Só os filhos diretos: o Sim/Não do convite, lá dentro, seguem lado a lado
+   no tamanho natural. O gap de 22px do -texto separa demais dois botões
+   seguidos, então o de baixo encosta um pouco no de cima. */
+.mesa-exp-vitoria-texto > button {
+    min-width: 200px;
+}
+.mesa-exp-vitoria-texto > button + button {
+    margin-top: -10px;
+}
+
 /* Convite de revanche (ver conviteRevanche em MesaExperimento.jsx) — texto
    menor/mais discreto que o "VENCEU!" (esse já grita sozinho via -strong
    acima), centralizado igual ao resto de .mesa-exp-vitoria-texto (que é

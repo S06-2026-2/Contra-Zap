@@ -4728,13 +4728,16 @@ export default function MesaExperimento({ estado, acoes }) {
                         {acoes?.jogarDeNovo && (
                             <button type="button" onClick={acoes.jogarDeNovo}>Jogar de novo</button>
                         )}
-                        {/* No mobile o "Sair da partida" do canto fica escondido
-                            atrás do escurecido: a saída vem aqui, logo abaixo.
-                            Com convite de revanche aberto, o "Não" dele já é
-                            esse mesmo sair. */}
-                        {mobile && !estado.conviteRevanche && (
+                        {/* O "Sair da partida" do cabeçalho fica coberto pelo
+                            .mesa-exp-vitoria (z-index acima dele) — no mobile E
+                            no computador —, então a saída vem aqui, pra todo
+                            mundo (adm incluído: ele pode não querer revanche).
+                            Sem isso, quem não é adm e não recebeu convite ficava
+                            preso na tela de vitória. Com convite de revanche
+                            aberto, o "Não" dele já é esse mesmo sair. */}
+                        {!estado.conviteRevanche && (
                             <button type="button" onClick={() => acoes?.sair?.()} disabled={!acoes?.sair} className="secundario">
-                                Sair
+                                Voltar às salas
                             </button>
                         )}
                         {/* Convite de revanche (ver conviteRevanche em
