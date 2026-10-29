@@ -55,8 +55,15 @@ export function criarServidor({ salaManager, limitesDeTaxa } = {}) {
     // Serve o build da interface React (gerado por `npm run build` dentro de
     // public/app — ver public/app/vite.config.js, que manda a saída pra cá).
     // Se essa pasta não existir ainda, rode o build primeiro; ver README.md.
-    app.use(express.static(path.join(__dirname, 'public/dist')));
-
+    app.use(express.static(path.join(__dirname, 'public/dist'), {
+       setHeaders: (res, filePath) => {
+           if (filePath.endsWith('index.html')) {
+               res.setHeader('Cache-Control', 'no-cache');
+           } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+               res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+           }
+       },
+   }));
     // Endpoint de healthcheck: usado pelo Docker (HEALTHCHECK) e por qualquer
     // orquestrador/monitoramento pra saber se o processo está de pé e
     // respondendo. Checagem real, não só "o processo está vivo": um SELECT 1
