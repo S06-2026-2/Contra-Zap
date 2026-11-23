@@ -68,7 +68,8 @@ tests/             testes automatizados (ver testes.md)
 docs/              specs da API (OpenAPI/AsyncAPI), playground (npm run docs) e esta documentação
 postman/           coleção do /health + guia de exploração do socket.io
 .github/workflows/ CI (ci.yml) e deploy noturno (deploy-noturno.yml)
-.claude/skills/    skills do projeto: testes e devops
+.claude/skills/    skills do projeto: testes, devops e find-skills (externa, ver abaixo)
+skills-lock.json   lock das skills externas instaladas com `npx skills add`
 Dockerfile, docker-compose.yml, diagnostico.sh   infra (ver infra.md)
 ```
 
@@ -92,6 +93,24 @@ checkpoints versionados), `playwright-report/`, `test-results/`,
 | `npm run docs` | playground/specs da API na 3001 (precisa do jogo de pé na 3000) |
 | `docker compose up --build` | roda em container (antes: `touch banco.sqlite jwt.secret`) |
 | `bash diagnostico.sh` | checa ambiente (Node, porta, volumes…) |
+
+## Skills de agente
+
+Ficam em `.claude/skills/<nome>/SKILL.md`. Duas são do próprio projeto,
+escritas à mão: `testes` e `devops`. As **externas** são instaladas com a
+CLI `npx skills`, que copia a skill pra `.claude/skills/` e registra origem,
+commit e hash em `skills-lock.json`:
+
+| Skill | Origem | Para quê |
+|---|---|---|
+| `find-skills` | `vercel-labs/skills` | procurar e instalar outras skills (`npx skills find <termo>`) |
+
+- Instalar no projeto, só pro Claude Code e como cópia (symlink é ruim no
+  Windows): `npx skills add <owner/repo> --skill <nome> --agent claude-code --copy -y`.
+- Restaurar a partir do lock: `npx skills experimental_install`. Atualizar:
+  `npx skills update -p`.
+- Leia o `SKILL.md` antes de usar: a skill roda com todas as permissões do
+  agente. Skill nova entra na tabela acima.
 
 No Windows, se `npm install` falhar procurando Visual Studio, use
 `npm install --ignore-scripts` (os binários nativos já vêm prontos).

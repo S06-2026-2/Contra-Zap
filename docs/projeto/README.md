@@ -32,4 +32,5 @@ assunto. A documentação deste diretório **aponta** pra eles em vez de copiar:
 - `DEV.md` — workflow de front, treino, backlog e o que falta fazer.
 - `.claude/skills/testes/` — como escrever e depurar testes (convenções e armadilhas).
 - `.claude/skills/devops/devops-playbook.md` — gotchas de Docker/CI/deploy.
+- `.claude/skills/find-skills/` — skill externa (via `npx skills`, travada em `skills-lock.json`) pra procurar e instalar outras skills; ver "Skills de agente" em [visao-geral.md](visao-geral.md).
 - `postman/README.md` — exploração manual do protocolo.

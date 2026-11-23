@@ -46,6 +46,7 @@ Precisam continuar **puras** (sem `node:*`, sem banco, sem socket):
 | nova pasta de back-end | lista de `COPY` do `Dockerfile` |
 | nova variável de ambiente | `docs/projeto/infra.md` (tabela) e, se for de produção, Railway/compose |
 | rota HTTP | `docs/openapi.yaml`, `postman/` |
+| skill externa instalada/removida (`npx skills`) | `skills-lock.json` (a CLI cuida) e a tabela "Skills de agente" em `docs/projeto/visao-geral.md` |
 | comando, porta, pré-requisito | `README.md` e `docs/projeto/visao-geral.md` |
 
 ## Git e entrega

@@ -33,7 +33,9 @@ Comece pelo índice e leia o arquivo da área que você vai tocar:
 Fontes de verdade que continuam valendo (a doc acima aponta para elas, não
 as substitui): `conexao/PROTOCOLO.md` (contrato socket.io),
 `conexao/eventos.js`, `docs/asyncapi.yaml`, `README.md`, `DEV.md`, e as
-skills em `.claude/skills/` (`testes`, `devops`).
+skills em `.claude/skills/` (`testes`, `devops` e a externa `find-skills`,
+instalada com `npx skills` e travada em `skills-lock.json` — ver "Skills de
+agente" em `docs/projeto/visao-geral.md`).
 
 ## Regra obrigatória: documentação acompanha o código
 
