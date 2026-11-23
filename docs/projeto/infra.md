@@ -45,6 +45,11 @@ com Redocly, validação AsyncAPI, sobe o servidor e roda Newman na coleção do
 Postman) e `e2e` (roda a imagem com `NODE_ENV=test`, banco temporário e rate
 limits altos na porta 3100; Playwright com `E2E_SERVIDOR_EXTERNO=true`).
 
+O job `e2e` roda em `ubuntu-24.04` fixo, não `ubuntu-latest`: o
+`@playwright/test` 1.56.1 não instala Chromium no Ubuntu 26.04. Ao atualizar
+o Playwright, confira o suporte antes de voltar pro `latest`. Os outros jobs
+seguem em `ubuntu-latest`.
+
 ## Deploy (`.github/workflows/deploy-noturno.yml`)
 
 O deploy automático do Railway não funciona em repositório de organização,
