@@ -12,7 +12,10 @@ produção, hospedada no Railway. Basta abrir no navegador, criar uma conta (ou
 entrar como convidado) e chamar os amigos pra uma sala. Saúde do servidor:
 [`/health`](https://contrazap.up.railway.app/health).
 
-> O deploy é automático a cada push na `main`. Rodar localmente (abaixo) só é
+> O deploy é automático, mas noturno: todo dia às 03:00 (horário de Brasília)
+> o workflow `.github/workflows/deploy-noturno.yml` publica a `main` no Railway
+> se houver commit novo desde o último deploy e o CI estiver verde nele (também
+> dá pra disparar à mão pela aba Actions). Rodar localmente (abaixo) só é
 > necessário pra desenvolver.
 
 ## Pré-requisitos
