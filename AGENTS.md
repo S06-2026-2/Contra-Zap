@@ -33,8 +33,8 @@ Comece pelo índice e leia o arquivo da área que você vai tocar:
 Fontes de verdade que continuam valendo (a doc acima aponta para elas, não
 as substitui): `conexao/PROTOCOLO.md` (contrato socket.io),
 `conexao/eventos.js`, `docs/asyncapi.yaml`, `README.md`, `DEV.md`,
-`docs/backlog.md` (o que falta fazer), e as skills em `.claude/skills/` (`testes`, `devops`, `mudar-regra`, `novo-evento`
-e a externa `find-skills`, instalada com `npx skills` e travada em
+`docs/backlog.md` (o que falta fazer), e as skills em `.claude/skills/`
+(`testes`, `devops`, `mudar-regra`, `novo-evento`, `backlog` e a externa `find-skills`, instalada com `npx skills` e travada em
 `skills-lock.json` — ver "Skills e agentes" em `docs/projeto/visao-geral.md`).
 
 ## Regra obrigatória: documentação acompanha o código
@@ -71,6 +71,10 @@ Na prática, antes de encerrar qualquer tarefa que alterou arquivos:
 ## Regras rápidas de trabalho
 
 - Leia `docs/projeto/convencoes.md` antes de mudar código.
+- **Antes de executar ou recomendar** uma mudança, busque o assunto em
+  `docs/backlog.md`: se já está lá, parta do item; se há item vizinho, ofereça
+  juntar, sem juntar por conta própria. **Ao terminar**, tire o que foi resolvido
+  e verificado e registre o problema achado fora do escopo (skill `backlog`).
 - Respeite as camadas: `game/` sem rede; só `conexao/socketServer.js` conhece
   socket.io; só `conexao/db.js` fala SQL.
 - Nunca escreva nome de evento/código de erro como string — importe de

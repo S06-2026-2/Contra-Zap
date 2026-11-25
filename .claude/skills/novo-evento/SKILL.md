@@ -56,3 +56,7 @@ rode `npm run build` em `public/app`. Evento com animação: confira
 
 Rode `npm test` e depois chame o subagente `revisor` como descrito em
 "Revisão por agente" no `docs/projeto/convencoes.md`.
+
+## Backlog
+
+Antes de executar ou recomendar e ao terminar, siga a skill `backlog`.

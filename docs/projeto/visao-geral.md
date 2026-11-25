@@ -111,6 +111,7 @@ Skills ficam em `.claude/skills/<nome>/SKILL.md`. As do próprio projeto:
 | `devops` | Docker, CI e deploy |
 | `mudar-regra` | mudar regra do jogo nos dois motores e nas réplicas |
 | `novo-evento` | criar ou mudar evento do protocolo |
+| `backlog` | consultar, atualizar e limpar o `docs/backlog.md` |
 
 Subagentes ficam em `.claude/agents/<nome>.md`. Só há o `revisor`, de leitura;
 como chamar está em "Revisão por agente" no [convencoes.md](convencoes.md).

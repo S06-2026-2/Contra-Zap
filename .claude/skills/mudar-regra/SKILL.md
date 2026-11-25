@@ -92,3 +92,7 @@ Chame o subagente `revisor` como descrito em "Revisão por agente" no
 
 No resumo final, informe: regra antes e depois, arquivos JS e Python, testes
 executados, impacto nos bots e o que o revisor apontou.
+
+## Backlog
+
+Antes de executar ou recomendar e ao terminar, siga a skill `backlog`.

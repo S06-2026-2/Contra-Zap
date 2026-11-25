@@ -198,3 +198,7 @@ regressões nessa sessão por edição feita em cima de versão desatualizada
 (uma vez com o próprio autor deste histórico, outra vez por um colega de
 time). Branch protection exigindo PR atualizado com a `main` resolveria
 isso de forma estrutural, se/quando o dono do repo configurar.
+
+## Backlog
+
+Antes de executar ou recomendar e ao terminar, siga a skill `backlog`.

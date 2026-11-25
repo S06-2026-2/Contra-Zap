@@ -261,3 +261,7 @@ Regras extras, além das da API:
 - **Rode 3 vezes antes de commitar**, igual à API.
 
 Detalhes de fixture e o histórico de decisões em `references/e2e-playwright.md`.
+
+## Backlog
+
+Antes de executar ou recomendar e ao terminar, siga a skill `backlog`.

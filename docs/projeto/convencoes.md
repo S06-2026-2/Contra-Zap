@@ -49,6 +49,7 @@ Precisam continuar **puras** (sem `node:*`, sem banco, sem socket):
 | agente em `.claude/agents/` | a seção "Skills e agentes" de `docs/projeto/visao-geral.md` |
 | skill externa instalada/removida (`npx skills`) | `skills-lock.json` (a CLI cuida) e a tabela "Skills e agentes" em `docs/projeto/visao-geral.md` |
 | arquivo renomeado ou removido; skill em `.claude/skills/` | menções em `AGENTS.md`, `docs/projeto/` e skills (`tests/docs/agentes.test.js` acusa parte delas; alcance em [testes.md](testes.md)) |
+| algo listado em `docs/backlog.md` | o item (remover ou encurtar, ver a skill `backlog`) |
 | comando, porta, pré-requisito | `README.md` e `docs/projeto/visao-geral.md` |
 
 ## Revisão por agente

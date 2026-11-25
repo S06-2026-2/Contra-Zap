@@ -11,7 +11,7 @@ trocam a etapa, e clicar numa caixa mostra o exemplo dela.
 - **`AGENTS.md`**: as regras que o agente lê primeiro. O `CLAUDE.md` só aponta para ele.
 - **`docs/projeto/`**: um arquivo por área. O agente lê só o que vai usar.
 - **Skills**: passo a passo que só carrega quando a tarefa pede.
-  - Nossas: `testes`, `devops`, `novo-evento` e `mudar-regra`.
+  - Nossas: `testes`, `devops`, `novo-evento`, `mudar-regra` e `backlog`.
   - `find-skills`: externa, procura outras skills.
 - **Subagente `revisor`**: só lê e compara a mudança com o `convencoes.md`.
 - **CI e revisão no PR**: valem também para código feito com IA.
