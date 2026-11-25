@@ -64,7 +64,7 @@ function ordemRelativa(jogadores, euId) {
 //     assento e descarta o resto. Aqui sim e fora da distribuicao (a rede
 //     nunca viu 5-6 na mesa); perde a informacao dos assentos mais
 //     distantes, mas nao quebra e joga algo coerente. Rede propria pra 5-6
-//     ainda esta por fazer (ver DEV.md).
+//     ainda esta por fazer (ver docs/backlog.md).
 function ajustarParaModelo(ordemRel) {
     const ajustada = ordemRel.slice(0, SEATS_MODELO);
     while (ajustada.length < SEATS_MODELO) ajustada.push(null);

@@ -25,7 +25,7 @@
 // treino porque "assento fantasma" == jogador ja eliminado, que a rede viu
 // muito; 5/6 nao), mas e melhor que o heuristico burro de "ultima carta /
 // aposta 1" -- que agora so sobra quando os modelos nem carregam ou nao ha
-// `controller`. Uma rede dedicada a 5-6 fica pro futuro (ver DEV.md, "O que
+// `controller`. Uma rede dedicada a 5-6 fica pro futuro (ver docs/backlog.md, "O que
 // falta fazer").
 //
 // Qual rede de rodada >= 2 joga depende da sala: `controller.modeloBot`
