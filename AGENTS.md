@@ -32,10 +32,10 @@ Comece pelo índice e leia o arquivo da área que você vai tocar:
 
 Fontes de verdade que continuam valendo (a doc acima aponta para elas, não
 as substitui): `conexao/PROTOCOLO.md` (contrato socket.io),
-`conexao/eventos.js`, `docs/asyncapi.yaml`, `README.md`, `DEV.md`, e as
-skills em `.claude/skills/` (`testes`, `devops` e a externa `find-skills`,
-instalada com `npx skills` e travada em `skills-lock.json` — ver "Skills de
-agente" em `docs/projeto/visao-geral.md`).
+`conexao/eventos.js`, `docs/asyncapi.yaml`, `README.md`, `DEV.md`,
+`docs/backlog.md` (o que falta fazer), e as skills em `.claude/skills/` (`testes`, `devops`, `mudar-regra`, `novo-evento`
+e a externa `find-skills`, instalada com `npx skills` e travada em
+`skills-lock.json` — ver "Skills e agentes" em `docs/projeto/visao-geral.md`).
 
 ## Regra obrigatória: documentação acompanha o código
 
@@ -78,9 +78,12 @@ Na prática, antes de encerrar qualquer tarefa que alterou arquivos:
 - Módulos compartilhados com o front (`conexao/limites.js`, `conexao/loja.js`,
   `conexao/chat/mensagensChat.js`, `bots/modelosBot.js`, `bots/rede.js`,
   `bots/observacao.js`) devem continuar puros (sem `node:*`).
-- Testes: `npm test` (API/bots/docs), `node --test game/*.test.js conexao/*.test.js`
-  (unitários, fora do `npm test`), `npm run test:e2e` (Playwright). Ao mexer
-  em `conexao/` ou `game/`, use a skill `testes`.
+- Testes: `npm test` (API/bots/docs/paridade/unitários), `npm run test:unit` (só os
+  unitários de `game/` e `conexao/`), `npm run test:e2e` (Playwright). Ao mexer
+  em `conexao/` ou `game/`, use a skill `testes`; para mudar regra do jogo,
+  `mudar-regra`; para evento do protocolo, `novo-evento`.
+- Terminou mudança em `game/`, `conexao/`, `bots/` ou `training/`? Chame o
+  subagente `revisor` (ver "Revisão por agente" em `docs/projeto/convencoes.md`).
 - Front: mudanças em `public/app/src` só aparecem no servidor depois de
   `npm run build` em `public/app` (ou use `npm run dev` na 5173).
 - Não commite `banco.sqlite*`, `jwt.secret`, `.env`, `public/dist/` nem

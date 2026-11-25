@@ -1,5 +1,7 @@
 // login.test.js
 // Testes da autenticação contra o banco.json de teste (raiz do projeto).
+// Primeiro import: aponta DB_PATH/JWT_SECRET pro temporário antes de o projeto ser carregado.
+import '../tests/helpers/ambiente.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { login, validarToken, ErroLogin } from './login.js';

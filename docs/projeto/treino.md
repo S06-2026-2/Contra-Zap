@@ -27,7 +27,14 @@ Docker. Comandos detalhados em `DEV.md` → "Treino de bot (RL)".
 
 Paridade: mesma seed ⇒ mesma distribuição nos dois motores
 (`game/seed.test.js` × `python/test_seed.py`, seed 999). A paridade de
-**regra** não é testada — mudou regra em `game/`, mude em `python/motor/`.
+**regra** é conferida no `npm test` (ver "Paridade dos motores" em
+[testes.md](testes.md)) — mudou regra em `game/`, mude em `python/motor/`.
+
+As máscaras de aposta do treino (`env_bridge.js`,
+`harness_nativo.py` e `harness_round1.py`) proíbem o último
+a apostar de fechar a soma também na rodada de 1 carta, o que o motor permite.
+O treino da rodada cega roda com essa restrição; em produção o `BotBrain.js`
+não a aplica.
 
 ## Scripts (`training/python/`)
 
@@ -44,6 +51,7 @@ Paridade: mesma seed ⇒ mesma distribuição nos dois motores
 | `ranking.py` | ranking de runs por `mean_diferenca` a partir dos logs |
 | `export_weights.py` | `.pt` → `bots/models/*.json` (formato lido por `bots/rede.js`) |
 | `harness_round1.py` | ambiente da rodada cega (`construir_obs_round1`) |
+| `paridade_motor.py` | joga os cenários do teste de paridade no motor Python |
 | `test_*.py` | testes Python (seed, fim de jogo, loop, maxDeck, liga, orquestrador…) |
 
 ## Pipeline até produção

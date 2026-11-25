@@ -4,6 +4,8 @@
 // no PROTOCOLO.md).
 //
 // Roda com: node --test game/segurarAnimacoes.test.js
+// Primeiro import: aponta DB_PATH/JWT_SECRET pro temporário antes de o projeto ser carregado.
+import '../tests/helpers/ambiente.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GameController } from './GameController.js';

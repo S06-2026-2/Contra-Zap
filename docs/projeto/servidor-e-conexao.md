@@ -41,7 +41,7 @@ documentado em `conexao/PROTOCOLO.md` (fonte de verdade) com vocabulário em
 | `carteira.js` | fichas/itens/visual: conta no banco, convidado em memória (expira em 6h); `comprarItem`, `equiparItem`, `creditar`, `visualDe` | não |
 | `chat/chat.js` | `montarMensagemChat`: valida tipo `restrita` (id do catálogo) ou `aberta` (texto livre ≤ 200, só com `chatAberto`) | não |
 | `chat/mensagensChat.js` | catálogo de mensagens prontas e `CHAT_COOLDOWN_MS` (3s); **compartilhado com o front** | não |
-| `*.test.js` | unitários de SalaManager, cadastro, login, jwt, limpeza (fora do `npm test`) | — |
+| `*.test.js` | unitários de SalaManager, cadastro, login, jwt, limpeza (rodam no `npm test`) | — |
 
 ## Formato do protocolo (resumo)
 
@@ -90,10 +90,4 @@ documentado em `conexao/PROTOCOLO.md` (fonte de verdade) com vocabulário em
 
 ## Adicionando ou mudando um evento
 
-1. Constante em `conexao/eventos.js` (com comentário de payload).
-2. Handler em `socketServer.js` → lógica em `SalaManager`/módulo sem socket.
-3. Documentar em `conexao/PROTOCOLO.md`.
-4. Canal em `docs/asyncapi.yaml` (e atualizar os números do resumo no
-   cabeçalho — `tests/docs/asyncapi.test.js` cobra cobertura e contagem).
-5. Teste em `tests/api/` (ver skill `.claude/skills/testes/`).
-6. Atualizar esta documentação se o comportamento/arquitetura mudou.
+Siga a skill `.claude/skills/novo-evento/SKILL.md`.

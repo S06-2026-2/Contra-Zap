@@ -66,9 +66,11 @@ public/experimento/  playground visual isolado (Vite próprio, não fala com o s
 public/_intro/     página estática antiga de intro (scripts desativados)
 tests/             testes automatizados (ver testes.md)
 docs/              specs da API (OpenAPI/AsyncAPI), playground (npm run docs) e esta documentação
+docs/apresentacao-agentes/  roteiro e fluxograma da apresentação sobre skills e agentes
 postman/           coleção do /health + guia de exploração do socket.io
 .github/workflows/ CI (ci.yml) e deploy noturno (deploy-noturno.yml)
-.claude/skills/    skills do projeto: testes, devops e find-skills (externa, ver abaixo)
+.claude/skills/    skills do projeto e a externa find-skills (ver abaixo)
+.claude/agents/    subagentes: revisor (ver abaixo)
 skills-lock.json   lock das skills externas instaladas com `npx skills add`
 Dockerfile, docker-compose.yml, diagnostico.sh   infra (ver infra.md)
 ```
@@ -86,18 +88,34 @@ checkpoints versionados), `playwright-report/`, `test-results/`,
 | `npm start` | sobe só o `Server.js` (serve o `public/dist` já buildado) |
 | `npm run dev` (em `public/app`) | Vite na 5173 com proxy de `/socket.io` pra 3000 |
 | `npm run build` (em `public/app`) | gera `public/dist/` |
-| `npm test` | `node --test "tests/**/*.test.js"` (API, bots, docs) |
-| `node --test game/*.test.js conexao/*.test.js` | unitários (fora do `npm test`, ver testes.md) |
+| `npm test` | API, bots, docs, paridade dos motores e unitários (`tests/`, `game/`, `conexao/`); sem Python 3, pula a paridade |
+| `npm run test:unit` | só os unitários de `game/` e `conexao/` |
 | `npm run test:e2e` | Playwright (builda o front e sobe servidor na 3100) |
 | `npm run test:relatorio` | gera `relatorio-testes/index.html` |
 | `npm run docs` | playground/specs da API na 3001 (precisa do jogo de pé na 3000) |
 | `docker compose up --build` | roda em container (antes: `touch banco.sqlite jwt.secret`) |
 | `bash diagnostico.sh` | checa ambiente (Node, porta, volumes…) |
 
-## Skills de agente
+No Windows, se `npm install` falhar procurando Visual Studio, use
+`npm install --ignore-scripts` (os binários nativos já vêm prontos).
 
-Ficam em `.claude/skills/<nome>/SKILL.md`. Duas são do próprio projeto,
-escritas à mão: `testes` e `devops`. As **externas** são instaladas com a
+Só pode haver **um** `Server.js` por porta.
+
+## Skills e agentes
+
+Skills ficam em `.claude/skills/<nome>/SKILL.md`. As do próprio projeto:
+
+| Skill | Para quê |
+|---|---|
+| `testes` | escrever, rodar e depurar testes |
+| `devops` | Docker, CI e deploy |
+| `mudar-regra` | mudar regra do jogo nos dois motores e nas réplicas |
+| `novo-evento` | criar ou mudar evento do protocolo |
+
+Subagentes ficam em `.claude/agents/<nome>.md`. Só há o `revisor`, de leitura;
+como chamar está em "Revisão por agente" no [convencoes.md](convencoes.md).
+
+As skills **externas** são instaladas com a
 CLI `npx skills`, que copia a skill pra `.claude/skills/` e registra origem,
 commit e hash em `skills-lock.json`:
 
@@ -111,12 +129,6 @@ commit e hash em `skills-lock.json`:
   `npx skills update -p`.
 - Leia o `SKILL.md` antes de usar: a skill roda com todas as permissões do
   agente. Skill nova entra na tabela acima.
-
-No Windows, se `npm install` falhar procurando Visual Studio, use
-`npm install --ignore-scripts` (os binários nativos já vêm prontos).
-
-Só pode haver **um** `Server.js` por porta. O `.claude/launch.json` tem as
-configurações `servidor` (3000) e `front-dev` (5173) pro preview.
 
 ## Fluxo de uma partida, ponta a ponta
 

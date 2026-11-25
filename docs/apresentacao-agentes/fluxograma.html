@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contra ZAP: skills e agentes</title>
+<style>
+:root{--fundo:#171b22;--painel:#20262f;--linha:#39424f;--texto:#eef1f5;--fraco:#a3adba;--tem:#58c98b;--org:#f2b84b;--fut:#7fb2ff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fundo);color:var(--texto);font:16px/1.45 "Segoe UI",system-ui,sans-serif}
+main{max-width:1500px;margin:auto;padding:18px 24px}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;margin-bottom:12px}
+h1{font-size:25px;margin:0}
+.etapas{display:flex;flex-wrap:wrap;gap:8px}
+button{font:inherit;color:var(--texto);background:var(--painel);border:2px solid var(--linha);border-radius:6px;padding:7px 14px;cursor:pointer}
+button[aria-pressed=true]{border-color:var(--c);background:color-mix(in srgb,var(--c) 22%,var(--painel))}
+.palco{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:20px;align-items:start}
+.rolagem{overflow-x:auto}
+svg{display:block;width:100%;min-width:720px;height:auto}
+.no{cursor:pointer;transition:opacity .3s}
+.no rect{fill:var(--painel);stroke:var(--c);stroke-width:2}
+.no.org rect{stroke-dasharray:9 4}
+.no.fut rect{stroke-dasharray:3 4}
+.no.sel rect,.no:focus rect{fill:color-mix(in srgb,var(--c) 30%,var(--painel));stroke-width:3}
+.no:focus{outline:none}
+.no text{fill:var(--texto);font-size:16px;font-weight:600;text-anchor:middle}
+.no .sub{fill:var(--fraco);font-size:12.5px;font-weight:400}
+.faixa{fill:#1c2129}
+.rotulo{fill:var(--fraco);font-size:14px;font-weight:600}
+.seta{stroke:#8592a3;stroke-width:2;fill:none;marker-end:url(#p)}
+.volta{stroke:var(--fut);stroke-dasharray:5 5}
+.volta-t{fill:var(--fut);font-size:13px;text-anchor:middle}
+.apagado{opacity:.12;pointer-events:none}
+aside{background:var(--painel);border-radius:8px;padding:18px;border-top:4px solid var(--c);min-height:330px}
+aside h2{margin:0 0 2px;font-size:20px;overflow-wrap:anywhere}
+.est{color:var(--c);font-weight:600}
+pre{background:var(--fundo);padding:12px;border-radius:6px;font:13.5px/1.5 Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+.ja{margin-top:20px;overflow-x:auto}
+h3{font-size:19px;margin:0 0 8px}
+table{width:100%;border-collapse:collapse}
+td,th{text-align:left;padding:7px 10px;border-bottom:1px solid var(--linha);vertical-align:top}
+th{color:var(--fraco);font-weight:600}
+@media(max-width:1000px){.palco{grid-template-columns:minmax(0,1fr)}main{padding:16px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Contra ZAP: como a IA trabalha no projeto</h1>
+  <div class="etapas" id="etapas"></div>
+</header>
+<div class="palco">
+  <div class="rolagem"><svg id="fluxo" viewBox="0 0 1060 784" role="group" aria-label="Fluxo de uma tarefa, do pedido ao deploy"></svg></div>
+  <aside id="painel" aria-live="polite"></aside>
+</div>
+<section class="ja">
+  <h3>O que colocar em prática agora</h3>
+  <table>
+    <tr><th>Ação</th><th>Onde</th><th>Resultado</th></tr>
+    <tr><td>Padronizar: ler antes, instalar no projeto, registrar no lock</td><td><code>AGENTS.md</code></td><td>Todos usam as mesmas skills externas</td></tr>
+    <tr><td>Usar a skill <code>novo-evento</code> em todo evento</td><td><code>.claude/skills/novo-evento/</code></td><td>Evento novo com contrato e testes no passo a passo</td></tr>
+    <tr><td>Usar a skill <code>mudar-regra</code> em toda regra</td><td><code>.claude/skills/mudar-regra/</code></td><td>Motores JS e Python mudam juntos</td></tr>
+    <tr><td>Chamar o subagente <code>revisor</code>, só leitura, ao terminar</td><td><code>.claude/agents/revisor.md</code></td><td>Convenções conferidas antes da revisão humana</td></tr>
+  </table>
+</section>
+</main>
+<script>
+const ESTADOS = {
+  tem: { nome: 'Já temos', cor: 'var(--tem)', ordem: 1 },
+  org: { nome: 'Organizando', cor: 'var(--org)', ordem: 2 },
+  fut: { nome: 'Próximo passo', cor: 'var(--fut)', ordem: 3 },
+};
+const FAIXAS = ['Pedido', 'Contexto', 'Skills: como fazer', 'Agentes: quem faz', 'Conferência', 'Entrega'];
+const NOS = [
+  ['pedido', 0, 'tem', 'Integrante do grupo', 'descreve a tarefa', 'Uma pessoa pede uma mudança e continua responsável pelo resultado.', '"Cria um evento para\no jogador reagir na mesa."'],
+  ['agente', 0, 'tem', 'Agente de IA', 'Claude Code, Codex...', 'Recebe o pedido, lê o contexto, escolhe a skill e executa com ferramentas.', 'ler arquivos → editar → rodar testes'],
+  ['agents', 1, 'tem', 'AGENTS.md', 'regras de todos', 'Regras que o agente lê primeiro. O CLAUDE.md só aponta para cá, então todos os agentes seguem o mesmo texto.', 'game/ sem rede;\nsó conexao/socketServer.js\nconhece socket.io'],
+  ['docs', 1, 'tem', 'docs/projeto/', 'um arquivo por área', 'O agente lê apenas a área da tarefa, sem precisar carregar o projeto inteiro.', 'Mexer em salas?\n→ servidor-e-conexao.md'],
+  ['conv', 1, 'tem', 'convencoes.md', 'pares que andam juntos', 'Diz quais arquivos precisam mudar juntos. O revisor confere; ainda não há checagem automática.', 'game/ mudou?\n→ training/python/motor/ também'],
+  ['testes', 2, 'tem', 'testes', 'nossa', 'Ensina a escrever e depurar testes do jeito do projeto.', 'Não temos API REST:\né socket.io com ack.\nEvento vem de eventos.js.'],
+  ['find', 2, 'tem', 'find-skills', 'externa', 'Ajuda a procurar e avaliar skills prontas. A versão instalada fica registrada no skills-lock.json.', 'npx skills find playwright'],
+  ['devops', 2, 'tem', 'devops', 'nossa', 'Reúne o que é específico da infra do projeto: Docker, CI, deploy e erros conhecidos.', 'Container não sobe?\n→ healthcheck, porta, banco'],
+  ['evento', 2, 'tem', 'novo-evento', 'fluxo socket.io', 'Um passo a passo para criar um evento sem esquecer nenhuma parte.', '1. eventos.js\n2. PROTOCOLO.md\n3. asyncapi.yaml\n4. testes\n5. front'],
+  ['regra', 2, 'tem', 'mudar-regra', 'motor JS + Python', 'Mantém o jogo e o motor de treino com as mesmas regras.', '1. game/\n2. training/python/motor/\n3. testes\n4. regras-do-jogo.md'],
+  ['bot', 2, 'fut', 'treino-bot', 'treinar e avaliar', 'Padroniza o caminho do treino até um modelo no catálogo.', 'treinar → avaliar → exportar\n→ bots/modelosBot.js'],
+  ['principal', 3, 'tem', 'Agente principal', 'faz a tarefa', 'Faz a tarefa e chama o revisor ao terminar. Depois, poderá delegar mais partes a outros subagentes.', 'Hoje: um agente + revisor\nFuturo: mais especialistas'],
+  ['testador', 3, 'fut', 'testador', 'roda e investiga', 'Roda os testes e devolve um resumo das falhas.', 'ferramentas: Read, Grep, Bash'],
+  ['revisor', 3, 'tem', 'revisor', 'só leitura', 'Compara a mudança com as convenções. Não edita nada.', '---\nname: revisor\ndescription: Revisa mudanças\n  conforme convencoes.md\ntools: Read, Grep, Glob\n---'],
+  ['guardiao', 3, 'fut', 'guardiao-docs', 'confere a documentação', 'Aponta documentação que ficou para trás depois de uma mudança.', 'Mudou conexao/eventos.js,\nmas não PROTOCOLO.md'],
+  ['ci', 4, 'tem', 'CI', 'testes, E2E e specs', 'Roda no PR, seja o código feito por pessoa ou por IA.', 'npm test\nPlaywright\nOpenAPI e AsyncAPI'],
+  ['regradoc', 4, 'org', 'Docs com o código', 'regra + teste', 'A regra está no AGENTS.md e um teste confere se os caminhos citados existem. Se o texto está certo, ainda depende de revisão.', 'Mudou comportamento?\n→ atualize docs/projeto/'],
+  ['lock', 4, 'org', 'Skills externas', 'ler, instalar, travar', 'A find-skills sugere instalação global. Nosso padrão é instalar no projeto, depois de ler.', 'npx skills add <repo>\n  --skill <nome>\n  --agent claude-code --copy -y'],
+  ['pares', 4, 'fut', 'Checagem de pares', 'automática no CI', 'Transforma a tabela do convencoes.md em um aviso automático.', 'game/ mudou e o motor Python não?\n→ aviso no PR'],
+  ['pr', 5, 'tem', 'Revisão humana', 'no PR', 'A IA propõe e uma pessoa decide.', 'branch → PR → revisão → main'],
+  ['deploy', 5, 'tem', 'Deploy noturno', 'só com CI verde', 'A main é publicada à noite quando o CI daquele commit passou.', 'main → CI verde → Railway'],
+].map(([id, faixa, est, nome, sub, texto, exemplo]) => ({ id, faixa, est, nome, sub, texto, exemplo }));
+const ETAPAS = [
+  { nome: '1. Já temos', cor: 'var(--tem)', foco: 'agents' },
+  { nome: '2. Organizando', cor: 'var(--org)', foco: 'regradoc' },
+  { nome: '3. Próximos passos', cor: 'var(--fut)', foco: 'bot' },
+];
+const svg = document.getElementById('fluxo');
+const painel = document.getElementById('painel');
+const ALT = 132, X0 = 20, LARG = 950, ALT_NO = 54;
+let html = '<defs><marker id="p" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 8 4 0 8z" fill="#8592a3"/></marker></defs>';
+FAIXAS.forEach((nome, i) => {
+  const y = i * ALT;
+  html += `<rect class="faixa" x="${X0}" y="${y}" width="${LARG}" height="106" rx="8"/><text class="rotulo" x="${X0 + 14}" y="${y + 23}">${nome}</text>`;
+  if (i) html += `<path class="seta" d="M${X0 + LARG / 2} ${y - 25}V${y - 3}"/>`;
+  const nos = NOS.filter(n => n.faixa === i);
+  const larg = Math.min(220, (LARG - 28 - 14 * (nos.length - 1)) / nos.length);
+  const inicio = X0 + (LARG - larg * nos.length - 14 * (nos.length - 1)) / 2;
+  nos.forEach((n, j) => {
+    const x = inicio + j * (larg + 14), yn = y + 39;
+    html += `<g class="no ${n.est}" data-id="${n.id}" role="button" aria-label="${n.nome}: ${ESTADOS[n.est].nome}" style="--c:${ESTADOS[n.est].cor}"><rect x="${x}" y="${yn}" width="${larg}" height="${ALT_NO}" rx="6"/><text x="${x + larg / 2}" y="${yn + 24}">${n.nome}</text><text class="sub" x="${x + larg / 2}" y="${yn + 43}">${n.sub}</text></g>`;
+    if (j && (i === 0 || i === 5)) html += `<path class="seta" d="M${x - 13} ${yn + 27}H${x - 2}"/>`;
+  });
+});
+html += '<g id="volta"><path class="seta volta" d="M970 713H1015V185H973"/><text class="volta-t" transform="translate(1036 449) rotate(90)">erro repetido vira melhoria no contexto e nas skills</text></g>';
+svg.innerHTML = html;
+
+function mostrar(id) {
+  const n = NOS.find(no => no.id === id), e = ESTADOS[n.est];
+  svg.querySelectorAll('.no').forEach(el => el.classList.toggle('sel', el.dataset.id === id));
+  painel.style.setProperty('--c', e.cor);
+  painel.innerHTML = '<h2></h2><div class="est"></div><p></p><strong>Exemplo</strong><pre></pre>';
+  painel.querySelector('h2').textContent = n.nome;
+  painel.querySelector('.est').textContent = e.nome;
+  painel.querySelector('p').textContent = n.texto;
+  painel.querySelector('pre').textContent = n.exemplo;
+}
+function irPara(etapa) {
+  svg.querySelectorAll('.no').forEach(el => {
+    const oculto = ESTADOS[NOS.find(n => n.id === el.dataset.id).est].ordem > etapa;
+    el.classList.toggle('apagado', oculto);
+    el.setAttribute('tabindex', oculto ? -1 : 0);
+  });
+  document.getElementById('volta').classList.toggle('apagado', etapa < 3);
+  document.querySelectorAll('#etapas button').forEach((b, i) => b.setAttribute('aria-pressed', i + 1 === etapa));
+  mostrar(ETAPAS[etapa - 1].foco);
+}
+ETAPAS.forEach((e, i) => {
+  const b = document.createElement('button');
+  b.textContent = e.nome;
+  b.style.setProperty('--c', e.cor);
+  b.onclick = () => irPara(i + 1);
+  document.getElementById('etapas').append(b);
+});
+svg.addEventListener('click', ev => {
+  const no = ev.target.closest('.no');
+  if (no) mostrar(no.dataset.id);
+});
+svg.addEventListener('keydown', ev => {
+  const no = ev.target.closest('.no');
+  if (no && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); mostrar(no.dataset.id); }
+});
+document.addEventListener('keydown', ev => {
+  if (['1', '2', '3'].includes(ev.key) && !ev.ctrlKey && !ev.altKey && !ev.metaKey) irPara(+ev.key);
+});
+irPara(Math.min(3, Math.max(1, +location.hash.slice(1) || 1)));
+</script>
+</body>
+</html>

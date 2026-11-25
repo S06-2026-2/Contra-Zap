@@ -1,6 +1,8 @@
 // jwt.test.js
 // Testes do token de sessão assinado (conexao/jwt.js), isolado de login.js
 // e do banco — só precisa de um objeto { id, nome }.
+// Primeiro import: aponta DB_PATH/JWT_SECRET pro temporário antes de o projeto ser carregado.
+import '../tests/helpers/ambiente.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { emitirToken, verificarToken } from './jwt.js';

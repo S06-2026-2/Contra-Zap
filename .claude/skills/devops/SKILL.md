@@ -1,6 +1,6 @@
 ---
-name: contra-zap-devops
-description: Playbook operacional de DevOps/infra do projeto Contra-Zap (jogo de cartas multiplayer com bots de ML). Use SEMPRE que a tarefa envolver build, teste, debug ou deploy do Contra-Zap — Docker, docker-compose, CI/CD do GitHub Actions, o Dockerfile multi-stage, a versão exigida do Node, o healthcheck, o shutdown gracioso, ou qualquer erro ao subir o container (segfault, EADDRINUSE, ENOENT, exit code 137/139, banco não persiste). Também use para orientar deploy em staging (Railway) e para decisões de arquitetura de infra do projeto. Não é uma skill genérica de Docker — é específica dos gotchas e da estrutura real deste repositório.
+name: devops
+description: Playbook operacional de DevOps/infra do projeto Contra-Zap (jogo de cartas multiplayer com bots de ML). Use SEMPRE que a tarefa envolver build, teste, debug ou deploy do Contra-Zap — Docker, docker-compose, CI/CD do GitHub Actions, o Dockerfile multi-stage, a versão exigida do Node, o healthcheck, o shutdown gracioso, ou qualquer erro ao subir o container (segfault, EADDRINUSE, ENOENT, exit code 137/139, banco não persiste). Também use para orientar deploy no Railway e para decisões de arquitetura de infra do projeto. Não é uma skill genérica de Docker — é específica dos gotchas e da estrutura real deste repositório.
 ---
 
 # Contra-Zap — DevOps Playbook
@@ -25,8 +25,8 @@ falhou pelo menos uma vez.
     própria pasta** (ex.: `conexao/limites.js`, `conexao/chat/mensagensChat.js`)
     para compartilhar regras de validação com o backend. Isso tem
     implicações diretas no Dockerfile (ver seção Build).
-  - `tests/` — suíte E2E via `node --test`, sobe o servidor de verdade
-    (via `criarServidor()`) numa porta efêmera.
+  - `tests/` — `node --test` (API, sobe o `criarServidor()` real numa porta
+    efêmera) e Playwright (`tests/e2e/`). Detalhes na skill `testes`.
 
 ## Requisito crítico: Node ≥ 22
 
@@ -110,8 +110,8 @@ próxima seção) — já aconteceu.
 
 ## Script de diagnóstico automatizado
 
-Antes de seguir o checklist manual abaixo, rode o script empacotado nessa
-skill: `scripts/diagnostico.sh`. Ele checa automaticamente boa parte dos
+Antes de seguir o checklist manual abaixo, rode o `diagnostico.sh` da raiz
+do projeto. Ele checa automaticamente boa parte dos
 pontos que historicamente causaram problema (versão do Node no Dockerfile,
 volumes comentados no compose, `banco.sqlite`/`jwt.secret` virando
 diretório em vez de arquivo, porta 3000 ocupada, build do frontend
@@ -121,11 +121,10 @@ Quando o usuário reportar qualquer erro de Docker/build/container do
 Contra-Zap, sugira rodar isso primeiro, na raiz do projeto:
 
 ```bash
-bash scripts/diagnostico.sh
+bash diagnostico.sh
 ```
 
-(Se o script ainda não estiver copiado pro projeto, copie-o da skill pra
-raiz do repositório antes.) Interprete a saída antes de propor qualquer
+Interprete a saída antes de propor qualquer
 correção manual — na maioria dos casos já aponta a causa direto, evitando
 repetir o processo de tentativa-e-erro documentado no checklist abaixo.
 
@@ -167,8 +166,10 @@ Quando `docker compose up` falhar ou o container ficar reiniciando:
 
 ## CI/CD (GitHub Actions)
 
-Pipeline em `.github/workflows/ci.yml`: `npm test` (Node 22) + build da
-imagem Docker, em paralelo/sequência a cada push/PR pra `main`.
+Pipeline em `.github/workflows/ci.yml`, a cada push/PR pra `main`:
+`docker-build` → `test` (`npm test`, Node 22 e Python 3.12) → `docs` e `e2e` em paralelo.
+O que cada job faz, e por que o `e2e` é fixo em `ubuntu-24.04`, está em
+`docs/projeto/infra.md`.
 
 - Se o CI reportar 0 falhas suspeitosamente rápido, verifique se
   `tests/**/*.test.js` não está sendo ignorado no `.gitignore` — já
@@ -178,14 +179,16 @@ imagem Docker, em paralelo/sequência a cada push/PR pra `main`.
   `arm64` (ver nota sobre `platform:` acima) quebra especificamente aqui,
   mesmo funcionando local no Mac.
 
-## Deploy (staging)
+## Deploy (Railway)
 
-Plano: Railway (plano Hobby, ~$5/mês) em vez de Fly.io/Render — evita
-cold start (ruim pra jogo multiplayer com WebSocket) e não depende mais
-de free tier, que ambos os concorrentes removeram. Variáveis de ambiente
-mínimas a configurar na plataforma: `NODE_ENV=production`,
-`PORT` (a plataforma injeta a dela — `Server.js` já lê de
-`process.env.PORT`, não precisa setar manualmente na maioria dos casos).
+Produção roda no Railway (sem cold start, importante pra WebSocket). O deploy
+é feito por `.github/workflows/deploy-noturno.yml`: toda noite, ou manual, só
+com commit novo e CI verde. Funcionamento e secrets em
+`docs/projeto/infra.md`.
+
+Variável mínima na plataforma: `NODE_ENV=production`. `PORT` é injetada
+pela plataforma e lida pelo `Server.js`. As demais estão na tabela de
+`docs/projeto/infra.md`.
 
 ## Antes de mexer em qualquer um desses arquivos
 

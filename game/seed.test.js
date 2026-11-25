@@ -4,6 +4,8 @@
 // referência). Local, fora do git (ver .gitignore).
 //
 // Roda com: npm test  (node --test)
+// Primeiro import: aponta DB_PATH/JWT_SECRET pro temporário antes de o projeto ser carregado.
+import '../tests/helpers/ambiente.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { criarRng } from './rng.js';

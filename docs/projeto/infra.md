@@ -1,7 +1,7 @@
 # Infra, CI/CD e operação
 
-Gotchas aprofundados em `.claude/skills/devops/devops-playbook.md` e
-`DEV.md` → "Docker", "CI/CD" e "Backlog de operação". Rode
+Gotchas aprofundados em `.claude/skills/devops/SKILL.md` e
+`DEV.md` → "Docker", "CI/CD" e `docs/backlog.md` → "Backlog de operação". Rode
 `bash diagnostico.sh` antes de depurar ambiente.
 
 ## Docker
@@ -36,11 +36,12 @@ cria diretórios).
 | `E2E_SERVIDOR_EXTERNO`, `CI`, `RELATORIO_TELAS` | `playwright.config.js`, testes | controle do E2E/relatório |
 | `DOCS_PORT`, `JOGO_HOST`, `JOGO_PORT` | `docs/servir.js` | servidor da documentação de API |
 | `EVAL_SEED`, `COM_FLAG_APOSTOU`, `COM_MEMORIA_CARTAS` | `training/env_bridge.js` | treino |
+| `PYTHON` | `tests/paridade/motores.test.js` | executável do Python 3 do teste de paridade (opcional) |
 
 ## CI (`.github/workflows/ci.yml`)
 
 Em push/PR para `main`: `docker-build` (imagem exportada como artifact) →
-`test` (`npm ci` + `npm test`, Node 22) → em paralelo `docs` (lint OpenAPI
+`test` (`npm ci` + `npm test`, Node 22 e Python 3.12) → em paralelo `docs` (lint OpenAPI
 com Redocly, validação AsyncAPI, sobe o servidor e roda Newman na coleção do
 Postman) e `e2e` (roda a imagem com `NODE_ENV=test`, banco temporário e rate
 limits altos na porta 3100; Playwright com `E2E_SERVIDOR_EXTERNO=true`).

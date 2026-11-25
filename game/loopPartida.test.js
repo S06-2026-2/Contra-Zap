@@ -5,6 +5,8 @@
 // eventos saem na mesma cadência de antes, e destruir() no meio para tudo.
 //
 // Roda com: npm test  (node --test)
+// Primeiro import: aponta DB_PATH/JWT_SECRET pro temporário antes de o projeto ser carregado.
+import '../tests/helpers/ambiente.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as sleep } from 'node:timers/promises';

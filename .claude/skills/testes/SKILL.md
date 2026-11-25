@@ -1,6 +1,6 @@
 ---
 name: testes
-description: Escrever, rodar e depurar os testes automatizados do Contra ZAP — testes de API do protocolo socket.io (tests/api/) e, mais pra frente, E2E de navegador. Use ao criar teste novo, ao investigar teste que falha ou fica intermitente, ao mexer em conexao/ ou game/ (que exige atualizar o contrato testado), ou ao adicionar/alterar um evento do PROTOCOLO.md.
+description: Escrever, rodar e depurar os testes automatizados do Contra ZAP — API do protocolo socket.io (tests/api/), E2E de navegador com Playwright (tests/e2e/) e unitários (game/ e conexao/). Use ao criar teste novo, ao investigar teste que falha ou fica intermitente, ao mexer em conexao/ ou game/ (que exige atualizar o contrato testado), ou ao adicionar/alterar um evento do PROTOCOLO.md.
 ---
 
 # Testes do Contra ZAP
@@ -45,6 +45,9 @@ tests/
     mesaGrande.test.js   -> o bot não abandona a rede em mesa de 5/6 (vigia o console.warn)
   docs/
     asyncapi.test.js     -> a spec cobre o protocolo inteiro (sem servidor, sem socket)
+    agentes.test.js      -> skills têm SKILL.md e a doc de agentes só cita arquivos que existem
+  paridade/
+    motores.test.js      -> as mesmas partidas no motor JS e no Python (precisa de Python 3)
   e2e/                     (Playwright — navegador de verdade; fora do `npm test`)
     fixtures.js          -> Jogador: contexto isolado + login + criarSala/apostar/jogar pela UI
                             (tela inicial/PopupLogin -> Lobby arcade -> mesa do meetfront2)
@@ -52,6 +55,8 @@ tests/
     sala.spec.js         -> 2 jogadores reais: roster nas duas telas, forçar início, sair
     partida.spec.js      -> 1 humano + 1 bot: mão, aposta só na vez, carta sai da mão
     reconexao.spec.js    -> F5 volta pro jogo; banner de rede
+game/*.test.js, conexao/*.test.js -> unitários (também no `npm test`); o primeiro
+                      import é `tests/helpers/ambiente.js`, que isola o banco
 playwright.config.js -> sobe o Server.js na 3100 com banco temporário
 postman/           -> coleção do /health + guia de exploração manual do socket.io
 docs/              -> openapi.yaml (2 rotas HTTP) + asyncapi.yaml (51 eventos)
@@ -64,8 +69,9 @@ escrever helper novo, quase sempre já existe o que você precisa.
 ## Rodar
 
 ```
-npm test              # tudo
+npm test              # tudo, menos E2E
 npm run test:api      # só tests/api/
+npm run test:unit     # só game/ e conexao/
 npm run test:watch    # re-roda ao salvar
 node --test tests/api/salas.test.js                    # um arquivo
 node --test --test-name-pattern="SALA_CHEIA" tests/api/ # um teste
@@ -190,19 +196,8 @@ Três métodos cobrem quase tudo:
 
 ## Ao mexer no protocolo
 
-Mudou/adicionou evento em `conexao/`? Na mesma mudança:
-
-1. `conexao/eventos.js` — o nome e o comentário do payload.
-2. `conexao/PROTOCOLO.md` — payload, pré-condição, ack de sucesso e **todos**
-   os erros possíveis.
-3. `tests/api/` — o caminho feliz e cada código de erro novo.
-4. `docs/asyncapi.yaml` — o canal, a operação e o schema do payload. O CI
-   valida a *forma*; a *cobertura* é travada por
-   `tests/docs/asyncapi.test.js`, que compara os nomes de `eventos.js` com
-   os canais da spec nos dois sentidos. Esqueceu o canal? `npm test` acusa,
-   apontando o evento pelo nome.
-5. `postman/README.md` e o catálogo `EVENTOS` em `docs/index.html` — a linha
-   na tabela de payloads, se for evento de cliente.
+Mudou ou adicionou evento em `conexao/`? O passo a passo completo está na
+skill `novo-evento`.
 
 Se o teste e o `PROTOCOLO.md` discordarem, **um dos dois é bug** — descubra
 qual antes de mudar o teste pra passar. (Foi assim que apareceu o

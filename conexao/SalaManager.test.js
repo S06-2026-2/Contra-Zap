@@ -1,6 +1,8 @@
 // SalaManager.test.js
 // Testes do degrau 1: só a camada de sala, sem nenhum socket envolvido.
 // Roda com o test runner nativo do Node: `npm test` (ou `node --test`).
+// Primeiro import: aponta DB_PATH/JWT_SECRET pro temporário antes de o projeto ser carregado.
+import '../tests/helpers/ambiente.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as esperar } from 'node:timers/promises';

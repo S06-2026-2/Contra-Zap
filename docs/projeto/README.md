@@ -29,8 +29,11 @@ assunto. A documentação deste diretório **aponta** pra eles em vez de copiar:
 - `conexao/eventos.js` — vocabulário do protocolo (nomes de evento e códigos de erro).
 - `docs/asyncapi.yaml` / `docs/openapi.yaml` — specs formais (validadas no CI).
 - `README.md` — como rodar o projeto.
-- `DEV.md` — workflow de front, treino, backlog e o que falta fazer.
+- `DEV.md` — workflow de front, Docker, CI e treino.
+- `docs/backlog.md` — bugs, pendências e o que falta fazer.
 - `.claude/skills/testes/` — como escrever e depurar testes (convenções e armadilhas).
-- `.claude/skills/devops/devops-playbook.md` — gotchas de Docker/CI/deploy.
-- `.claude/skills/find-skills/` — skill externa (via `npx skills`, travada em `skills-lock.json`) pra procurar e instalar outras skills; ver "Skills de agente" em [visao-geral.md](visao-geral.md).
+- `.claude/skills/devops/SKILL.md` — gotchas de Docker/CI/deploy.
+- `.claude/skills/mudar-regra/` e `.claude/skills/novo-evento/` — passo a passo das mudanças que atravessam várias áreas.
+- `.claude/agents/revisor.md` — subagente de leitura que confere a mudança contra as convenções.
+- `.claude/skills/find-skills/` — skill externa (via `npx skills`, travada em `skills-lock.json`) pra procurar e instalar outras skills; ver "Skills e agentes" em [visao-geral.md](visao-geral.md).
 - `postman/README.md` — exploração manual do protocolo.

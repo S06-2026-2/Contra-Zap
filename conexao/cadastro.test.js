@@ -1,13 +1,14 @@
 // cadastro.test.js
 // Testes de conexao/cadastro.js. Nomes únicos por teste (randomUUID) porque
-// banco.sqlite persiste entre execuções — sem isso, rodar `npm test` duas
-// vezes faria o segundo cadastro de cada teste colidir com o primeiro.
+// os testes deste arquivo compartilham o mesmo banco temporário.
 //
 // cadastrar()/login() são assíncronas desde o item 4 do backlog de segurança
 // (bcrypt nativo assíncrono, ver conexao/db.js) — inclusive quando o erro é
 // de validação pura (nome/senha curtos): uma função `async` sempre devolve
 // Promise, então até um `throw` síncrono lá dentro vira rejeição — todo
 // `assert.throws` virou `assert.rejects`.
+// Primeiro import: aponta DB_PATH/JWT_SECRET pro temporário antes de o projeto ser carregado.
+import '../tests/helpers/ambiente.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';

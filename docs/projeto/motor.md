@@ -102,6 +102,5 @@ constantes do front.
 ## Testes do motor
 
 `game/*.test.js` (fim de jogo, loop, maxDeck, PlayerGame, seed, segurar
-animações). **Não rodam no `npm test`** — rodar com
-`node --test game/*.test.js`. `seed.test.js` pina a mesma distribuição que
+animações). Rodam no `npm test`; só os unitários: `npm run test:unit`. `seed.test.js` pina a mesma distribuição que
 `training/python/test_seed.py` (seed 999).

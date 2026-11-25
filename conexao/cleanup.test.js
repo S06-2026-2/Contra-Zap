@@ -1,7 +1,8 @@
 // cleanup.test.js — teardown de sala / poda de memória (grupo 4 do README).
-// Local, fora do git (ver .gitignore) — mesma política dos outros testes.
 //
 // Roda com: npm test  (node --test)
+// Primeiro import: aponta DB_PATH/JWT_SECRET pro temporário antes de o projeto ser carregado.
+import '../tests/helpers/ambiente.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as sleep } from 'node:timers/promises';

@@ -25,6 +25,9 @@ exige. Em versões anteriores o servidor trava com segfault na primeira
 operação de banco, sem erro claro. Confira com `node -v` (ou use o Docker,
 que não depende da sua versão local).
 
+Python 3 é opcional: sem ele, `npm test` pula a paridade entre os motores JS e
+Python (no CI, falha).
+
 ### Windows: `npm install` falhando com "Could not find any Visual Studio installation"
 
 Se o `npm install` morrer com `gyp ERR! find VS` / `node-gyp rebuild`, **não é
@@ -79,7 +82,8 @@ Saúde do servidor: `curl http://localhost:3000/health`.
 ## Testes
 
 ```
-npm test              # API, bots e contrato — ~280 testes, ~30s
+npm test              # API, bots, docs, paridade e unitários — ~400 testes, ~30s
+npm run test:unit     # só os unitários de game/ e conexao/
 npm run test:e2e      # E2E no navegador — 19 testes, ~40s
 npm run test:watch    # re-roda a cada arquivo salvo
 ```
@@ -172,4 +176,5 @@ GameStart.js  atalho: instala + builda + sobe, tudo de uma vez
 
 - **`conexao/PROTOCOLO.md`** — todos os eventos socket.io, payloads e erros.
 - **`DEV.md`** — workflow de front (Vite), ferramentas de debug, treino de
-  bot, backlog técnico e o que ainda falta.
+  bot.
+- **`docs/backlog.md`** — bugs, pendências e o que ainda falta.

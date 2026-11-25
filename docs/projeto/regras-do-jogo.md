@@ -2,7 +2,8 @@
 
 Regras como estão implementadas hoje (fonte de verdade: `game/`). Se mudar
 uma regra aqui no código, mude também o motor Python
-(`training/python/motor/`) — ver [convencoes.md](convencoes.md).
+(`training/python/motor/`) — siga a skill
+`.claude/skills/mudar-regra/SKILL.md` e ver [convencoes.md](convencoes.md).
 
 ## Baralho
 
@@ -48,19 +49,21 @@ uma regra aqui no código, mude também o motor Python
 - Cada jogador, em ordem, aposta quantas vazas vai fazer (`0..cartas`).
 - O **último a apostar não pode** escolher o valor que faz a soma das apostas
   ser igual ao número de cartas (`APOSTA_FECHA_RODADA`) — alguém sempre erra.
+  Não vale na rodada de 1 carta.
 - Fim da rodada: cada um perde `|aposta − vazas feitas|` de hp.
 
 ## Rodada de 1 carta ("testa" / rodada cega)
 
 Com 1 carta na mão, cada jogador **não vê a própria carta** mas vê a de todos
-os outros (`maosReveladas`, privado por destinatário). A aposta é 0 ou 1.
+os outros (`maosReveladas`, privado por destinatário). A aposta é 0 ou 1,
+e o último a apostar pode fechar a soma.
 
 ## Eliminação e fim
 
 - Ao fim de cada rodada, quem tem `hp ≤ 0` é eliminado.
 - Sobrou 1 vivo → ele vence. **Todos morreram na mesma rodada** → vence quem
   ficou com hp mais perto de 0; empate → quem veio antes na ordem da rodada
-  (critério **provisório**, ver `DEV.md` → PIN).
+  (critério **provisório**, ver `docs/backlog.md` → PIN).
 - Colocações rendem **fichas** (moeda da loja de customização) só pra conta
   registrada — ver `conexao/loja.js`.
 

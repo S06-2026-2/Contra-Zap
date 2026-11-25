@@ -1,7 +1,8 @@
 // maxDeck.test.js — teto de baralhos por rodada (item 17 do README).
-// Local, fora do git (ver .gitignore) — mesma política dos testes de conexao.
 //
 // Roda com: npm test  (node --test)
+// Primeiro import: aponta DB_PATH/JWT_SECRET pro temporário antes de o projeto ser carregado.
+import '../tests/helpers/ambiente.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Game, MAX_DECK_SEM_LIMITE } from './Game.js';
