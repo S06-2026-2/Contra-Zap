@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contra ZAP: skills e agentes, parte 2</title>
+<style>
+:root{--fundo:#171b22;--painel:#20262f;--linha:#39424f;--texto:#eef1f5;--fraco:#a3adba;--tem:#58c98b;--org:#f2b84b;--fut:#7fb2ff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fundo);color:var(--texto);font:16px/1.45 "Segoe UI",system-ui,sans-serif}
+main{max-width:1500px;margin:auto;padding:18px 24px}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;margin-bottom:6px}
+h1{font-size:25px;margin:0}
+.etapas{display:flex;flex-wrap:wrap;gap:8px}
+button{font:inherit;color:var(--texto);background:var(--painel);border:2px solid var(--linha);border-radius:6px;padding:7px 14px;cursor:pointer;text-align:left}
+.etapas button[aria-pressed=true]{border-color:var(--c);background:color-mix(in srgb,var(--c) 22%,var(--painel))}
+button:focus-visible{outline:3px solid var(--texto);outline-offset:2px}
+.lema{color:var(--fraco);margin:0 0 16px;font-size:18px}
+.palco{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:20px;align-items:start}
+.colunas{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.coluna{background:#1c2129;border-radius:8px;padding:12px}
+h2{font-size:16px;color:var(--fraco);margin:0 0 10px}
+.cartao{display:block;width:100%;margin-top:10px;border-color:var(--c);padding:10px 12px}
+.cartao.org{border-style:dashed}
+.cartao.fut{border-style:dotted}
+.cartao[aria-pressed=true]{background:color-mix(in srgb,var(--c) 28%,var(--painel))}
+.cartao b{display:block}
+.cartao span{color:var(--fraco);font-size:14px}
+.cartao .num{font-size:34px;line-height:1.1;color:var(--c);font-weight:700}
+aside{background:var(--painel);border-radius:8px;padding:18px;border-top:4px solid var(--c);min-height:300px;position:sticky;top:16px}
+aside h3{margin:0 0 2px;font-size:20px;overflow-wrap:anywhere}
+.est{color:var(--c);font-weight:600}
+pre{background:var(--fundo);padding:12px;border-radius:6px;font:13.5px/1.5 Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+footer{color:var(--fraco);font-size:14px;margin-top:18px}
+@media(max-width:1000px){.palco{grid-template-columns:minmax(0,1fr)}main{padding:16px}aside{position:static;min-height:0}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Contra ZAP: o que mudou e para onde vamos</h1>
+  <div class="etapas" id="etapas"></div>
+</header>
+<p class="lema" id="lema"></p>
+<div class="palco">
+  <div class="colunas" id="colunas"></div>
+  <aside id="painel" aria-live="polite"></aside>
+</div>
+<footer>Retrato de 2026-11-25, branch NewSkills. O roadmap é proposta: o grupo decide.</footer>
+</main>
+<script>
+const ESTADOS = {
+  tem: { nome: 'Pronto', cor: 'var(--tem)' },
+  org: { nome: 'Pronto, com limite conhecido', cor: 'var(--org)' },
+  fut: { nome: 'Proposta', cor: 'var(--fut)' },
+};
+// Cada cartão: [estado, título, resumo, explicação, exemplo, número em destaque]
+const ETAPAS = [
+  {
+    nome: '1. O que mudou', cor: 'var(--tem)',
+    lema: 'Na primeira apresentação, boa parte era plano. Agora está no repositório.',
+    colunas: [
+      ['Skills: como fazer', [
+        ['tem', 'devops', 'agora é reconhecida', 'O conteúdo existia, mas o nome do arquivo impedia a skill de carregar.', 'devops-playbook.md\n→ SKILL.md'],
+        ['tem', 'novo-evento', 'fluxo socket.io', 'Passo a passo para criar ou mudar um evento sem esquecer nenhuma parte.', 'eventos.js → PROTOCOLO.md\n→ asyncapi.yaml → testes → front'],
+        ['tem', 'mudar-regra', 'motor JS + Python', 'Mantém o jogo e o treino com as mesmas regras.', 'game/ → training/python/motor/\n→ testes → regras-do-jogo.md'],
+        ['org', 'backlog', 'antes, durante e depois', 'Consulta a lista antes de agir, oferece itens vizinhos e tira só o que foi verificado. Ainda não passou por uma tarefa real.', 'item vizinho → oferece\nnunca junta sozinha'],
+      ]],
+      ['Agente: quem faz', [
+        ['org', 'revisor', 'só leitura', 'Compara a mudança com as convenções. Não roda testes: depende do resultado que recebe.', 'tools: Read, Grep, Glob'],
+      ]],
+      ['Conferência: quem prova', [
+        ['tem', 'Paridade dos motores', 'JS × Python', 'Joga as mesmas partidas nos dois motores e compara passo a passo.', 'npm test\n→ tests/paridade/motores.test.js'],
+        ['tem', 'Documentação como teste', 'caminhos e formato', 'Skill sem SKILL.md ou caminho citado que não existe quebra o teste.', 'tests/docs/agentes.test.js'],
+        ['tem', 'Unitários no npm test', 'game/ e conexao/', 'Antes ficavam de fora. Agora rodam com banco isolado.', 'import tests/helpers/ambiente.js'],
+        ['tem', 'Backlog separado', 'docs/backlog.md', 'Saiu do DEV.md, que ficou só com os guias, e foi conferido contra o código.', 'DEV.md: guias\ndocs/backlog.md: o que falta'],
+      ]],
+    ],
+  },
+  {
+    nome: '2. O que já provou valor', cor: 'var(--org)',
+    lema: 'A gente tentou enganar as ferramentas antes de confiar nelas.',
+    colunas: [
+      ['Revisor', [
+        ['tem', 'problemas plantados achados', 'sem nenhuma pista', 'Mudamos a regra da vaza melada só no JS. Os testes da época passaram inteiros; ele apontou o que esquecemos.', 'motor Python com a regra antiga\nfalta de teste nos dois lados\nregras-do-jogo.md falso', '3 de 3'],
+      ]],
+      ['Paridade', [
+        ['tem', 'partidas divergiam', 'na primeira execução', 'Na rodada de 1 carta, o motor Python proibia o último a apostar de fechar a soma. O jogo permite. Corrigido.', 'JS:     aposta 0 aceita\nPython: aposta 0 recusada', '16 de 150'],
+        ['tem', 'regras erradas pegas', 'nos dois motores', 'Aplicamos um erro de regra por vez, em game/ e no motor Python, e desfizemos depois.', 'melada, manilha, desempate,\nvida inicial, maxDeck...', '15 de 15'],
+      ]],
+      ['Backlog', [
+        ['tem', 'itens com caixinha', 'mais claro, não pior', 'Relatos vagos viraram bugs separados e entraram os que só estavam no relatório de 28/10.', '"timer bugado"\n→ 3 itens com arquivo e suspeita', '25 → 40'],
+      ]],
+      ['Limites', [
+        ['org', 'Ainda sem CI real', 'Linux, Node 22, Python 3.12', 'Tudo rodou em Windows com Node 24. O primeiro PR mostra o resto.', 'abrir PR → ver CI'],
+        ['org', 'Fora da paridade', 'só existe no JS', 'Desistência, timeout, bots e reconexão não têm par no Python. As máscaras do treino também ficam de fora.', 'máscara do treino ainda proíbe\na aposta que o jogo permite'],
+        ['org', 'Sintomas não reproduzidos', 'bugs visuais', 'O código dos itens numerados foi relido, mas ninguém reviu os bugs na tela.', 'docs/backlog.md\n→ Testes a fazer'],
+      ]],
+    ],
+  },
+  {
+    nome: '3. Roadmap possível', cor: 'var(--fut)',
+    lema: 'São propostas. O grupo decide a ordem e o que entra.',
+    colunas: [
+      ['Agora', [
+        ['fut', 'Abrir o PR', 'e ver o CI', 'Primeira execução da paridade e dos unitários no ambiente do CI.', 'branch → PR → CI → revisão'],
+        ['fut', 'Skills numa tarefa real', 'contagem da sala de espera', 'Bug 3.1: muda o protocolo e tem vizinhos. Testa backlog, novo-evento e revisor juntos.', 'alguém sai da sala cheia\n→ a contagem não para'],
+        ['fut', 'Testes manuais', 'lista pronta', 'O que só uma pessoa na tela ou no celular confirma.', 'docs/backlog.md\n→ Testes a fazer'],
+      ]],
+      ['Depois', [
+        ['fut', 'Testes Python no CI', 'os do motor', 'Só usam a biblioteca padrão, como a paridade.', 'python -m unittest\n  test_seed test_motor_loop ...'],
+        ['fut', 'Retreino da rodada cega', 'com a máscara corrigida', 'Os bots treinam sem uma jogada que o jogo permite. Corrigir muda o treino.', 'env_bridge.js\nharness_nativo.py\nharness_round1.py'],
+        ['fut', 'Skill treino-bot', 'treinar e avaliar', 'Padroniza o caminho do treino até o catálogo.', 'treinar → avaliar → exportar\n→ bots/modelosBot.js'],
+        ['fut', 'Aviso de pares no PR', 'os outros pares', 'A paridade cobre as regras. Faltam os pares de arquivos que só a revisão confere.', 'evento mudou,\nPROTOCOLO.md não → aviso'],
+      ]],
+      ['Mais adiante', [
+        ['fut', 'testador', 'se fizer falta', 'Subagente que roda os testes e resume as falhas.', 'Read, Grep, Bash'],
+        ['fut', 'guardiao-docs', 'se fizer falta', 'Subagente para documentação que ficou para trás. Hoje o revisor e o teste cobrem parte disso.', 'só criar com erro repetido'],
+      ]],
+      ['O grupo decide', [
+        ['fut', 'Nome de evento no front', 'string ou import?', 'O AGENTS.md proíbe string, mas o front inteiro usa.', 'mudar o front\nou mudar a regra'],
+        ['fut', 'Instalação da find-skills', 'global ou no projeto?', 'A skill sugere instalar global e sem confirmar. Nosso padrão é no projeto, depois de ler.', 'npx skills add ... -g -y\n×\n--agent claude-code --copy -y'],
+        ['fut', 'Desempate final', 'critério provisório', 'Quando todos morrem juntos, vence a vida mais perto de 0; persistindo, quem vem antes na ordem.', 'docs/backlog.md → PIN'],
+      ]],
+    ],
+  },
+];
+const $ = id => document.getElementById(id);
+function criar(tag, classe, texto) {
+  const el = document.createElement(tag);
+  if (classe) el.className = classe;
+  if (texto) el.textContent = texto;
+  return el;
+}
+function mostrar([est, titulo, , texto, exemplo, numero], botao) {
+  document.querySelectorAll('.cartao').forEach(b => b.setAttribute('aria-pressed', b === botao));
+  const painel = $('painel');
+  painel.style.setProperty('--c', ESTADOS[est].cor);
+  painel.replaceChildren(
+    criar('h3', '', numero ? `${numero} ${titulo}` : titulo),
+    criar('div', 'est', ESTADOS[est].nome),
+    criar('p', '', texto),
+    criar('strong', '', 'Exemplo'),
+    criar('pre', '', exemplo),
+  );
+}
+function irPara(n) {
+  const etapa = ETAPAS[n - 1];
+  $('lema').textContent = etapa.lema;
+  document.querySelectorAll('#etapas button').forEach((b, i) => b.setAttribute('aria-pressed', i + 1 === n));
+  $('colunas').replaceChildren(...etapa.colunas.map(([nome, cartoes]) => {
+    const coluna = criar('section', 'coluna');
+    coluna.append(criar('h2', '', nome));
+    cartoes.forEach(cartao => {
+      const [est, titulo, resumo, , , numero] = cartao;
+      const botao = criar('button', `cartao ${est}`);
+      botao.type = 'button';
+      botao.style.setProperty('--c', ESTADOS[est].cor);
+      if (numero) botao.append(criar('b', 'num', numero));
+      botao.append(criar('b', '', titulo), criar('span', '', resumo));
+      botao.onclick = () => mostrar(cartao, botao);
+      coluna.append(botao);
+    });
+    return coluna;
+  }));
+  mostrar(etapa.colunas[0][1][0], document.querySelector('.cartao'));
+}
+ETAPAS.forEach((etapa, i) => {
+  const botao = criar('button', '', etapa.nome);
+  botao.type = 'button';
+  botao.style.setProperty('--c', etapa.cor);
+  botao.onclick = () => irPara(i + 1);
+  $('etapas').append(botao);
+});
+document.addEventListener('keydown', ev => {
+  if (['1', '2', '3'].includes(ev.key) && !ev.ctrlKey && !ev.altKey && !ev.metaKey) irPara(+ev.key);
+});
+irPara(Math.min(3, Math.max(1, +location.hash.slice(1) || 1)));
+</script>
+</body>
+</html>

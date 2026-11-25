@@ -34,6 +34,9 @@ ler tudo.
 Verificado é ter teste que passa ou reprodução que deixou de ocorrer. "O código
 parece certo" não basta. Na dúvida, fica.
 
+Há teste do assunto em "Testes a fazer"? Feito e aprovado, remova; falhou, anote
+no item do bug como reproduzir. Teste na tela ou no aparelho é da pessoa.
+
 ## 3. Achado novo, fora do escopo
 
 Só entra problema com evidência; ideia de melhoria sem pedido não entra. Confira

@@ -1,5 +1,7 @@
 # Roteiro — skills e agentes no Contra ZAP
 
+Continuação, com o que mudou e o roadmap: `roteiro-2.md`.
+
 3 pessoas, cerca de 2 min cada. Abra o `fluxograma.html`: as teclas **1, 2 e 3**
 trocam a etapa, e clicar numa caixa mostra o exemplo dela.
 

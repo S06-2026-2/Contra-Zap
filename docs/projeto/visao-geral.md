@@ -66,7 +66,7 @@ public/experimento/  playground visual isolado (Vite próprio, não fala com o s
 public/_intro/     página estática antiga de intro (scripts desativados)
 tests/             testes automatizados (ver testes.md)
 docs/              specs da API (OpenAPI/AsyncAPI), playground (npm run docs) e esta documentação
-docs/apresentacao-agentes/  roteiro e fluxograma da apresentação sobre skills e agentes
+docs/apresentacao-agentes/  roteiros e fluxogramas das apresentações sobre skills e agentes (`-2` é a continuação)
 postman/           coleção do /health + guia de exploração do socket.io
 .github/workflows/ CI (ci.yml) e deploy noturno (deploy-noturno.yml)
 .claude/skills/    skills do projeto e a externa find-skills (ver abaixo)

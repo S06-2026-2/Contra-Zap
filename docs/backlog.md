@@ -6,6 +6,74 @@ Bugs, pendências e ideias em aberto. Guias de desenvolvimento ficam no
 
 ---
 
+## Testes a fazer
+
+Passou: remova daqui e, se for a confirmação de uma correção, o item do bug
+também. Falhou: anote no item do bug como reproduzir (ou crie o item). Números
+como 4.2 são de `docs/relatorio-bugs-dev.md`.
+
+### Na tela (PC)
+
+- [ ] **Destruição da mesa** — partida longa, 14 manilhas ou mais. Esperado: a
+      cratera não cobre a vira, o baralho, as cartas nem os assentos.
+- [ ] **Ouros** (4.2) — jogar a manilha de Ouros em janela de 1440×900.
+      Esperado: picareta e clarão no lugar, escurecido na tela inteira.
+- [ ] **Colisão da manilha** (4.3) — manilha sobre várias cartas. Esperado: todas
+      reagem e a manilha pousa por cima.
+- [ ] **Animações contra manilha** — manilha contra manilha. Esperado: descrever
+      o que sai errado, hoje o item não diz.
+- [ ] **Carta na 1ª rodada** (5.3) — rodada cega. Esperado: dá para ler as cartas
+      dos outros, sem a barra do nome por cima.
+- [ ] **Eliminado** (5.1) — morrer com a partida seguindo. Esperado: seu card fica
+      na mesa e algo avisa que você está assistindo.
+- [ ] **Vitória** — não ser o adm e não ter convite. Esperado: "Voltar às salas"
+      funciona e a Lobby não oferece RECONECTAR.
+- [ ] **Revanche** — o adm cria e desfaz a sala antes de você aceitar. Esperado:
+      mensagem clara.
+
+### Sala de espera e reconexão (2 navegadores)
+
+- [ ] **Contagem** (3.1) — encher a sala e um sair. Esperado: a contagem para.
+- [ ] **Queda de rede na espera** (3.2) — cortar a rede e voltar. Esperado: volta
+      ao assento ou é avisado.
+- [ ] **F5 na espera** (3.6) — esperado: volta à sala ou é avisado.
+- [ ] **F5 no seu turno** (3.4) — esperado: o timer volta com o tempo restante.
+- [ ] **Queda no meio da partida** (3.3) — esperado: o pavio e a vez certos.
+
+### No celular
+
+- [ ] **Destruição da mesa** — o mesmo teste do PC.
+- [ ] **Deitado** (5.5) — esperado: Apostar e a mão visíveis.
+- [ ] **5 e 6 jogadores** (5.4) — esperado: cartas dentro da borda.
+- [ ] **Toque na carta** (5.7) — esperado: a carta não fica inflada depois do toque.
+- [ ] **Espera** (3.5) — esperado: "SAIR DA FILA" sem cobrir "SALA".
+
+### CI e produção
+
+- [ ] **PR da `NewSkills`** — esperado: `npm test` verde no Linux, Node 22 e
+      Python 3.12, com a paridade **executada** (não pulada) e dentro do tempo.
+- [ ] **Unitários instáveis** — rodar `npm run test:unit` 10 vezes. Esperado:
+      nenhuma falha (`cleanup.test.js` e `loopPartida.test.js` dependem de tempo).
+- [ ] **E2E** — `npm run test:e2e` nesta branch.
+- [ ] **Socket no Railway** — duas pessoas em redes diferentes, uma partida
+      inteira. Passou: sai o item de subir num ambiente de verdade.
+
+### Skills e agentes
+
+- [ ] **`backlog`** — pedir o bug 3.1. Esperado: acha o item, oferece os vizinhos
+      sem juntar e só remove com verificação.
+- [ ] **`novo-evento`** — pelo mesmo bug, que muda o protocolo. Esperado:
+      `PROTOCOLO.md`, `asyncapi.yaml`, testes e front na mesma mudança.
+- [ ] **`mudar-regra`** — pedir uma regra pequena e desfazer. Esperado: muda os
+      dois motores e a paridade fica verde.
+- [ ] **`revisor` em diff grande e misturado** — plantar um erro. Esperado: acha.
+- [ ] **Agente sem subagentes** — outra ferramenta seguindo o `AGENTS.md`.
+      Esperado: usa o `revisor.md` como checklist.
+- [ ] **Apresentações** — abrir `docs/apresentacao-agentes/fluxograma.html` e
+      `fluxograma-2.html`: teclas 1 a 3, cliques e celular.
+
+---
+
 ## O que falta fazer
 
 Legenda: 🔴 atrapalha jogar / bug · 🟡 falta informação, robustez · 🟢 polimento.
