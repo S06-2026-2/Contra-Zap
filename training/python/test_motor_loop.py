@@ -57,5 +57,24 @@ class LoopDaPartida(unittest.TestCase):
             self.assertEqual(rodadas, list(range(1, p.numero_rodada + 1)))
 
 
+class UltimoAApostar(unittest.TestCase):
+    def apostar(self, cartas, anteriores, ultima):
+        p = Partida(number_players=len(anteriores) + 1, round_start=cartas, seed=1)
+        g = p.jogar()
+        next(g)
+        for valor in anteriores:
+            g.send(valor)
+        return g.send(ultima)
+
+    def test_rodada_de_1_carta_pode_fechar_a_soma(self):
+        self.assertEqual(self.apostar(1, [0, 0], 1)[0], "carta")
+        self.assertEqual(self.apostar(1, [1, 0], 0)[0], "carta")
+
+    def test_rodada_de_2_cartas_nao_pode_fechar_a_soma(self):
+        with self.assertRaises(ValueError):
+            self.apostar(2, [1, 0], 1)
+        self.assertEqual(self.apostar(2, [1, 0], 0)[0], "carta")
+
+
 if __name__ == "__main__":
     unittest.main()

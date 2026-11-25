@@ -21,7 +21,7 @@ export const AREAS = [
     {
         nome: 'Regras do jogo',
         promessa: 'Mão, manilha, apostas, vazas e fim de jogo seguem as regras em toda partida, no ritmo das animações.',
-        arquivos: ['tests/api/partida.test.js', 'tests/api/segurarAnimacoes.test.js', 'tests/e2e/partida.spec.js'],
+        arquivos: ['tests/api/partida.test.js', 'tests/api/segurarAnimacoes.test.js', 'tests/paridade/motores.test.js', 'tests/e2e/partida.spec.js'],
     },
     {
         nome: 'Reconexão',
@@ -51,7 +51,7 @@ export const AREAS = [
     {
         nome: 'Operação e documentação',
         promessa: 'Health check para monitoramento e documentação da API sempre fiel ao protocolo real.',
-        arquivos: ['tests/api/health.test.js', 'tests/docs/asyncapi.test.js'],
+        arquivos: ['tests/api/health.test.js', 'tests/docs/asyncapi.test.js', 'tests/docs/agentes.test.js'],
     },
 ];
 
@@ -69,7 +69,7 @@ export const MODULOS = {
 // por elas. Atualizar aqui quando o CI ganhar ou perder um job.
 export const PIPELINE = [
     { nome: 'Build', detalhe: 'A imagem Docker de produção é montada do zero.' },
-    { nome: 'Testes automatizados', detalhe: 'Toda a suíte de API, bots e documentação roda contra o servidor real.' },
+    { nome: 'Testes automatizados', detalhe: 'As suítes de API, bots, documentação, paridade dos motores e unitários rodam a cada alteração.' },
     { nome: 'Contrato da API', detalhe: 'OpenAPI e AsyncAPI validados, e a coleção do Postman executada contra o servidor no ar.' },
     { nome: 'Navegador real', detalhe: 'O E2E joga pela interface contra o mesmo container que vai para produção.' },
 ];

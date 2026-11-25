@@ -56,11 +56,12 @@ class Partida:
 
     def _aplicar_aposta(self, jogador, valor):
         # Espelha GameController.apostar(): 0..numCartas, e pro último a
-        # apostar, não pode fechar a soma no total de cartas da rodada.
+        # apostar, não pode fechar a soma no total de cartas da rodada -- menos
+        # na rodada de 1 carta, em que só sobraria um valor possível.
         num_cartas = self.rodada.round
         if not isinstance(valor, int) or valor < 0 or valor > num_cartas:
             raise ValueError(f"aposta inválida do assento {jogador.id}: fora de 0..{num_cartas} (valor={valor!r})")
-        if self._eh_ultimo_a_apostar(jogador) and self._soma_apostas_dos_outros(jogador) + valor == num_cartas:
+        if num_cartas > 1 and self._eh_ultimo_a_apostar(jogador) and self._soma_apostas_dos_outros(jogador) + valor == num_cartas:
             raise ValueError(f"aposta inválida do assento {jogador.id}: fecharia a soma da rodada (valor={valor})")
         jogador.aposta = valor
 
