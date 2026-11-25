@@ -13,11 +13,24 @@ Legenda: 🔴 atrapalha jogar / bug · 🟡 falta informação, robustez · 🟢
 ### Mobile (meetfront1)
 
 - [ ] 🟡 Animações contra manilha.
-- [ ] 🔴 Em partidas longas a destruição da mesa buga.
+- [ ] 🔴 **Destruição da mesa em partida longa** (`public/app/src/index.css`) —
+      correção em `e2c0d27` (z-index isolado). Falta confirmar na tela, no PC e
+      no celular; confirmado, remover.
+- [ ] 🟡 **Cartas para fora da borda com 5–6 jogadores** (`zonasPouso.js`) —
+      relatório 5.4; os números da zona não mudaram desde então. Ver na tela.
+- [ ] 🟡 **Celular deitado cai no layout de PC** (`modoMobile.js`) — o corte é só
+      `max-width: 639px`. Relatório 5.5: a caixa cobre o Apostar e a mão.
+- [ ] 🟢 **Hover preso no toque** (`meetfront1.css`, `.mesa-exp-sua-mao-carta:hover`)
+      — sem `@media (hover: hover)`. Relatório 5.7; ver no aparelho.
 
 ### Desempenho
 
-- [ ] 🟢 Colocar skills relevantes de otimização
+- [ ] 🟢 Colocar skills relevantes de otimização (sem critério de pronto: definir
+      quais).
+- [ ] 🟢 **Zap mede o DOM em `zapCanvas.js`** — `getBoundingClientRect` e
+      `getComputedStyle` (relatório 4.4: por quadro). A classe
+      `mf1-choque-franjas-N` (`FiltroTela.jsx`) não tem CSS. Medir no aparelho.
+
 ### Motor, bots e produção
 
 - [ ] 🟡 **Rede de RL só treinou com 4 assentos** (`bots/BotBrain.js`,
@@ -74,23 +87,55 @@ não parece compensar o ganho agora.
 
 ## Front da mesa — o que falta na Partida
 
-tela de espera de sala as vezes bugado
+Números como 3.1 são de `docs/relatorio-bugs-dev.md`, onde estão a causa e a
+correção sugerida. Nos itens numerados, o código foi relido em 2026-11-24 e
+não se achou correção; o sintoma não foi reproduzido de novo.
 
+### Sala de espera
 
-timer bugado
+Relatos: "tela de espera de sala às vezes bugado", "sala de espera meio bugada".
 
-colisão do manilha só na carta de baixo
+- [ ] 🔴 **Contagem não para quando alguém sai da sala cheia** (3.1) —
+      `removerJogador` (`game/GameController.js`) cancela sem avisar; a tela só
+      olha `segundosParaIniciar`.
+- [ ] 🔴 **Queda de rede na espera deixa a tela surda** (3.2) — o servidor tira o
+      jogador (`conexao/socketServer.js`); `Partida.jsx` só ressincroniza com a
+      partida iniciada.
+- [ ] 🟡 **"SAIR DA FILA" por cima de "SALA" no celular** (3.5) — a raiz da espera
+      em `MesaExperimento.jsx` não recebe `mf1-mobile`.
+- [ ] 🟡 **F5 na espera tira da sala sem aviso** (3.6) — o front não guarda a sala;
+      `minhaSalaAtiva` só cobre partida em andamento.
+- [ ] 🟢 **Contagem só local** (3.7) — `setTimeout` de 1 s encadeado em
+      `Partida.jsx`; atrasa em aba travada.
 
-sala de esprea meio bugada
+### Timer
 
-ouros muito bugado no pc
+Relato: "timer bugado".
 
-card quando você morre some web
+- [ ] 🟡 **Pavio parado em 0 depois de queda no meio da partida** (3.3) —
+      `ressincronizar` (`Partida.jsx`) não mexe em `prazoTurno`.
+- [ ] 🟡 **Seu timer não aparece depois de F5 no seu turno** (3.4) —
+      `estadoDeReconexao` (`game/GameController.js`) não devolve o prazo.
+- [ ] 🟢 **Erro `null.setAttribute/style` no console** (1.7) — `TimerNome` e
+      o pavio (`MesaExperimento.jsx`) usam o ref no `passo` sem checar.
 
-Z DAS DESTRUIÇÕES DEPOIS DE MUITO TEMPO
+### Mesa e cartas
 
-tamanho carta 1 rodada , web
+- [ ] 🔴 **Ouros muito bugado no PC** (4.2) — suspeito: o `translate` em
+      `.mesa-exp-mesa` (`meetfront2.css`) desloca os `position: fixed` de dentro.
+- [ ] 🟡 **Card some quando você morre (web)** (5.1) — `SeuFantasminha`
+      (`MesaExperimento.jsx`) devolve `null` em `'morto'`.
+- [ ] 🟡 **Colisão da manilha só na carta de baixo** (4.3) — não reproduzido;
+      suspeito: `Z_CARTA_SIMULADA_POUSADA = 1` (`MesaDanificada.jsx`). Confirmar
+      com quem reportou.
+- [ ] 🟡 **Tamanho da carta na 1ª rodada (web)** (5.3) — provável: cartas
+      reveladas dos outros, `scale: 1.35` em `meetfront2.css`. Confirmar qual
+      carta era.
+- [ ] 🟡 **Mão fantasma** (1.6) — carta na mão local que o servidor não tem:
+      `jogarCartaClicada` (`Partida.jsx`) falha em silêncio. Causa da dessincronia
+      não encontrada.
 
+### Comparação com o arcade
 
 Comparação da tela de partida atual com a do **arcade**
 (`components/arcade/Partida.jsx`, na branch `StashedFronts`). Só entra aqui
@@ -121,7 +166,8 @@ regra, visual ardósia). Layout de celular (`meetfront1/modoMobile.js`).
       na tela (toast/faixa no estilo arcade).
 - [ ] 🔴 **Partida abortada** (`partidaAbortada`) — só vira `erro`, que não
       aparece: a mesa trava sem explicação. Arcade tem tela "PARTIDA
-      INTERROMPIDA" com o motivo + "Voltar às salas".
+      INTERROMPIDA" com o motivo + "Voltar às salas". Sair dela ainda oferece
+      RECONECTAR numa sala encerrada (`sair` em `Partida.jsx` só olha `vencedor`).
 - [ ] 🟡 **Você eliminado / assistindo** — nenhum sinal de que você está
       fora (arcade troca a dica por "VOCÊ ESTÁ FORA — ASSISTINDO").
 - [ ] 🟡 **Vazas feitas x aposta legível de relance** — as cartas pousadas
@@ -135,7 +181,8 @@ regra, visual ardósia). Layout de celular (`meetfront1/modoMobile.js`).
 - [ ] 🟡 **Expulso por inatividade** — manda direto pra Lobby. Arcade abre
       modal "VOCÊ SAIU DA MESA" com RECONECTAR ali mesmo.
 - [ ] 🟡 **Jogada automática por timeout** (`jogadaAutomatica`) — só vai pro
-      histórico; nenhum aviso na mesa.
+      histórico; nenhum aviso na mesa. O timeout de **aposta** nem emite o evento
+      (`_aguardarApostaOuTimeout`).
 - [ ] 🟢 **Dica do bot** — arcade tem (`sugestaoBot` + `dicaBot.js`); aqui
       entraria como contorno na carta da mão e no número do popup de aposta.
 - [ ] 🟢 **Sons** — só o tique da contagem toca; arcade toca `somArcade.js`
@@ -143,13 +190,11 @@ regra, visual ardósia). Layout de celular (`meetfront1/modoMobile.js`).
 
 ### Fim de partida
 
-- [ ] 🔴 **Sem "Voltar às salas" na tela de vitória** — só "Jogar de novo"
-      (adm) e "Não" do convite; quem não é adm e não recebeu convite só sai
-      pelo "Sair" do cabeçalho.
-- [ ] 🟡 "Jogar de novo" sem estado de carregando (`criandoRevanche` existe
-      na Partida mas não chega na mesa) — dá pra clicar duas vezes.
 - [ ] 🟢 "Agora não" no convite: arcade só fecha o convite e continua na
       tela; aqui "Não" já sai da sala.
+- [ ] 🟡 **Aceitar revanche de sala já desfeita** (`aceitarConviteRevanche`,
+      `Partida.jsx`) — sai da sala antiga antes de entrar na nova; se falhar,
+      cai na Lobby e o erro se perde. Lido no código, não reproduzido.
 
 ---
 
@@ -167,9 +212,7 @@ Numeração mantida pra rastreabilidade com discussões/commits anteriores.
 - [ ] 🟢 **56** — `GameStart.js` roda `npm install` toda vez sem checar
   `node_modules`, e não repassa `SIGINT` pro processo filho (causa direta
   da porta 3000 ficando presa depois de um Ctrl+C mal-sucedido).
-- [ ] 🔴 **57** - groke atualiza o read me minha filha 
 
 46 (observabilidade básica) é o mais barato de resolver a seguir. 48 é
 decisão de arquitetura maior, fica documentado como débito técnico
 consciente.
- 
